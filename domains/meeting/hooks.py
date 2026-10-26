@@ -59,10 +59,16 @@ def _persist_memory(
     understanding: dict[str, Any] | None = None,
     meeting_time: str = "",
     bind: Any = None,
+    extra: dict[str, Any] | None = None,
 ) -> Any:
-    """跑完回写：抽取本次会议事实并入 registry / 场次状态 / 向量索引。"""
+    """跑完回写：抽取本次会议事实并入 registry / 场次状态 / 向量索引。
+
+    ``extra`` 由引擎在 done 事件中透传（minutes 的 drafts / has_valid_agenda /
+    agenda_titles / degraded_by_line）；议题模式用它改用已批准草稿建事实。
+    """
     if not str(user_id or "").strip():
         return None
+    payload = extra or {}
     return persist_after_run(
         Path(project_root),
         user_id,
@@ -73,6 +79,10 @@ def _persist_memory(
         understanding or {},
         meeting_time=meeting_time,
         bind=bind,
+        drafts=payload.get("drafts"),
+        degraded_by_line=payload.get("degraded_by_line"),
+        has_valid_agenda=bool(payload.get("has_valid_agenda")),
+        agenda_titles=payload.get("agenda_titles"),
     )
 
 

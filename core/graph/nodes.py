@@ -1169,6 +1169,7 @@ class DomainNodes:
                 "gate_by_line": {},
                 "pipeline": self._pipeline_by_line(state, line_names),
                 "understanding": self._understanding(state),
+                **self._memory_done_context(initial_state, line_names),
             }
             return
 
@@ -1240,6 +1241,39 @@ class DomainNodes:
             or state.get("notes_understanding")
             or {},
             "memory_bind": memory_bind,
+            **self._memory_done_context(state, line_names),
+        }
+
+    def _memory_done_context(self, state: dict, line_names: list[str]) -> dict:
+        """done 事件里的记忆回写上下文（仅 minutes 请求产出）。
+
+        议题模式单线会短路 meeting_understanding，持久化需要改用已批准草稿。
+        这里只把结构化草稿、降级标记、议程标题带给域侧 hooks；普通纪要路径
+        的持久化仍按 understanding 走，不受影响。
+        """
+        if "minutes" not in line_names:
+            return {}
+        # 只透传 minutes 的草稿：持久化只消费这一条，避免多线请求把
+        # actions/risks 的草稿也塞进 done 事件。
+        drafts = {"minutes": line(state, "minutes").get("draft")}
+        degraded_by_line = {
+            "minutes": bool(line(state, "minutes").get("degraded"))
+        }
+        agenda_titles: list[str] = []
+        for item in state.get("valid_agendas") or []:
+            if isinstance(item, dict):
+                title = str(
+                    item.get("title") or item.get("agenda_title") or ""
+                ).strip()
+            else:
+                title = str(getattr(item, "title", "") or "").strip()
+            if title and title not in agenda_titles:
+                agenda_titles.append(title)
+        return {
+            "drafts": drafts,
+            "degraded_by_line": degraded_by_line,
+            "has_valid_agenda": bool(state.get("has_valid_agenda")),
+            "agenda_titles": agenda_titles,
         }
 
     def _pipeline_by_line(self, state: dict, line_names: list[str]) -> dict:

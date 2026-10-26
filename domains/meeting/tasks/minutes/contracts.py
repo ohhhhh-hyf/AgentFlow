@@ -66,6 +66,31 @@ class MinutesSupervisorContract(SupervisorContract):
 MINUTES_GENERATION_OUTPUT_CONTRACT = MinutesGenerationContract.to_output_contract()
 MINUTES_SUPERVISOR_OUTPUT_CONTRACT = MinutesSupervisorContract.to_output_contract()
 
+# 议题模式专用输出契约（普通字符串，不新增 *GenerationContract 子类，
+# 避免 sync_domain 生成多余模型）。
+# 与共享契约的关键差异：
+# - 不出现「个人模式下……」的字段说明；
+# - 不出现「来自 MeetingUnderstanding……」的上游搬运说明；
+# - 字段含义只描述议程模式下的 schema 语义，不夹带示例或写法引导。
+MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT = """{
+  "headline": "",
+  "executive_summary": [],
+  "key_decisions": [],
+  "personally_relevant_points": [],
+  "risks_and_blockers": [],
+  "unresolved_questions": [],
+  "history_comparison": []
+}
+
+字段说明：
+- headline：会议纪要标题
+- executive_summary：正文研讨（按审定议题或业务模块组织；关键事实、量化指标与结论完整）
+- key_decisions：决策（现场明确拍板的最终决议；每条独立完整）
+- personally_relevant_points：执行要点（有明确分工则写，无则 []；交代责任人、任务、交付物与时限）
+- risks_and_blockers：风险与卡点（现场明确提出的技术瓶颈、外部依赖与交付阻碍）
+- unresolved_questions：未决问题（现场悬而未决、待澄清、待确认事项）
+- history_comparison：与历史对比（底层自动装配，默认 []）"""
+
 # 降级拼装规则（声明式类）：fallback 节点由 sync_domain.py 检测子类后生成
 class MinutesFallbackRules(FallbackRules):
     """纪要降级拼装：headline + 5 段（带标签）+ 免责声明。"""
@@ -91,6 +116,7 @@ MINUTES_FALLBACK_RULES = MinutesFallbackRules()
 
 __all__ = [
     "MINUTES_GENERATION_OUTPUT_CONTRACT",
+    "MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT",
     "MINUTES_SUPERVISOR_OUTPUT_CONTRACT",
     "MINUTES_FALLBACK_RULES",
 ]

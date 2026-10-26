@@ -1,20 +1,12 @@
 from __future__ import annotations
 
-from core.execution.hard_execution import (
-    is_agenda_enhanced_mode,
-    parse_perspective_mode,
-    parse_lang_mode,
-)
+from core.execution.hard_execution import parse_lang_mode
 from domains.shared.supervisor import GlobalSupervisor, StructuredDomainSupervisor
 
 from ....models import MinutesSupervisorReview
 from ..contracts import MINUTES_SUPERVISOR_OUTPUT_CONTRACT
-from ..prompts import (
-    MINUTES_AGENDA_SUPERVISOR_PROMPT,
-    MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
-    MINUTES_PERSONAL_SUPERVISOR_PROMPT,
-    MINUTES_SUPERVISOR_DOMAIN_PROMPT,
-)
+from ..prompt_map import minutes_prompt_set, prompt_label, resolve_prompt_view
+from ..prompts import MINUTES_SUPERVISOR_DOMAIN_PROMPT
 
 
 class MinutesGenerationSupervisor(StructuredDomainSupervisor):
@@ -32,17 +24,10 @@ class MinutesGenerationSupervisor(StructuredDomainSupervisor):
     extra_kwargs = {"max_tokens": 3000}
 
     async def review(self, context: str, *, lang: str | None = None) -> MinutesSupervisorReview:
-        mode = parse_perspective_mode(context)
-        is_agenda = is_agenda_enhanced_mode(context)
-        if is_agenda:
-            raw_domain_prompt = MINUTES_AGENDA_SUPERVISOR_PROMPT
-            label_mode = "agenda"
-        elif mode == "personal":
-            raw_domain_prompt = MINUTES_PERSONAL_SUPERVISOR_PROMPT
-            label_mode = "personal"
-        else:
-            raw_domain_prompt = MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
-            label_mode = "objective"
+        view = resolve_prompt_view(context)
+        prompt_set = minutes_prompt_set(view)
+        raw_domain_prompt = prompt_set.supervisor
+        label_mode = prompt_label(view)
 
         lang_val = lang or parse_lang_mode(context)
         if (lang_val or "").strip().lower() == "en":

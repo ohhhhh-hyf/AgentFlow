@@ -523,6 +523,14 @@ async def run(
                         understanding=event.get("understanding") or {},
                         meeting_time=meeting_time,
                         bind=event.get("memory_bind") or memory_bind,
+                        extra={
+                            "drafts": event.get("drafts") or {},
+                            "degraded_by_line": event.get("degraded_by_line") or {},
+                            "has_valid_agenda": bool(
+                                event.get("has_valid_agenda")
+                            ),
+                            "agenda_titles": event.get("agenda_titles") or [],
+                        },
                     )
     except Exception as exc:
         run_error = exc

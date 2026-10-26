@@ -1224,6 +1224,10 @@ async def iter_task_events(
                         event.get("understanding") or {},
                         meeting_time=p.time,
                         bind=event.get("memory_bind"),
+                        drafts=event.get("drafts") or {},
+                        degraded_by_line=event.get("degraded_by_line") or {},
+                        has_valid_agenda=bool(event.get("has_valid_agenda")),
+                        agenda_titles=event.get("agenda_titles") or [],
                     )
                 elif prep.memory_enabled and prep.memory_bind is not None:
                     from domains.notes.memory.runtime import persist

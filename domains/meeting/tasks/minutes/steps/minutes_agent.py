@@ -4,20 +4,25 @@ from infra.llm import LLMClient
 from core.execution.hard_execution import (
     enforce_minutes_draft,
     extract_labeled_json,
-    is_agenda_enhanced_mode,
     parse_perspective_mode,
     parse_lang_mode,
 )
 from ....models import Minutes
 from ..prompts import (
     KEYPOINTS_PROMPT_BLOCK,
-    MINUTES_AGENDA_GENERATION_PROMPT,
-    MINUTES_OBJECTIVE_GENERATION_PROMPT,
-    MINUTES_PERSONAL_GENERATION_PROMPT,
     NOTES_PROMPT_BLOCK,
     VISION_PROMPT_BLOCK,
 )
-from ..contracts import MINUTES_GENERATION_OUTPUT_CONTRACT
+from ..prompt_map import (
+    is_agenda_view,
+    minutes_prompt_set,
+    prompt_label,
+    resolve_prompt_view,
+)
+from ..contracts import (
+    MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT,
+    MINUTES_GENERATION_OUTPUT_CONTRACT,
+)
 
 
 def _extract_transcript(shared_context: str) -> str:
@@ -89,16 +94,11 @@ class MinutesGenerationAgent:
         source_transcript: str = "",
     ) -> Minutes:
         mode = parse_perspective_mode(shared_context)
-        is_agenda = is_agenda_enhanced_mode(shared_context)
-        if is_agenda:
-            raw_system_prompt = MINUTES_AGENDA_GENERATION_PROMPT
-            label_mode = "agenda"
-        elif mode == "personal":
-            raw_system_prompt = MINUTES_PERSONAL_GENERATION_PROMPT
-            label_mode = "personal"
-        else:
-            raw_system_prompt = MINUTES_OBJECTIVE_GENERATION_PROMPT
-            label_mode = "objective"
+        view = resolve_prompt_view(shared_context, mode=mode)
+        prompt_set = minutes_prompt_set(view)
+        is_agenda = is_agenda_view(view)
+        raw_system_prompt = prompt_set.generation
+        label_mode = prompt_label(view)
 
         aux_blocks = []
         if "【用户核心关键点】" in shared_context:
@@ -131,11 +131,16 @@ class MinutesGenerationAgent:
         else:
             system_prompt = raw_system_prompt
 
+        output_contract = (
+            MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT
+            if is_agenda
+            else MINUTES_GENERATION_OUTPUT_CONTRACT
+        )
         raw = await self.client.structured(
             system_prompt,
             shared_context,
             Minutes,
-            MINUTES_GENERATION_OUTPUT_CONTRACT,
+            output_contract,
             label=f"minutes/agent/{label_mode}",
         )
         understanding = extract_labeled_json(shared_context, "会议理解")

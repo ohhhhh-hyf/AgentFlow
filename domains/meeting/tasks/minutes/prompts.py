@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-from core.templates.body_rules import BODY_FORMAT_RULES
 from core.templates.template_prompt import build_template_render_prompt
 
 # ── 双轨共享公共基底 ──────────────────────────────────────────────────────────
@@ -209,6 +208,26 @@ _SUPERVISOR_COMMON_BASE = """## 领域审核规则：纪要生成
   • 辅助材料额外违规判定：若正文直接泄露【用户划线原话与笔记】中的批注或主观吐槽，亦判定为缺陷 reject。
 - **Findings 记录规范**：每个检查项 findings 仅限列出最核心的 1~3 条严重缺陷，单条不超过 100 字；未发现严重缺陷时必须给空数组 []。"""
 
+# ── 议题审核公共基底（Step 3：去掉议程模式下不成立的上游搬运假设）──────────
+# 普通 objective/personal 继续使用 _SUPERVISOR_COMMON_BASE，行为不变。
+# 议程模式：
+# - key_decisions / risks / unresolved 由模型从 tagged transcript 提炼，且送审稿
+#   已被程序剔除，不能再声称“上游事实搬运、程序已保障”；
+# - v1 记忆策略是 skip purge，不能再声称“底层自动归入往期沿革”。
+_AGENDA_SUPERVISOR_COMMON_BASE = _SUPERVISOR_COMMON_BASE.replace(
+    "- **搬运项免审**：key_decisions / risks_and_blockers / unresolved_questions "
+    "为上游事实搬运项，由底层程序 enforce_minutes_draft 强行保障完整性，无需重复审查。",
+    "- **本轮送审范围**：本轮送审稿已由程序剔除 key_decisions / risks_and_blockers / "
+    "unresolved_questions；审阅重点放在 executive_summary / personally_relevant_points，"
+    "核对事实、参数、归属与议题覆盖。",
+).replace(
+    "- **历史记忆隔离审查**：模型在草稿生成阶段无需编写 history_comparison（统一交空列表 []），"
+    "底层系统会在后置校验中自动识别并将未重申的旧决策归入往期沿革。"
+    "审查时重点关注 key_decisions 是否混入了本次未讨论的历史拍板事项，若存在则提示修订。",
+    "- **历史记忆审查**：历史记忆由上游注入；本轮不做自动决策迁移。"
+    "若正文把往期决策写成本场新决策，或把本场决议写成往期沿革，请指出。",
+)
+
 # ── 客观审核提示词 ────────────────────────────────────────────────────────────
 _OBJECTIVE_SUPERVISOR_RULES = """### 客观模式审查专项
 1. **行文与立场规范**：
@@ -243,7 +262,7 @@ _AGENDA_SUPERVISOR_RULES = """### 审定议题模式审查专项
    - 决议项以事项名称为主干陈述最终决议，去口头前缀属于公文规范，予以认可并放行；
    - 未发现关键事实严重错误时，一律予以 approve 放行。"""
 
-MINUTES_AGENDA_SUPERVISOR_PROMPT = _SUPERVISOR_COMMON_BASE + "\n\n" + _AGENDA_SUPERVISOR_RULES
+MINUTES_AGENDA_SUPERVISOR_PROMPT = _AGENDA_SUPERVISOR_COMMON_BASE + "\n\n" + _AGENDA_SUPERVISOR_RULES
 
 # 兼容别名
 MINUTES_SUPERVISOR_DOMAIN_PROMPT = MINUTES_OBJECTIVE_SUPERVISOR_PROMPT

@@ -31,8 +31,9 @@ class DomainHooks:
       subject, meeting_time, request_id) -> (bind, line_extra)``
       ——失败应自行吞掉并返回 ``(None, {})``。
     - ``persist_memory(*, project_root, domain, user_id, project_id, request_id, subject,
-      transcript, reports, understanding, meeting_time, bind) -> Any``
-      ——返回值由域自定义，引擎不解释。
+      transcript, reports, understanding, meeting_time, bind, extra) -> Any``
+      ——返回值由域自定义，引擎不解释；``extra`` 为 done 事件透传的域扩展数据
+      （如 meeting 的 drafts / has_valid_agenda / agenda_titles）。
     - ``inject_line_extra(state, line_name, *, line_extra=None) -> Any``
       ——引擎按属性读 ``context`` / ``bind`` / ``warning`` / ``comparison``。
     - ``apply_citations(text, context, *, comparison=None) -> str``

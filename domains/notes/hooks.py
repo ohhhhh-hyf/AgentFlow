@@ -50,7 +50,10 @@ def _persist_memory(
     understanding: dict[str, Any] | None = None,
     meeting_time: str = "",
     bind: Any = None,
+    extra: dict[str, Any] | None = None,
 ) -> Any:
+    # ``extra`` 是 meeting 域草稿回写的上下文；notes 域忽略。
+    del extra
     if bind is None:
         return None
     return persist(

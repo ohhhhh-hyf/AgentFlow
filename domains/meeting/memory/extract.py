@@ -431,6 +431,65 @@ def _meeting_id(request_id: str, transcript: str) -> str:
     return f"m_{digest}"
 
 
+def extract_agenda_meeting_fact(
+    valid_agendas: Any,
+    transcript: str,
+    *,
+    request_id: str = "",
+    time: str = "",
+) -> MeetingFact:
+    """议题模式：用 valid_agendas 给 current_fact 补 topics/anchors/summary。
+
+    纯程序投影，不调 LLM；不改变 ``extract_meeting_fact`` 的默认行为。
+    普通 minutes / minutes_styles 仍走原 understanding 事实。
+    """
+    base = extract_meeting_fact(
+        {},
+        transcript,
+        request_id=request_id,
+        time=time,
+    )
+    items: list[dict[str, Any]] = []
+    for item in valid_agendas or []:
+        if isinstance(item, dict):
+            title = str(item.get("title") or item.get("agenda_title") or "").strip()
+            raw_presenters = item.get("presenters") or item.get("speaker") or []
+        else:
+            title = str(getattr(item, "title", "") or "").strip()
+            raw_presenters = getattr(item, "presenters", None) or []
+        if not title:
+            continue
+        if isinstance(raw_presenters, str):
+            presenters = [raw_presenters.strip()] if raw_presenters.strip() else []
+        else:
+            presenters = [
+                str(p).strip() for p in (raw_presenters or []) if str(p).strip()
+            ]
+        items.append({"title": title, "presenters": presenters})
+
+    if not items:
+        return base
+
+    titles = [item["title"] for item in items]
+    presenters = [p for item in items for p in item["presenters"]]
+    base.summary = "议题：" + "；".join(titles[:5])
+    base.topics = [
+        {
+            "topic_id": "",
+            "module": "",
+            "title": item["title"],
+            "decisions": [],
+            "actions": [],
+            "risks": [],
+            "open_issues": [],
+        }
+        for item in items
+    ]
+    # anchors 是 _relevance 的主要检索词；标题/汇报人让相关历史条目得分。
+    base.anchors = list(dict.fromkeys([*base.anchors, *titles, *presenters]))
+    return base
+
+
 def extract_meeting_fact(
     understanding: dict[str, Any] | None,
     transcript: str,
@@ -491,4 +550,127 @@ def extract_meeting_fact(
     )
 
 
-__all__ = ["MeetingFact", "extract_meeting_fact"]
+_AGENDA_HEADING_RE = re.compile(
+    r"^###\s*[一二三四五六七八九十百\d]+[.、]\s*(.+?)\s*$"
+)
+
+
+def _draft_agenda_titles(
+    draft: dict[str, Any],
+    agenda_titles: list[str] | None,
+) -> list[str]:
+    """草稿议题标题：优先用编排层给的法定清单，否则解析 executive_summary 标题。"""
+    titles: list[str] = []
+    for raw in agenda_titles or []:
+        title = _clean(raw).strip("[]")
+        if title and title not in titles:
+            titles.append(title)
+    if titles:
+        return titles
+    raw_summary = draft.get("executive_summary")
+    if not isinstance(raw_summary, list):
+        return titles
+    for item in raw_summary:
+        if not isinstance(item, str):
+            continue
+        # 注意：不能用 _str_list/_clean——它们会把换行压成空格，
+        # 导致 "### 一. 标题\n- 正文" 被当成一个标题行吞掉后续正文。
+        for line in item.splitlines():
+            match = _AGENDA_HEADING_RE.match(line.strip())
+            if not match:
+                continue
+            title = _clean(match.group(1)).strip("[]")
+            if title and title not in titles:
+                titles.append(title)
+    return titles
+
+
+def extract_meeting_fact_from_minutes_draft(
+    draft: dict[str, Any] | None,
+    *,
+    agenda_titles: list[str] | None = None,
+    transcript: str = "",
+    request_id: str = "",
+    time: str = "",
+) -> MeetingFact:
+    """议题模式：用已批准草稿的 7 字段构建 MeetingFact。
+
+    只在「understanding 无实质事实 + has_valid_agenda + 草稿未降级」时由
+    ``persist_after_run`` 调用；普通 minutes / minutes_styles 仍走
+    ``extract_meeting_fact``。
+    """
+    data = draft if isinstance(draft, dict) else {}
+    decisions = _str_list(data.get("key_decisions"))
+    open_items = _str_list(data.get("unresolved_questions"))
+    risks = _str_list(data.get("risks_and_blockers"))
+    action_texts = _str_list(data.get("personally_relevant_points"))
+    action_items = [
+        {"text": text, "owner": "", "timing": ""} for text in action_texts
+    ]
+    summary_lines = _str_list(data.get("executive_summary"))
+    headline = _clean(data.get("headline"))
+    titles = _draft_agenda_titles(data, agenda_titles)
+
+    topics = [
+        {
+            "topic_id": "",
+            "module": "",
+            "title": title,
+            "decisions": [],
+            "actions": [],
+            "risks": [],
+            "open_issues": [],
+        }
+        for title in titles
+    ]
+    understanding_like: dict[str, Any] = {
+        "meeting_purpose": summary_lines[0] if summary_lines else "",
+        "decisions": decisions,
+        "open_questions": open_items,
+        "risks": risks,
+        "topics": topics,
+    }
+    title = headline or (titles[0] if titles else "")
+    if not title:
+        title = _meeting_title(understanding_like, transcript)
+    summary = summary_lines[0] if summary_lines else _summary(understanding_like)
+    anchors = _anchor_candidates(understanding_like, transcript)
+    if title and title not in anchors:
+        anchors.insert(0, title)
+    if not anchors:
+        anchors = list(titles)
+    project_candidates = _project_candidates(
+        transcript, understanding_like, title
+    )
+    time_val = (time or "").strip()
+    return MeetingFact(
+        meeting_id=_meeting_id(request_id, transcript),
+        time=time_val,
+        time_source="user" if time_val else "unknown",
+        title=title,
+        summary=summary,
+        anchors=anchors,
+        project_candidates=project_candidates,
+        decisions=decisions,
+        open_items=open_items,
+        action_items=action_items,
+        risks=risks,
+        closed_items=[],
+        quotes=_quotes(
+            transcript,
+            decisions,
+            open_items,
+            risks,
+            [],
+            action_items,
+        ),
+        topics=topics,
+    )
+
+
+__all__ = [
+    "MeetingFact",
+    "extract_agenda_meeting_fact",
+    "extract_meeting_fact",
+    "extract_meeting_fact_from_minutes_draft",
+]

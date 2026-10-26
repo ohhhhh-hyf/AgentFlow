@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 from .bind import BindResult, bind_meeting
-from .extract import MeetingFact, extract_meeting_fact
+from .extract import (
+    MeetingFact,
+    extract_agenda_meeting_fact,
+    extract_meeting_fact,
+    extract_meeting_fact_from_minutes_draft,
+)
 from .inject import build_memory_context
 from .runtime import InjectResult, build_line_extra, persist_after_run, resolve_bind
 from .store import (
@@ -22,7 +27,9 @@ __all__ = [
     "bind_meeting",
     "build_line_extra",
     "build_memory_context",
+    "extract_agenda_meeting_fact",
     "extract_meeting_fact",
+    "extract_meeting_fact_from_minutes_draft",
     "load_registry",
     "load_state",
     "meeting_root",

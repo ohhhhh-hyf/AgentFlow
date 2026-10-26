@@ -20,7 +20,12 @@ from .bind import (
 # 私有判定（同包共用）：module 并入 registry anchors 前的泛词/畸形过滤，
 # 与绑定侧锚点分类同源，避免把"会议""复盘"这类泛词写进项目锚点。
 from .bind import _is_generic_anchor, _looks_malformed_anchor
-from .extract import MeetingFact, extract_meeting_fact
+from .extract import (
+    MeetingFact,
+    extract_agenda_meeting_fact,
+    extract_meeting_fact,
+    extract_meeting_fact_from_minutes_draft,
+)
 from .inject import build_memory_context
 from .state import backfill_meeting_titles, rebuild_state, sort_project_meetings
 from .store import (
@@ -31,6 +36,7 @@ from .store import (
     save_registry,
     save_state,
 )
+from core.runner.profiles import resolve_profile_mode
 
 logger = logging.getLogger(__name__)
 
@@ -347,6 +353,20 @@ def _merge_registry_project(project: dict[str, Any], fact: MeetingFact, stamp: s
     project["updated_at"] = stamp
 
 
+def _memory_perspective_mode(state: dict[str, Any]) -> str:
+    """记忆注入使用的真实视角模式（1.3C）。
+
+    ``line_modes`` 是 minutes_styles 的 style（brief/topic/...），不是
+    perspective mode；记忆收窄必须按真实 profile 判断。
+    """
+    if bool(state.get("objective_perspective")):
+        return "objective"
+    user = state.get("user") or {}
+    if not isinstance(user, dict) and hasattr(user, "model_dump"):
+        user = user.model_dump()
+    return resolve_profile_mode(user if isinstance(user, dict) else {})
+
+
 def build_line_extra(
     state: dict[str, Any],
     line_name: str,
@@ -363,12 +383,28 @@ def build_line_extra(
     project_root = Path(meta.get("project_root") or ".")
     user_id = meta["user_id"]
     transcript = str(state.get("transcript") or "")
-    fact = extract_meeting_fact(
-        state.get("meeting_understanding") or {},
-        transcript,
-        request_id=meta.get("request_id") or "",
-        time=meta.get("time") or "",
-    )
+    if line_name == "minutes" and state.get("has_valid_agenda"):
+        # 议题模式没有 meeting_understanding；用 valid_agendas 给 current_fact
+        # 提供 topics/anchors，避免历史记忆相关度排序退化为“最近场次”。
+        # 严格门禁到 minutes，minutes_styles 仍走原 understanding 事实。
+        fact = extract_agenda_meeting_fact(
+            state.get("valid_agendas") or [],
+            transcript,
+            request_id=meta.get("request_id") or "",
+            time=meta.get("time") or "",
+        )
+        logger.info(
+            "[memory:fact] line=minutes agenda topics=%d anchors=%d",
+            len(fact.topics),
+            len(fact.anchors),
+        )
+    else:
+        fact = extract_meeting_fact(
+            state.get("meeting_understanding") or {},
+            transcript,
+            request_id=meta.get("request_id") or "",
+            time=meta.get("time") or "",
+        )
     registry = load_registry(project_root, user_id)
     meetings = list_meetings(project_root, user_id)
     bind = resolve_bind(registry, fact, meta.get("project") or "", user_id, meetings)
@@ -381,7 +417,14 @@ def build_line_extra(
         return InjectResult(bind=bind, warning=warning)
     state_doc = backfill_meeting_titles(state_doc, meetings)
     user = state.get("user") or {}
-    mode = (state.get("line_modes") or {}).get(line_name) or "objective"
+    if not isinstance(user, dict) and hasattr(user, "model_dump"):
+        user = user.model_dump()
+    mode = _memory_perspective_mode(state)
+    logger.debug(
+        "[memory:mode] line=%s mode=%s source=profile",
+        line_name,
+        mode,
+    )
     context, comparison = build_memory_context(
         project_id=bind.project_id,
         project=project,
@@ -451,6 +494,55 @@ def _report_headline(reports: dict[str, Any], line: str) -> str:
     return ""
 
 
+_UNDERSTANDING_FACT_KEYS = (
+    "meeting_brief",
+    "meeting_purpose",
+    "session_segments",
+    "topics",
+    "decisions",
+    "risks",
+    "open_questions",
+    "action_hints",
+    "risk_hints",
+    "dependencies",
+    "speakers",
+)
+
+
+def _understanding_has_fact(understanding: dict[str, Any] | None) -> bool:
+    """议题模式短路后 understanding 是带默认键的空结构（含 scene="通用"），
+    不能简单用 ``not understanding`` 判断；只认真正承载事实的字段。"""
+    if not isinstance(understanding, dict):
+        return False
+    for key in _UNDERSTANDING_FACT_KEYS:
+        value = understanding.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+        if isinstance(value, (list, dict)) and value:
+            return True
+    return False
+
+
+def _draft_has_fact(draft: dict[str, Any] | None) -> bool:
+    """草稿是否至少有一个可写入记忆的实质字段。"""
+    if not isinstance(draft, dict):
+        return False
+    for key in (
+        "headline",
+        "executive_summary",
+        "key_decisions",
+        "personally_relevant_points",
+        "risks_and_blockers",
+        "unresolved_questions",
+    ):
+        value = draft.get(key)
+        if isinstance(value, str) and value.strip():
+            return True
+        if isinstance(value, list) and value:
+            return True
+    return False
+
+
 def persist_after_run(
     project_root: Path,
     user_id: str,
@@ -462,17 +554,49 @@ def persist_after_run(
     *,
     meeting_time: str = "",
     bind: BindResult | dict[str, Any] | None = None,
+    drafts: dict[str, Any] | None = None,
+    degraded_by_line: dict[str, Any] | None = None,
+    has_valid_agenda: bool = False,
+    agenda_titles: list[str] | None = None,
 ) -> dict[str, Any] | None:
     """Persist meeting fact. Headline is display-only and must not rebind identity."""
     if not (user_id or "").strip():
         return None
     try:
-        fact = extract_meeting_fact(
-            understanding or {},
-            transcript,
-            request_id=request_id,
-            time=meeting_time or "",
-        )
+        draft = (drafts or {}).get("minutes") if isinstance(drafts, dict) else None
+        degraded = bool((degraded_by_line or {}).get("minutes")) if isinstance(
+            degraded_by_line, dict
+        ) else False
+        if (
+            has_valid_agenda
+            and not _understanding_has_fact(understanding)
+            and not degraded
+            and _draft_has_fact(draft)
+        ):
+            # 议题模式单线：understanding 被短路，用已批准草稿回写结构化事实。
+            # 普通 minutes / minutes_styles 的 understanding 有事实，仍走原路径。
+            fact = extract_meeting_fact_from_minutes_draft(
+                draft,
+                agenda_titles=agenda_titles or [],
+                transcript=transcript,
+                request_id=request_id,
+                time=meeting_time or "",
+            )
+            logger.info(
+                "[memory:fact] persist line=minutes source=draft "
+                "decisions=%d risks=%d actions=%d topics=%d",
+                len(fact.decisions),
+                len(fact.risks),
+                len(fact.action_items),
+                len(fact.topics),
+            )
+        else:
+            fact = extract_meeting_fact(
+                understanding or {},
+                transcript,
+                request_id=request_id,
+                time=meeting_time or "",
+            )
         registry = load_registry(project_root, user_id)
         meetings = list_meetings(project_root, user_id)
         resolved: BindResult

@@ -3,18 +3,11 @@ from __future__ import annotations
 import re
 from collections.abc import AsyncIterator
 
-from core.execution.hard_execution import is_agenda_enhanced_mode, parse_perspective_mode, parse_lang_mode
+from core.execution.hard_execution import parse_lang_mode
 from core.runner.prompt_utils import build_render_prompt
 
 from infra.llm import LLMClient
-from ..prompts import (
-    MINUTES_AGENDA_RENDER_PROMPT,
-    MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
-    MINUTES_OBJECTIVE_RENDER_PROMPT,
-    MINUTES_PERSONAL_RENDER_PROMPT,
-    MINUTES_RENDER_PROMPT,
-    MINUTES_RENDER_TEMPLATE_PROMPT,
-)
+from ..prompt_map import minutes_prompt_set, resolve_prompt_view
 
 
 def compact_untemplated_minutes(text: str) -> str:
@@ -169,17 +162,10 @@ class MinutesGenerationRender:
         有模板时模板原样拼进用户消息（LLM 只替换占位符，其余逐字符保留）。
         无模板时，根据视角模式动态分发客观或个人渲染提示词。
         """
-        mode = parse_perspective_mode(context)
-        is_agenda = is_agenda_enhanced_mode(context)
-        if is_agenda:
-            untemplated_prompt = MINUTES_AGENDA_RENDER_PROMPT
-            template_prompt = MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
-        elif mode == "personal":
-            untemplated_prompt = MINUTES_PERSONAL_RENDER_PROMPT
-            template_prompt = MINUTES_RENDER_TEMPLATE_PROMPT
-        else:
-            untemplated_prompt = MINUTES_OBJECTIVE_RENDER_PROMPT
-            template_prompt = MINUTES_RENDER_TEMPLATE_PROMPT
+        view = resolve_prompt_view(context)
+        prompt_set = minutes_prompt_set(view)
+        untemplated_prompt = prompt_set.render
+        template_prompt = prompt_set.render_template
 
         lang_val = lang or parse_lang_mode(context)
         if (lang_val or "").strip().lower() == "en":
