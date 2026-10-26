@@ -9,11 +9,19 @@ import pytest
 
 from app.schemas import TaskRequest
 from app.tasks import ApiError, _prepare
-from core.execution.hard_execution import enforce_minutes_draft
+from core.execution.hard_execution import (
+    enforce_minutes_draft,
+    is_agenda_enhanced_mode,
+)
 from core.runner.profiles import resolve_profile_mode
 from domains.meeting.agenda_engine import ValidAgendaItem
 from domains.meeting.orchestrator import _Nodes
 from domains.meeting.tasks.agenda_minutes.alignment_engine import DiscussionBlock
+from domains.meeting.tasks.minutes.prompts import (
+    MINUTES_AGENDA_SUPERVISOR_PROMPT,
+    MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
+    MINUTES_PERSONAL_SUPERVISOR_PROMPT,
+)
 from domains.meeting.views import (
     AgendaPersonalUnsupported,
     VIEW_AGENDA_OBJECTIVE,
@@ -197,7 +205,7 @@ def _minutes_req(profile: str) -> TaskRequest:
     )
 
 
-def test_prepare_personal_agenda_rejected(
+def test_personal_agenda_400(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _prepare_fixture(tmp_path, monkeypatch)
@@ -207,7 +215,7 @@ def test_prepare_personal_agenda_rejected(
     assert "个人视角暂不支持议题增强模式" in exc.value.message
 
 
-def test_prepare_role_template_agenda_forces_objective(
+def test_role_template_agenda_objective(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _prepare_fixture(tmp_path, monkeypatch)
@@ -335,6 +343,91 @@ def test_agenda_supervisor_context_has_no_personal_blocks() -> None:
     assert "用户视角模型" not in context
     assert "【本用户命中】" not in context
     assert "【重点关注雷达】" not in context
+
+
+def test_agenda_supervisor_aux_rule() -> None:
+    """议程 supervisor 规则必须禁止辅助材料改变议题骨架。"""
+    prompt = MINUTES_AGENDA_SUPERVISOR_PROMPT
+    assert "### 辅助材料与议程骨架" in prompt
+    assert "辅助材料不得成为新增、删除、改名、重排议题或改变议题归属的依据" in prompt
+    assert "指出来自哪条辅助材料、应回到哪个议题" in prompt
+
+
+def test_agenda_supervisor_skeleton_revise_rule() -> None:
+    """决策指南必须包含议程骨架违规判定，且 .replace() 只命中一次。"""
+    prompt = MINUTES_AGENDA_SUPERVISOR_PROMPT
+    assert "议程骨架违规判定" in prompt
+    assert "优先 revise" in prompt
+    assert "返工点须具体到议题" in prompt
+    assert prompt.count("议程骨架违规判定") == 1
+
+
+def test_agenda_supervisor_skeleton_rule_not_in_normal() -> None:
+    """普通 objective/personal supervisor prompt 不得被议程规则污染。"""
+    for prompt in (
+        MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
+        MINUTES_PERSONAL_SUPERVISOR_PROMPT,
+    ):
+        assert "议程骨架违规判定" not in prompt
+        assert "### 辅助材料与议程骨架" not in prompt
+
+
+def test_agenda_supervisor_context_checklist() -> None:
+    """议程 supervisor context 必须带法定议题清单，且位于议题标记之后。"""
+    nodes = _Nodes()
+    state = _agenda_state(
+        user={"name": "开发人员", "persona_type": "role_template"}
+    )
+    context = nodes._supervisor_context(state, "minutes")
+    assert "【现场审定的有效议题清单】" in context
+    assert "1. 议题：自研芯片二期量产（汇报人：张三）" in context
+    assert context.index("议题模式：agenda_enhanced") < context.index(
+        "【现场审定的有效议题清单】"
+    )
+
+
+def test_agenda_supervisor_checklist_after_marker() -> None:
+    """15 个议题时，议题标记仍在前 20 行，清单不破坏议程模式识别。
+
+    15 个议题已足以在“清单被误放到标记之前”时把标记挤出前 20 行
+    （表头 3 行 + 空行 + 清单 16 行 + 空行 = 标记到第 22 行），
+    同时又贴近真实会议的议题规模。
+    """
+    nodes = _Nodes()
+    state = _agenda_state(
+        user={"name": "开发人员", "persona_type": "role_template"}
+    )
+    state["valid_agendas"] = [
+        ValidAgendaItem(seq=str(i), title=f"议题{i}", presenters=["张三"])
+        for i in range(1, 16)
+    ]
+    context = nodes._supervisor_context(state, "minutes")
+    marker_line = next(
+        (
+            i + 1
+            for i, line in enumerate(context.splitlines())
+            if line.strip() == "议题模式：agenda_enhanced"
+        ),
+        None,
+    )
+    assert marker_line is not None and marker_line <= 20
+    assert is_agenda_enhanced_mode(context) is True
+    assert "【现场审定的有效议题清单】" in context
+    assert context.index("议题模式：agenda_enhanced") < context.index(
+        "【现场审定的有效议题清单】"
+    )
+    assert "1. 议题：议题1（汇报人：张三）" in context
+    assert "15. 议题：议题15（汇报人：张三）" in context
+
+
+def test_normal_supervisor_context_unchanged() -> None:
+    """普通 minutes 的 supervisor context 不带议程清单，个人块保持原样。"""
+    nodes = _Nodes()
+    context = nodes._supervisor_context(_normal_personal_state(), "minutes")
+    assert "【现场审定的有效议题清单】" not in context
+    assert "议题模式：agenda_enhanced" not in context
+    assert "【本用户命中】" in context
+    assert "【重点关注雷达】" in context
 
 
 def test_supervisor_source_pack_include_profile_flag() -> None:

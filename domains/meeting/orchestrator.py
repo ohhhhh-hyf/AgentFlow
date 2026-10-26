@@ -832,6 +832,17 @@ class _Nodes(DomainNodes):
         blocks = []
         if line_name == "minutes" and state.get("has_valid_agenda"):
             blocks.append("议题模式：agenda_enhanced")
+            # 清单必须紧跟议题标记之后，确保标记留在 is_agenda_enhanced_mode()
+            # 的前 20 行扫描窗口内；不要 insert(0)，也不要放到标记之前。
+            agendas = state.get("valid_agendas") or []
+            if agendas:
+                blocks.append(
+                    "【现场审定的有效议题清单】\n"
+                    + "\n".join(
+                        f"{i+1}. 议题：{a.title}（汇报人：{'、'.join(a.presenters) or '未指定'}）"
+                        for i, a in enumerate(agendas)
+                    )
+                )
         if state.get("lang") == "en":
             blocks.append("输出语种要求：英文（English）")
         if view == VIEW_AGENDA_OBJECTIVE:
