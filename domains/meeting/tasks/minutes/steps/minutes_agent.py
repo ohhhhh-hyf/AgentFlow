@@ -9,6 +9,7 @@ from core.execution.hard_execution import (
 )
 from ....models import Minutes
 from ..prompts import (
+    AGENDA_AUX_PROMPT_BLOCK,
     KEYPOINTS_PROMPT_BLOCK,
     NOTES_PROMPT_BLOCK,
     VISION_PROMPT_BLOCK,
@@ -108,6 +109,8 @@ class MinutesGenerationAgent:
         if "【视觉信息参考(OCR)】" in shared_context:
             aux_blocks.append(VISION_PROMPT_BLOCK)
 
+        if is_agenda and aux_blocks:
+            raw_system_prompt = raw_system_prompt + "\n\n" + AGENDA_AUX_PROMPT_BLOCK
         if aux_blocks:
             raw_system_prompt = raw_system_prompt + "\n\n" + "\n\n".join(aux_blocks)
 

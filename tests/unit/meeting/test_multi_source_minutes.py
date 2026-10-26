@@ -1,6 +1,6 @@
 """多源文本融合会议纪要单元测试 (Multi-Source Texts Minutes).
 
-覆盖 TC-01 至 TC-09:
+覆盖 TC-01 至 TC-10:
 - TC-01: 向下兼容纯语音 (仅 transcript)
 - TC-02: 单项包含关键点 (transcript + keypoints)
 - TC-03: 单项包含笔记含箭头与无箭头 (transcript + notes)
@@ -10,6 +10,7 @@
 - TC-07: 英文多语种适配 (lang='en')
 - TC-08: Supervisor 审查准则验证与上下文注入
 - TC-09: Schema 协议层检验 (vision_info 校验与非法 key 拦截)
+- TC-10: 议题纪要 + 多源辅助的 system prompt 组装
 """
 from __future__ import annotations
 
@@ -21,7 +22,10 @@ from app.schemas import TEXT_KEYS, TaskRequest
 from app.tasks import _collect_texts, _pack_minutes_auxiliary, _parse_notes_items, _prepare
 from domains.meeting.models import Minutes
 from domains.meeting.tasks.minutes.prompts import (
+    AGENDA_AUX_PROMPT_BLOCK,
     KEYPOINTS_PROMPT_BLOCK,
+    MINUTES_AGENDA_GENERATION_PROMPT,
+    MINUTES_OBJECTIVE_GENERATION_PROMPT,
     NOTES_PROMPT_BLOCK,
     VISION_PROMPT_BLOCK,
     _SUPERVISOR_COMMON_BASE,
@@ -348,3 +352,168 @@ def test_tc06_orchestrator_context_injection():
     sup_ctx = nodes._supervisor_context(state, "minutes")
     assert "【用户核心关键点】\n指标A提升30%" in sup_ctx
     assert "【视觉信息参考(OCR)】\nQPS: 12000" in sup_ctx
+
+
+def test_normal_minutes_aux_unchanged():
+    """普通 minutes：aux 照常注入，但不出现议程标记或议程清单。"""
+    # 1. _prepare：无 docs -> 只有 minutes_auxiliary，没有 agenda_text
+    req = TaskRequest(
+        texts={
+            "transcript": "今天开会讨论下周发布计划。",
+            "keypoints": "流程审批量同比增长46%",
+            "notes": "广州珠海增加7个 -> 真的假的？",
+            "vision_info": "吞吐量 15000 QPS",
+        }
+    )
+    prep = _prepare("meeting", "minutes", req, user_id="test_user")
+    assert "minutes_auxiliary" in prep.extra_line_inputs
+    assert "agenda_text" not in prep.extra_line_inputs
+
+    # 2. _line_shared_context：aux 照常出现，但不出现议程标记/清单
+    from domains.meeting.orchestrator import _Nodes
+
+    nodes = _Nodes()
+    state = {
+        "transcript": "今天开会讨论下周发布计划。",
+        "has_valid_agenda": False,
+        "valid_agendas": [],
+        "meeting_understanding": {
+            "meeting_brief": "常规简报",
+            "session_segments": [],
+            "decisions": [],
+            "risks": [],
+            "open_questions": [],
+        },
+        "line_extra": {
+            "minutes_auxiliary": (
+                "【用户核心关键点】\n流程审批量同比增长46%\n\n"
+                "【用户划线原话与笔记】\n- 原话：\"广州珠海增加7个\" | 备注：真的假的？\n\n"
+                "【视觉信息参考(OCR)】\n吞吐量 15000 QPS"
+            )
+        },
+    }
+    context = nodes._line_shared_context(state, "minutes")
+    assert "【用户核心关键点】\n流程审批量同比增长46%" in context
+    assert "【用户划线原话与笔记】" in context
+    assert "【视觉信息参考(OCR)】\n吞吐量 15000 QPS" in context
+    assert "议题模式：agenda_enhanced" not in context
+    assert "【现场审定的有效议题清单】" not in context
+
+
+# ── TC-10：议题纪要 + 多源辅助的 system prompt 组装 ──────────────────────────
+
+_AGENDA_BASE = (
+    "议题模式：agenda_enhanced\n"
+    "视角模式：objective\n\n"
+    "【会议原文】\n讨论了指标。\n\n"
+)
+_KEYPOINTS_TAG = "【用户核心关键点】\n流程审批量同比增长46%"
+_NOTES_TAG = (
+    "【用户划线原话与笔记】\n"
+    "- 原话：\"上线时间定在周五\" | 备注：确认发布窗口"
+)
+_VISION_TAG = "【视觉信息参考(OCR)】\n服务器CPU使用率峰值82%"
+
+
+def _agenda_context(*tags: str) -> str:
+    parts = [_AGENDA_BASE.rstrip(), "会议理解：\n{}"]
+    if tags:
+        parts.insert(
+            1,
+            "════════════════════════════════════════\n" + "\n\n".join(tags),
+        )
+    return "\n\n".join(parts)
+
+
+def _normal_context(*tags: str) -> str:
+    parts = ["视角模式：objective\n\n【会议原文】\n讨论了指标。", "会议理解：\n{}"]
+    if tags:
+        parts.insert(
+            1,
+            "════════════════════════════════════════\n" + "\n\n".join(tags),
+        )
+    return "\n\n".join(parts)
+
+
+async def _capture_system_prompt(
+    shared_context: str, *, lang: str = "zh"
+) -> str:
+    captured: dict[str, str] = {}
+
+    class FakeClient:
+        async def structured(self, system, *args, **kwargs):
+            captured["system"] = system
+            return Minutes(headline="测试标题")
+
+    agent = MinutesGenerationAgent(FakeClient())
+    await agent.run(shared_context, lang=lang)
+    return captured["system"]
+
+
+@pytest.mark.anyio
+async def test_agenda_aux_block_present():
+    """议题纪要 + 任一辅助标签 -> system prompt 含议程边界 block。"""
+    sys_prompt = await _capture_system_prompt(_agenda_context(_KEYPOINTS_TAG))
+    assert AGENDA_AUX_PROMPT_BLOCK in sys_prompt
+    assert "【议程骨架优先】" in sys_prompt
+
+
+@pytest.mark.anyio
+async def test_agenda_aux_block_absent_without_aux():
+    """议题纪要 + 无辅助标签 -> system prompt 等于议程生成 prompt。"""
+    sys_prompt = await _capture_system_prompt(_agenda_context())
+    assert sys_prompt == MINUTES_AGENDA_GENERATION_PROMPT
+    assert "【议程骨架优先】" not in sys_prompt
+
+
+@pytest.mark.anyio
+async def test_agenda_aux_block_absent_for_normal():
+    """普通 minutes + 辅助字段 -> 不追加议程边界 block。"""
+    sys_prompt = await _capture_system_prompt(_normal_context(_KEYPOINTS_TAG))
+    assert "【议程骨架优先】" not in sys_prompt
+    assert "## 用户关键点参考" in sys_prompt
+    assert sys_prompt.startswith(MINUTES_OBJECTIVE_GENERATION_PROMPT)
+
+
+@pytest.mark.anyio
+async def test_agenda_aux_block_before_shared():
+    """议程边界 block 必须位于三块共享字段规则之前。"""
+    sys_prompt = await _capture_system_prompt(
+        _agenda_context(_KEYPOINTS_TAG, _NOTES_TAG, _VISION_TAG)
+    )
+    assert sys_prompt.index("【议程骨架优先】") < sys_prompt.index("## 用户关键点参考")
+    assert sys_prompt.index("## 用户关键点参考") < sys_prompt.index("## 用户笔记参考")
+    assert sys_prompt.index("## 用户笔记参考") < sys_prompt.index("## 视觉信息参考 (OCR)")
+
+
+@pytest.mark.anyio
+async def test_agenda_keypoints_only():
+    """议题纪要 + 只传 keypoints -> 只追加 keypoints 共享规则。"""
+    sys_prompt = await _capture_system_prompt(_agenda_context(_KEYPOINTS_TAG))
+    assert "【议程骨架优先】" in sys_prompt
+    assert "## 用户关键点参考" in sys_prompt
+    assert "## 用户笔记参考" not in sys_prompt
+    assert "## 视觉信息参考 (OCR)" not in sys_prompt
+
+
+@pytest.mark.anyio
+async def test_shared_aux_blocks_once():
+    """议程边界 block 与三块共享规则各出现一次，不重复追加。"""
+    sys_prompt = await _capture_system_prompt(
+        _agenda_context(_KEYPOINTS_TAG, _NOTES_TAG, _VISION_TAG)
+    )
+    assert sys_prompt.count("【议程骨架优先】") == 1
+    assert sys_prompt.count("## 用户关键点参考") == 1
+    assert sys_prompt.count("## 用户笔记参考") == 1
+    assert sys_prompt.count("## 视觉信息参考 (OCR)") == 1
+
+
+@pytest.mark.anyio
+async def test_agenda_aux_blocks_survive_english_wrapper():
+    """lang=en 的英文 wrapper 只剥离首段人设，不丢议程/共享 block。"""
+    sys_prompt = await _capture_system_prompt(
+        _agenda_context(_KEYPOINTS_TAG), lang="en"
+    )
+    assert "【核心人设与交付目标】" in sys_prompt
+    assert "【议程骨架优先】" in sys_prompt
+    assert "## 用户关键点参考" in sys_prompt
