@@ -55,6 +55,50 @@ def test_orchestrator_line_shared_context_enhanced():
     assert "【议题 1：自研车载芯片二期量产】" in context
 
 
+def test_shared_context_agenda_aux():
+    """议题纪要上下文同时包含打标转写和三块辅助材料。"""
+    nodes = _Nodes()
+    valid_item = ValidAgendaItem(
+        seq="1",
+        title="自研车载芯片二期量产",
+        presenters=["张三"],
+        start_index=0,
+        end_index=1,
+        matched_blocks=[DiscussionBlock(speaker="张三", timestamp="10:00", content="芯片良率达标", index=0)],
+    )
+    state_enhanced = {
+        "transcript": "张三 10:00: 芯片良率达标",
+        "tagged_transcript": (
+            "【现场审定的有效议题清单】：\n"
+            "1. 议题：自研车载芯片二期量产（汇报人：张三）\n\n"
+            "【议题 1：自研车载芯片二期量产】（汇报人：张三）\n"
+            "张三 10:00: 芯片良率达标"
+        ),
+        "has_valid_agenda": True,
+        "valid_agendas": [valid_item],
+        "meeting_understanding": {
+            "meeting_brief": "测试简报",
+            "session_segments": [],
+            "decisions": [],
+            "risks": [],
+            "open_questions": [],
+        },
+        "line_extra": {
+            "minutes_auxiliary": (
+                "【用户核心关键点】\n良率 91.5%\n\n"
+                "【用户划线原话与笔记】\n- 原话：\"良率达标\" | 备注：复核口径\n\n"
+                "【视觉信息参考(OCR)】\n流片报表：样本量 1200 片"
+            )
+        },
+    }
+    context = nodes._line_shared_context(state_enhanced, "minutes")
+    assert "议题模式：agenda_enhanced" in context
+    assert "【议题 1：自研车载芯片二期量产】" in context
+    assert "【用户核心关键点】\n良率 91.5%" in context
+    assert "【用户划线原话与笔记】" in context
+    assert "【视觉信息参考(OCR)】\n流片报表：样本量 1200 片" in context
+
+
 def test_orchestrator_line_shared_context_fallback():
     nodes = _Nodes()
     state_legacy = {
@@ -186,6 +230,47 @@ def test_tasks_prepare_minutes_with_valid_agenda(tmp_path, monkeypatch):
     assert prep.input_files is not None
     transcript_content = prep.input_files.read_text(encoding="utf-8")
     assert "文档：agenda.txt" not in transcript_content
+
+
+def test_prepare_agenda_with_aux(tmp_path, monkeypatch):
+    """议题 + 三字段：agenda_text 与 minutes_auxiliary 必须同时存在。"""
+    doc_path = tmp_path / "agenda.txt"
+    doc_path.write_text(
+        "1. 自研芯片二期量产 汇报人：张三\n2. 智能客服降本方案 汇报人：王五",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "app.tasks._input_file", lambda user_id, kind, name: doc_path
+    )
+
+    req = TaskRequest(
+        texts={
+            "transcript": (
+                "张三 10:00\n"
+                "自研芯片二期量产良率达到了91.5%，我们的二期流片测试很顺利。\n\n"
+                "王五 10:30\n"
+                "智能客服降本方案目前测试可以替代70%的常规咨询。\n"
+            ),
+            "keypoints": "二期量产良率目标 92%",
+            "notes": "良率达标 -> 需要复核测试口径",
+            "vision_info": "流片测试报表：良率 91.5%，样本量 1200 片",
+        },
+        docs=["agenda.txt"],
+    )
+    prep = _prepare("meeting", "minutes", req, "u_test_agenda_aux")
+
+    # 议程骨架
+    assert "agenda_text" in prep.extra_line_inputs
+    assert "自研芯片二期量产" in prep.extra_line_inputs["agenda_text"]
+
+    # 三字段辅助材料
+    aux = prep.extra_line_inputs.get("minutes_auxiliary", "")
+    assert "【用户核心关键点】\n二期量产良率目标 92%" in aux
+    assert "【用户划线原话与笔记】" in aux
+    assert '原话："良率达标"' in aux
+    assert "备注：需要复核测试口径" in aux
+    assert "【视觉信息参考(OCR)】\n流片测试报表：良率 91.5%，样本量 1200 片" in aux
 
 
 def test_tasks_prepare_minutes_with_fallback_docs(tmp_path, monkeypatch):
