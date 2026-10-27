@@ -658,7 +658,7 @@ async def test_langgraph_agenda_state_propagation():
     assert "【现场审定的有效议题清单】" in final_state.get("tagged_transcript", "")
 
     # 2. 验证 minutes_agent 真正命中了 agenda 模式，而非 objective 兜底
-    assert "minutes/agent/agenda" in called_labels
+    assert any("minutes/agent/agenda" in label for label in called_labels)
 
     # 3. 验证 supervisor 上下文中具备议题模式
     sup_ctx = system._supervisor_context(final_state, "minutes")
@@ -954,7 +954,7 @@ async def test_minutes_agenda_en_pipeline():
         "Release Plan",
     ]
     assert "Architecture Review" in final.get("tagged_transcript", "")
-    assert "minutes/agent/agenda" in called
+    assert any("minutes/agent/agenda" in label for label in called)
 
 
 @pytest.mark.anyio
@@ -971,7 +971,7 @@ async def test_minutes_agenda_zh_unchanged():
         "发布计划",
     ]
     assert "架构评审" in final.get("tagged_transcript", "")
-    assert "minutes/agent/agenda" in called
+    assert any("minutes/agent/agenda" in label for label in called)
 
 
 @pytest.mark.anyio

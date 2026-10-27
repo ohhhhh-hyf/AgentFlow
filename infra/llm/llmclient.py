@@ -845,6 +845,7 @@ class LLMClient:
         timeout: float | None = None,
         label: str = "",
         allow_missing: Iterable[str] = (),
+        preserve_content_on_validation_error: bool = False,
     ) -> T:
         contract = output_contract.strip()
         messages = [
@@ -932,18 +933,38 @@ class LLMClient:
                 if validation_retried:
                     break
                 validation_retried = True
-                assistant_content = last_content
-                if len(assistant_content) > 2000:
-                    assistant_content = assistant_content[:1000] + "\n...[超长内容截断]..."
+                missing_fields = "字段不一致" in last_error or "缺失=" in last_error
+                if preserve_content_on_validation_error:
+                    # 缺字段/格式错误时保留第一次完整内容，只让模型修补，不主动压缩。
+                    assistant_content = last_content
+                    if missing_fields:
+                        retry_instruction = (
+                            "输出未通过严格校验。请保留已有字段内容，只补齐缺失字段；"
+                            "不要压缩、清空或改写已有内容；不要改变事实。"
+                            "请按唯一模板重新输出合法完整的 JSON 对象。"
+                        )
+                    else:
+                        retry_instruction = (
+                            "输出未通过严格校验。请保留已有内容，只修正校验错误；"
+                            "不要压缩、清空或改写已有内容；不要改变事实。"
+                            "请按唯一模板重新输出合法完整的 JSON 对象。"
+                        )
+                else:
+                    assistant_content = last_content
+                    if len(assistant_content) > 2000:
+                        assistant_content = assistant_content[:1000] + "\n...[超长内容截断]..."
+                    retry_instruction = (
+                        "输出未通过严格校验。请注意篇幅精炼、切勿长篇大论，不要改变事实，"
+                        "请按唯一模板重新输出合法完整的 JSON 对象。"
+                    )
                 messages.extend(
                     [
                         {"role": "assistant", "content": assistant_content},
                         {
                             "role": "user",
                             "content": (
-                                "输出未通过严格校验。请注意篇幅精炼、切勿长篇大论，不要改变事实，"
-                                "请按唯一模板重新输出合法完整的 JSON 对象。"
-                                f"\n校验错误：{last_error[:500]}"
+                                retry_instruction
+                                + f"\n校验错误：{last_error[:500]}"
                             ),
                         },
                     ]

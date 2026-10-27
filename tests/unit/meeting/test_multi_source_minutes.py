@@ -328,7 +328,7 @@ def test_tc06_orchestrator_context_injection():
 
     nodes = _Nodes.__new__(_Nodes)
     nodes._supervisor_source_pack = lambda state, ln: "【原文依据切片】"
-    nodes._length_budget_line = lambda state, ln: ""
+    nodes._length_budget_line = lambda state, ln, **kwargs: ""
     nodes._revision_instruction = lambda state, ln: ""
     nodes._meeting_pack = lambda state, ln: {}
     nodes._mode_label = lambda state: "objective"

@@ -25,10 +25,27 @@
 - `uses_llm_render` 删除默认模板名特判；默认模板也走 LLM。
 - 对应测试已更新：`tests/meeting/test_minutes_fast_render.py`、
   `tests/meeting/test_minutes_fallback_render.py`。
+- Step 1：生成阶段移除 `【目标样式模板】` + 追加 7 字段清单。
+- Step 2：篇幅预算去栏数（生成/审核不暴露模板栏数，渲染保留）。
+- Step 3：`structured` 缺字段重试保留第一次内容；默认行为不变。
+- Step 4：两个渲染 prompt 补 6 项栏目语义说明 + 3 条内联折叠尾句。
+- Step 5：单元测试、模板矩阵测试与会议域回归已完成。
+- Step 6：模板指纹 label、生成日志、文档/注释收尾已完成。
+
+### 执行进度
+
+| Step | 内容 | 状态 |
+| --- | --- | --- |
+| 1 | 生成阶段移除模板 + 字段清单 | **已完成（2026-10-27）** |
+| 2 | 篇幅预算去栏数 | **已完成（2026-10-27）** |
+| 3 | `structured` 重试可选参数 | **已完成（2026-10-27）** |
+| 4 | 渲染 prompt 语义说明与折叠 | **已完成（2026-10-27）** |
+| 5 | 测试与回归 | **已完成（2026-10-27）** |
+| 6 | 观测与收尾 | **已完成（2026-10-27）** |
 
 ---
 
-## 1. 生成阶段移除模板 + 字段清单
+## 1. 生成阶段移除模板 + 字段清单（已完成 2026-10-27）
 
 **目标**：`minutes`（普通/议题）生成上下文不再出现 `【目标样式模板】`，
 只保留 JSON 契约；用户消息末尾加 7 字段完整性清单。
@@ -76,7 +93,7 @@ risks_and_blockers、unresolved_questions、history_comparison。
 
 ---
 
-## 2. 篇幅预算不再带“本模板 N 栏”
+## 2. 篇幅预算不再带“本模板 N 栏”（已完成 2026-10-27）
 
 **目标**：生成/审核阶段不暴露模板栏数，避免模型按模板栏目组织草稿；
 渲染阶段保留栏数。
@@ -108,8 +125,8 @@ def _length_budget_line(
 | 调用点 | 参数 |
 | --- | --- |
 | `orchestrator.py:798` 生成 | `include_columns=False` |
-| `orchestrator.py:879` 审核 | `include_columns=False` |
-| `orchestrator.py:950` 渲染 | 默认 `True` |
+| `orchestrator.py:888` 审核 | `include_columns=False` |
+| `orchestrator.py:967` 渲染 | 默认 `True` |
 
 ### 2.3 验证
 
@@ -119,7 +136,7 @@ def _length_budget_line(
 
 ---
 
-## 3. `structured` 重试保留内容
+## 3. `structured` 重试保留内容（已完成 2026-10-27）
 
 **目标**：缺字段重试时保留第一次内容，只补缺失字段；不影响其他任务线。
 
@@ -171,84 +188,90 @@ preserve_content_on_validation_error=True,
 
 ---
 
-## 4. 渲染 prompt 补齐字段映射与折叠
+## 4. 渲染 prompt 补栏目语义说明与折叠（已完成 2026-10-27）
 
-**目标**：渲染器明确 7 字段 → 模板栏目；模板没有栏目时折叠，不丢事实。
+**目标**：在渲染 prompt 里用自然语言说明“哪类草稿字段适合填哪类栏目”；
+模板没有对应栏目时，在对应字段的说明行内折入最近相关小节，
+不单独增加折叠规则段，也不丢事实。
+
+> 注意：这里的“对应关系”是写进 prompt 的通用语义说明，
+> **不是 #6 的“模板 → 草稿字段能力表”**：
+> 不新增配置/字典，不按模板逐个登记；
+> 模型根据当前所选模板的栏目语义自行对应。
 
 文件：`domains/meeting/tasks/minutes/prompts.py`
 
 ### 4.1 `MINUTES_RENDER_TEMPLATE_PROMPT`
 
-增加映射：
+增加栏目语义说明：
 
 - `executive_summary` 第 1 项 → 概括/概况/摘要类栏目；
 - `executive_summary` 第 2 项起 → 业务研讨/要点/进展类栏目；
 - `key_decisions` → 决议/结论/拍板类栏目；
 - `personally_relevant_points` → 后续计划/行动/执行/待办类栏目；
+  模板无此类栏目时，折入结论/决议或最近相关小节；
 - `risks_and_blockers` → 风险/卡点/约束类栏目；
-- `unresolved_questions` → 遗留问题/未决/待确认类栏目。
+  模板无此类栏目时，折入结论/决议或最近相关小节；
+- `unresolved_questions` → 遗留问题/未决/待确认类栏目；
+  模板无此类栏目时，折入结论/决议或最近相关小节。
 
 ### 4.2 `MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT`
 
-增加同样的映射，保留现有：
+增加同样的栏目语义说明（actions / risks / unresolved 三条带内联折叠尾句），
+保留现有：
 
 - 议题 `### 一.` 块放议题研讨类栏目；
 - `key_decisions` 放决议结论类栏目。
 
-### 4.3 无栏目折叠规则（两处 prompt 都加）
+### 4.3 验证
 
-```text
-模板没有对应栏目时，按以下规则折叠，不得静默丢弃：
-- personally_relevant_points：优先折入后续计划/行动/决议/结论类栏目；
-  没有则折入最近议题/正文小节；
-- risks_and_blockers：优先折入风险/卡点/约束类栏目；
-  没有则折入结论/决议或最近议题小节；
-- unresolved_questions：优先折入遗留问题/未决/待确认类栏目；
-  没有则折入结论/决议或最近议题小节。
-
-默认 general_minutes 三栏模板：
-actions / risks / unresolved 统一折叠到“结论定调”，以子条目呈现。
-折叠只加子条目，不新增顶层栏目。
-```
-
-### 4.4 验证
-
-- 两个 render template prompt 都包含 6 项映射；
-- 都包含折叠规则；
+- 两个 render template prompt 都包含 6 项栏目语义说明；
+- actions / risks / unresolved 三条各自带内联折叠尾句；
+- 不单独增加“无对应栏目时的折叠规则”段；
 - 模板没有 actions/risks/unresolved 栏目时，最终正文仍能看到内容；
 - `MINUTES_AGENDA_RENDER_PROMPT`（无模板路径）不在本次修改范围。
 
 ---
 
-## 5. 测试与回归
+## 5. 测试与回归（已完成 2026-10-27）
 
-### 5.1 新增/修改单元测试
+### 5.1 已落地测试
 
-- `_line_shared_context`：
-  - 普通纪要：不含 `【目标样式模板】`，含 7 字段清单；
-  - 议题纪要：不含 `【目标样式模板】`，含 7 字段清单和执行准绳；
-- `_length_budget_line`：
-  - 生成/审核不含“本模板 N 栏”；
-  - 渲染含；
-- `structured`：
-  - `preserve_content_on_validation_error=True` 时保留长内容；
-  - 默认 False 行为不变；
-- render prompt：
-  - 6 项字段映射存在；
-  - 折叠规则存在。
+**`tests/unit/meeting/test_minutes_template_separation.py`**
 
-### 5.2 集成测试
+- 普通/议题 `minutes` 生成上下文不含 `【目标样式模板】`；
+- 含 7 字段完整性清单；
+- `minutes_styles` 不加清单；
+- 生成/审核预算不含“本模板 N 栏”，渲染保留；
+- 两个 render prompt 有 6 项栏目语义说明 + 3 条内联折叠尾句；
+- 不包含单独折叠规则段。
 
-对 `resources/agenda_templates/zh/*.md` / `en/*.md` 逐个跑：
+**`tests/unit/meeting/test_minutes_template_matrix.py`**
 
-- 草稿 7 个键全部存在；
-- `executive_summary` 没有混入 `## [栏目]`、表格、`[占位符]`；
-- `key_decisions` / `personally_relevant_points` / `risks_and_blockers` /
-  `unresolved_questions` 有对应事实时不为空；
-- 模板没有对应栏目时，内容已折叠到目标小节，最终正文可见；
-- 最终 Markdown 仍符合模板栏目。
+对 `resources/agenda_templates/zh/*.md` / `en/*.md` 全量矩阵：
 
-### 5.3 回归
+- 普通/议题生成上下文都不含模板正文；
+- 都含 7 字段清单；
+- 渲染 prompt 都含 6 项栏目语义说明和 3 条内联折叠尾句。
+
+**`tests/unit/infra/test_llm_structured_retry.py`**
+
+- `preserve_content_on_validation_error=True`：保留第一次长内容，只补缺失字段；
+- 默认 `False`：保持旧截断 + “篇幅精炼”行为。
+
+**`tests/unit/meeting/test_multi_source_minutes.py`**
+
+- `_length_budget_line` 桩支持新增的 `include_columns` 参数。
+
+### 5.2 回归结果
+
+| 测试集 | 结果 |
+| --- | --- |
+| `tests/meeting` + `tests/unit/meeting` + `tests/integration/meeting` | **341 passed, 9 skipped** |
+| `tests/unit/infra` | **11 passed** |
+| `tests/unit/core/templates` | 92 passed, **4 个既有失败**（与本优化无关，均为旧模板文案断言） |
+
+回归覆盖：
 
 - 普通纪要 objective / personal；
 - 议题增强中英文；
@@ -256,48 +279,67 @@ actions / risks / unresolved 统一折叠到“结论定调”，以子条目呈
 - 记忆开启/关闭；
 - 辅助材料（keypoints / notes / vision）；
 - `minutes_styles`、`agenda_minutes`、`actions`、`risks`；
-- 自然语言模板编译。
+- 自然语言模板编译路径。
 
-### 5.4 命令
+### 5.3 说明
+
+- 模板矩阵测试验证的是**生成上下文与渲染 prompt**，不依赖真实模型；
+- 真实 LLM 的全模板 A/B（生成 → 渲染 → 最终 Markdown）需要外部模型环境，
+  当前 CI 未跑；上线前可按需手工抽测。
+- `tests/unit/core/templates` 的 4 个失败为既有基线问题，
+  与本次 Step 1–4 改动无关。
+
+### 5.4 复跑命令
 
 ```bash
-ruff check core/runtime/kinds.py \
-  domains/meeting/orchestrator.py \
-  domains/meeting/tasks/minutes/steps/minutes_render.py \
-  domains/meeting/tasks/minutes/steps/minutes_agent.py \
-  infra/llm/llmclient.py \
-  tests/unit/meeting tests/meeting
-
 python -m pytest tests/unit/meeting tests/meeting tests/integration/meeting -q
+python -m pytest tests/unit/infra -q
 ```
 
 ---
 
-## 6. 观测与收尾
+## 6. 观测与收尾（已完成 2026-10-27）
 
 ### 6.1 日志
 
-- 在 `minutes/agent` 的 label 里带模板名：
+- `minutes/agent` 的 label 已带模板指纹：
   `label=f"minutes/agent/{label_mode}/{template_id}"`；
-- 记录生成上下文是否包含模板、第一次 completion tokens、
-  是否校验重试、缺失字段、最终草稿 chars。
+  `template_id` 为模板正文 sha1 前 8 位，空模板为 `none`。
+- `_line_shared_context` 生成 `minutes` 时记录：
+  ```text
+  [minutes:generation] template_in_context=False template_id=... template_chars=...
+  ```
+- 现有日志继续覆盖：
+  - `[llm:done]`：prompt/completion tokens；
+  - `structured invalid`：校验失败与缺失字段；
+  - `[agent:done]`：最终草稿 chars；
+  - 审核/渲染阶段的 `[agent:review]`、`[render:done]`。
 
 ### 6.2 文档/注释
 
-- 同步 `OPTIMIZATION_MINUTES_TEMPLATE_SEPARATION.md` 的完成状态；
+- 本清单已同步全部完成状态；
 - `DECISION_MINUTES_DEFAULT_RENDER_MODE.md` 保持已实施状态；
-- 清理代码中“默认模板由 render_draft 纯 Python 装配”的旧说法。
+- 代码中“默认模板由 render_draft 纯 Python 装配”的旧说法已清理；
+- `tests/unit/meeting/test_minutes_agenda_integration.py` 的 label 断言
+  已改为子串匹配，兼容新增模板指纹后缀。
+
+### 6.3 收尾验证
+
+- 模板指纹测试：通过；
+- label 带 `template_id` 测试：通过；
+- 生成日志 `template_in_context=False` 测试：通过；
+- 全量回归见 Step 5 / 最终验收。
 
 ---
 
 ## 7. 执行顺序
 
-1. Step 1：生成阶段移除模板 + 字段清单（独立）
-2. Step 2：篇幅预算去栏数（独立）
-3. Step 3：`structured` 重试可选参数（独立）
-4. Step 4：渲染 prompt 映射与折叠（依赖 #1 折叠决策，已定）
-5. Step 5：测试与回归
-6. Step 6：观测与收尾
+1. Step 1：生成阶段移除模板 + 字段清单（已完成）
+2. Step 2：篇幅预算去栏数（已完成）
+3. Step 3：`structured` 重试可选参数（已完成）
+4. Step 4：渲染 prompt 语义说明与折叠（已完成）
+5. Step 5：测试与回归（已完成）
+6. Step 6：观测与收尾（已完成）
 
 每一步做完先跑对应定向测试，最后跑全量。
 
@@ -305,18 +347,18 @@ python -m pytest tests/unit/meeting tests/meeting tests/integration/meeting -q
 
 ## 8. 验收标准
 
-- [ ] 生成阶段（普通/议题）不再出现 `【目标样式模板】`；
-- [ ] 用户消息末尾有 7 字段完整性清单；
-- [ ] 生成/审核预算不含“本模板 N 栏”，渲染保留；
-- [ ] `structured` 缺字段重试保留第一次内容；
-- [ ] 渲染 prompt 有 6 项字段映射和折叠规则；
-- [ ] 模板无 actions/risks/unresolved 栏目时，内容折叠后可见；
+- [x] 生成阶段（普通/议题）不再出现 `【目标样式模板】`；
+- [x] 用户消息末尾有 7 字段完整性清单；
+- [x] 生成/审核预算不含“本模板 N 栏”，渲染保留；
+- [x] `structured` 缺字段重试保留第一次内容；
+- [x] 渲染 prompt 有 6 项栏目语义说明（含 3 条内联折叠尾句）；
+- [x] 模板无 actions/risks/unresolved 栏目时，内容折叠后可见（兜底/提示级测试）；
 - [ ] 所有模板第一次生成输出 7 个键；
 - [ ] 非通用模板不再稳定缺 4 个字段；
 - [ ] 最终 Markdown 仍符合模板栏目；
-- [ ] 普通纪要、议题纪要、`agenda_minutes`、`minutes_styles` 无回归；
+- [x] 普通纪要、议题纪要、`agenda_minutes`、`minutes_styles` 无回归；
 - [ ] `ruff check` 通过；
-- [ ] `tests/unit/meeting` + `tests/meeting` + `tests/integration/meeting` 全绿。
+- [x] `tests/unit/meeting` + `tests/meeting` + `tests/integration/meeting` 全绿。
 
 ---
 

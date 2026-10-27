@@ -606,6 +606,17 @@ class DomainNodes:
                     run_kwargs["source_transcript"] = (
                         state.get("tagged_transcript") or ""
                     )
+                if "template_id" in sig.parameters or has_var_kw:
+                    from hashlib import sha1
+
+                    template_text = str(
+                        (state.get("templates") or {}).get(line_name) or ""
+                    ).strip()
+                    run_kwargs["template_id"] = (
+                        sha1(template_text.encode("utf-8")).hexdigest()[:8]
+                        if template_text
+                        else "none"
+                    )
                 result = await agent.run(
                     self._revision_context(
                         context,

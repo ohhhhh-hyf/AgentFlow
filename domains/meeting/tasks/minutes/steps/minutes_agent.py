@@ -1,19 +1,17 @@
 from __future__ import annotations
 
-from infra.llm import LLMClient
 from core.execution.hard_execution import (
     enforce_minutes_draft,
     extract_labeled_json,
-    parse_perspective_mode,
     parse_lang_mode,
+    parse_perspective_mode,
 )
+from infra.llm import LLMClient
+
 from ....models import Minutes
-from ..prompts import (
-    AGENDA_AUX_PROMPT_BLOCK,
-    KEYPOINTS_PROMPT_BLOCK,
-    NOTES_PROMPT_BLOCK,
-    VISION_PROMPT_BLOCK,
-    localize_agenda_headings_for_en,
+from ..contracts import (
+    MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT,
+    MINUTES_GENERATION_OUTPUT_CONTRACT,
 )
 from ..prompt_map import (
     is_agenda_view,
@@ -21,9 +19,12 @@ from ..prompt_map import (
     prompt_label,
     resolve_prompt_view,
 )
-from ..contracts import (
-    MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT,
-    MINUTES_GENERATION_OUTPUT_CONTRACT,
+from ..prompts import (
+    AGENDA_AUX_PROMPT_BLOCK,
+    KEYPOINTS_PROMPT_BLOCK,
+    NOTES_PROMPT_BLOCK,
+    VISION_PROMPT_BLOCK,
+    localize_agenda_headings_for_en,
 )
 
 
@@ -94,6 +95,7 @@ class MinutesGenerationAgent:
         *,
         lang: str | None = None,
         source_transcript: str = "",
+        template_id: str = "",
     ) -> Minutes:
         mode = parse_perspective_mode(shared_context)
         view = resolve_prompt_view(shared_context, mode=mode)
@@ -147,7 +149,8 @@ class MinutesGenerationAgent:
             shared_context,
             Minutes,
             output_contract,
-            label=f"minutes/agent/{label_mode}",
+            label=f"minutes/agent/{label_mode}/{template_id or 'none'}",
+            preserve_content_on_validation_error=True,
         )
         understanding = extract_labeled_json(shared_context, "会议理解")
         perspective = extract_labeled_json(shared_context, "用户视角模型")

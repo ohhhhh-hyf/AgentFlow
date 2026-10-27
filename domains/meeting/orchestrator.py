@@ -11,6 +11,7 @@ MeetingAgentSystem 负责：组装 Agent 依赖、构建多线并行 DAG、条�
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 
@@ -137,6 +138,12 @@ from .tasks.risks.contracts import RISK_FALLBACK_RULES
 # ── FallbackRules import 生成区结束 ──
 
 logger = logging.getLogger(__name__)
+
+
+def _template_fingerprint(template: str) -> str:
+    """模板正文指纹（用于日志/监控关联，不参与业务判断）。"""
+    text = (template or "").strip()
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:8] if text else "none"
 
 QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
 
@@ -795,17 +802,15 @@ class _Nodes(DomainNodes):
             raw_transcript = state.get("tagged_transcript") or state.get("transcript") or ""
             parts.append(f"会议原文：\n{raw_transcript}")
         if line_name in {"minutes", "minutes_styles"}:
-            budget = self._length_budget_line(state, line_name)
+            budget = self._length_budget_line(
+                state, line_name, include_columns=False
+            )
             if budget:
                 parts.append(budget)
         if line_name == "minutes":
             aux_block = str((state.get("line_extra") or {}).get("minutes_auxiliary") or "").strip()
             if aux_block:
                 parts.append(f"════════════════════════════════════════\n{aux_block}")
-            tpl = (state.get("templates") or {}).get("minutes") or ""
-            tpl_str = str(tpl).strip()
-            if tpl_str:
-                parts.append(f"【目标样式模板】\n{tpl_str}")
             # 针对审定议题模式：在长上下文最底端注入最高优先级执行红线，克服长文本注意力稀疏
             if state.get("has_valid_agenda"):
                 parts.append(
@@ -817,6 +822,25 @@ class _Nodes(DomainNodes):
                     "4. 就事论事：以业务方案、现状与结论为主干直陈事实，正文只记录事项本身，不编写参会人口头转述；\n"
                     "5. 细节充分：讲透方案背景与落地动作，原文中的参数、指标、排期精准完整保留。"
                 )
+            template_text = str(
+                (state.get("templates") or {}).get("minutes") or ""
+            ).strip()
+            logger.info(
+                "[minutes:generation] template_in_context=False template_id=%s template_chars=%d",
+                _template_fingerprint(template_text),
+                len(template_text),
+            )
+            # 生成阶段只看 JSON 契约，不看最终排版模板；末尾用最高优先级清单锁住 7 个字段。
+            parts.append(
+                "════════════════════════════════════════\n"
+                "【本轮 JSON 输出契约（唯一结构，最高优先级）】\n"
+                "必须同时输出：\n"
+                "headline、executive_summary、key_decisions、personally_relevant_points、\n"
+                "risks_and_blockers、unresolved_questions、history_comparison。\n"
+                "无内容写 []；\n"
+                "不得因为最终模板栏目少而省略字段；\n"
+                "不得把 decisions / actions / risks 并入 executive_summary。"
+            )
         return "\n\n".join(parts)
 
     def _supervisor_context(self, state, line_name: str) -> str:
@@ -876,7 +900,9 @@ class _Nodes(DomainNodes):
             radar = render_radar_block(state.get("user") or {})
         if radar and view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
             blocks.append(radar)
-        budget = self._length_budget_line(state, line_name)
+        budget = self._length_budget_line(
+            state, line_name, include_columns=False
+        )
         if budget:
             blocks.append(budget)
         blocks.append(
@@ -886,22 +912,28 @@ class _Nodes(DomainNodes):
         return f"{self._revision_instruction(state, line_name)}\n\n" + "\n\n".join(blocks)
 
     @staticmethod
-    def _length_budget_line(state: dict, line_name: str) -> str:
-        """篇幅预算块：按原文规模算好具体数字，注入生成/渲染上下文（纪要正文/多样式）。
+    def _length_budget_line(
+        state: dict,
+        line_name: str,
+        *,
+        include_columns: bool = True,
+    ) -> str:
+        """篇幅预算块：按原文规模算好具体数字，注入生成/审核/渲染上下文。
 
-        旧口径「篇幅以原文为参照（同量级）」对纪要既不成立（纪要必然短于原文）也无法自算，
-        实测输出/输入比在 4.3%–35% 之间游走；这里把"该写多长"变成可执行的区间。
+        ``include_columns=False``：不解析模板栏数，只给总篇幅预算。
+        生成/审核阶段不暴露模板结构；渲染阶段保留栏数，供排版参考。
         """
         transcript = str(state.get("transcript") or "")
         columns = 0
-        template = (state.get("templates") or {}).get(line_name) or ""
-        if template:
-            try:
-                from core.templates.router import plan_placeholder_fill
+        if include_columns:
+            template = (state.get("templates") or {}).get(line_name) or ""
+            if template:
+                try:
+                    from core.templates.router import plan_placeholder_fill
 
-                columns = len(plan_placeholder_fill(template).get("scalars") or [])
-            except Exception:  # noqa: BLE001 - 预算只是软提示，算不出栏数就不带
-                columns = 0
+                    columns = len(plan_placeholder_fill(template).get("scalars") or [])
+                except Exception:  # noqa: BLE001 - 预算只是软提示，算不出栏数就不带
+                    columns = 0
 
         lang = str(state.get("lang") or "zh").strip().lower()
         if lang == "en":
