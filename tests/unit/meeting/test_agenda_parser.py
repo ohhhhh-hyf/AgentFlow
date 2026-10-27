@@ -10,6 +10,8 @@ from domains.meeting.tasks.agenda_minutes.agenda_parser import (
     AgendaItemParsed,
     AgendaPlan,
     clean_presenter_names,
+    extract_speakers_from_transcript,
+    match_presenter_name,
     parse_agenda_text,
 )
 from domains.meeting.tasks.agenda_minutes.alignment_engine import (
@@ -45,6 +47,68 @@ def test_clean_presenter_names():
     assert clean_presenter_names("汇报人: 林宇珂 00939670 陆敬怡 00841266") == ["林宇珂", "陆敬怡"]
     assert clean_presenter_names("索勋飞(委托高雄)") == ["索勋飞"]
     assert clean_presenter_names("非公开") == []
+
+def test_clean_presenter_names_english():
+    """英文姓名不能被单空格拆碎，角色前缀与工号要剥离。"""
+    assert clean_presenter_names("Presenter: Alice Chen") == ["Alice Chen"]
+    assert clean_presenter_names("Presenters: Alice Chen, Bob Lee") == ["Alice Chen", "Bob Lee"]
+    assert clean_presenter_names("Alice Chen and Bob Lee") == ["Alice Chen", "Bob Lee"]
+    assert clean_presenter_names("Alice Chen；Bob Lee") == ["Alice Chen", "Bob Lee"]
+    assert clean_presenter_names("Dr. Alice Chen") == ["Dr. Alice Chen"]
+    assert clean_presenter_names("O'Connor, Anne-Marie") == ["O'Connor", "Anne-Marie"]
+    assert clean_presenter_names("Alice Chen 00585440") == ["Alice Chen"]
+    assert clean_presenter_names("TBD") == []
+
+
+def test_clean_presenter_names_mixed_cn_en():
+    """中英混排名单：中文多人名按空格拆，英文全名保持完整。"""
+    assert clean_presenter_names("张三；Alice Chen") == ["张三", "Alice Chen"]
+    assert clean_presenter_names("汇报人: 张三 李四") == ["张三", "李四"]
+    assert clean_presenter_names("张三 and Alice Chen") == ["张三", "Alice Chen"]
+
+
+def test_match_presenter_name_english():
+    """英文姓名匹配：大小写、连字符、撇号归一；禁止任意子串误匹配。"""
+    assert match_presenter_name("Alice Chen", "alice chen") >= 0.8
+    assert match_presenter_name("Anne-Marie", "Anne Marie") >= 0.8
+    assert match_presenter_name("O'Connor", "OConnor") >= 0.8
+    assert match_presenter_name("Alice Chen", "Alice Chen (PM)") >= 0.8
+    assert match_presenter_name("Chen", "Alice Chen") >= 0.8
+    assert match_presenter_name("Ann", "Joanne") == 0.0
+
+
+def test_extract_speakers_from_transcript_english():
+    """英文方括号与时间戳格式可以混用，角色标签不进入候选人。"""
+    transcript = """
+[Alice Chen]
+Good morning everyone.
+
+[Bob Lee]
+Let's review the architecture.
+
+[00:10:00] Carol Wu: Thanks everyone.
+"""
+    speakers = extract_speakers_from_transcript(transcript)
+    assert "Alice Chen" in speakers
+    assert "Bob Lee" in speakers
+    assert "Carol Wu" in speakers
+
+
+def test_parse_agenda_markdown_with_english_names():
+    """英文汇报人保持完整；标题含 Topic 不被误判为表头。"""
+    md = """
+| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| --- | --- | --- | --- |
+| 01 | Architecture Review | Alice Chen；Bob Lee | 20 min |
+| 02 | Topic Modeling | Carol Wu | 15 min |
+"""
+    plan = parse_agenda_text(md)
+    assert len(plan.items) == 2
+    assert plan.items[0].title == "Architecture Review"
+    assert plan.items[0].presenters == ["Alice Chen", "Bob Lee"]
+    assert plan.items[1].title == "Topic Modeling"
+    assert plan.items[1].presenters == ["Carol Wu"]
+
 
 def test_agenda_parser_standard_numbered_list():
     """测试商评1议程解析（含元数据与双语表头）。"""

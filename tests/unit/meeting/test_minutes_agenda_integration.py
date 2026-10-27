@@ -752,6 +752,10 @@ def test_agenda_minutes_quality_and_stability_prompts():
     # 4. 验证非模板渲染也同步对齐扁平子主题与纯净列表项
     assert "**业务子主题**" in MINUTES_AGENDA_RENDER_PROMPT
     assert "- 要点名称: 具体陈述" in MINUTES_AGENDA_RENDER_PROMPT
+    assert "**[业务子主题名称]**" in MINUTES_AGENDA_RENDER_PROMPT
+    assert "[要点名称]: [具体事实陈述]" in MINUTES_AGENDA_RENDER_PROMPT
+    # 示例骨架不得再出现四级标题，避免与「不使用四级标题与数字编号」规则冲突
+    assert "####" not in MINUTES_AGENDA_RENDER_PROMPT
 
 
 def test_orchestrator_line_shared_context_recency_injection():

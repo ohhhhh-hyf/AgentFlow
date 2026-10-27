@@ -432,19 +432,51 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> t
         clean_att = re.sub(r"[\*#_`]", "", plan.meta.attendees)
         for role_prefix in [
             "全程与会人/主持人", "全程与会人", "主持人", "会议主持", "评委", "评审组长", "主席", "评委组",
-            "组织主席", "大会主席", "执行主席", "召集人", "Session Chair"
+            "组织主席", "大会主席", "执行主席", "召集人",
+            "Session Chair", "Chairperson", "Chair", "Host", "Moderator", "Facilitator", "Organizer", "MC",
         ]:
             # 强化边界：匹配到换行、分段与会人/列席人标签、连字符、破折号时立即终止，防止单行穿透抓取汇报人
-            m = re.search(rf"{role_prefix}\s*[:：]?\s*([^;\n\r—\-]+(?:[;；][^;\n\r—\-]+)*)", clean_att)
+            if role_prefix.isascii():
+                role_pattern = rf"\b{re.escape(role_prefix)}\b"
+                role_flags = re.IGNORECASE
+            else:
+                role_pattern = role_prefix
+                role_flags = 0
+            m = re.search(
+                rf"{role_pattern}\s*[:：]?\s*([^;\n\r—\-]+(?:[;；][^;\n\r—\-]+)*)",
+                clean_att,
+                role_flags,
+            )
             if m:
                 for name in clean_presenter_names(m.group(1)):
-                    clean_n = re.sub(r"^(?:主持人|会议主持|全程与会人|与会人|列席人)[:：]?", "", name).strip()
+                    clean_n = re.sub(
+                        r"^(?:(?:主持人|会议主持|全程与会人|与会人|列席人)\s*[:：]?\s*"
+                        r"|(?:host|moderator|chair|chairperson|facilitator|organizer|mc|session chair)"
+                        r"\b\s*[:：]?\s*)",
+                        "",
+                        name,
+                        flags=re.IGNORECASE,
+                    ).strip()
                     if clean_n:
                         raw_hubs.add(clean_n)
 
     # 文本原生角色嗅探：转写文本中发言人若直接命名为“主持人/主席/评委”等，自动纳入枢纽池
     for b in blocks:
-        if b.speaker and any(r in b.speaker for r in ["主持人", "会议主持", "执行主席", "大会主席", "评委", "MC", "会务"]):
+        if not b.speaker:
+            continue
+        speaker_lower = b.speaker.casefold()
+        has_cn_role = any(
+            role in speaker_lower
+            for role in ("主持人", "会议主持", "执行主席", "大会主席", "评委", "会务")
+        )
+        has_en_role = bool(
+            re.search(
+                r"\b(?:host|moderator|chair|chairperson|facilitator|organizer|mc|session chair)\b",
+                b.speaker,
+                re.IGNORECASE,
+            )
+        )
+        if has_cn_role or has_en_role:
             raw_hubs.add(b.speaker)
 
     speaker_counts: dict[str, int] = {}
@@ -464,8 +496,12 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> t
         if cnt >= _HUB_SPEAKER_BLOCK_MIN and not any(match_presenter_name(p, sp) >= NAME_MATCH_ACCEPT for p in all_team if p):
             raw_hubs.add(sp)
 
-    if "现场发言人" in raw_hubs:
-        raw_hubs.remove("现场发言人")
+    # 占位发言人不是真实枢纽人物，避免污染后续评分
+    placeholder_hubs = {
+        "现场发言人", "speaker", "participant", "user", "host", "moderator",
+        "chair", "chairperson", "facilitator", "organizer", "mc", "session chair",
+    }
+    raw_hubs = {h for h in raw_hubs if h.casefold() not in placeholder_hubs}
 
     # 汇报人身份互斥保护（核心免疫，支持模糊容错）：
     # 检出双重身份人员（既是会议主持/组织人员，又是某议题法定主讲人）

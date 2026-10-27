@@ -53,6 +53,48 @@ def test_vision_json_to_agenda_plan_mapping():
     assert plan.items[1].duration == "45min"
 
 
+def test_vision_json_english_presenters_not_split():
+    """VLM 返回字符串型英文姓名时，不能被空格拆成两个人。"""
+    data = {
+        "theme": "Architecture Review",
+        "attendees": "Alice Chen, Bob Lee",
+        "agenda_items": [
+            {"seq": "01", "title": "Architecture Review", "presenters": "Alice Chen, Bob Lee"},
+            {"seq": "02", "title": "Release Plan", "presenters": "Carol Wu and Dave Park"},
+        ],
+    }
+    plan = vision_json_to_agenda_plan(data)
+    assert plan.meta.attendees == "Alice Chen；Bob Lee"
+    assert plan.items[0].presenters == ["Alice Chen", "Bob Lee"]
+    assert plan.items[1].presenters == ["Carol Wu", "Dave Park"]
+
+
+def test_vision_json_mixed_cn_en_names():
+    """中英混排名单：中文多人名与英文全名都要保持正确。"""
+    data = {
+        "attendees": ["张三", "Alice Chen"],
+        "agenda_items": [
+            {"title": "混合议题", "presenters": "张三；Alice Chen"},
+        ],
+    }
+    plan = vision_json_to_agenda_plan(data)
+    assert plan.meta.attendees == "张三；Alice Chen"
+    assert plan.items[0].presenters == ["张三", "Alice Chen"]
+
+
+def test_vision_json_string_attendees_chinese():
+    """字符串型中文名单仍按原有空格/分号规则拆分。"""
+    data = {
+        "attendees": "高虹；俞凯",
+        "agenda_items": [
+            {"title": "语音技术研讨", "presenters": "张三 李四"},
+        ],
+    }
+    plan = vision_json_to_agenda_plan(data)
+    assert plan.meta.attendees == "高虹；俞凯"
+    assert plan.items[0].presenters == ["张三", "李四"]
+
+
 def test_agenda_plan_to_markdown():
     data = {
         "theme": "芯片进度例会",

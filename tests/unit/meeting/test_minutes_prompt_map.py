@@ -58,6 +58,29 @@ def test_resolve_prompt_view() -> None:
     assert resolve_prompt_view("") == VIEW_OBJECTIVE
 
 
+def test_minutes_prompt_no_content_examples() -> None:
+    """Prompt 只保留通用规则与格式占位符，不夹带具体栏目名/指标/措辞示例。"""
+    # 1. 指标类型不锁定
+    assert "吞吐/延迟/时限/金额" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "关键量化指标及其对照基线" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+    # 2. 普通模板渲染不列具体栏目名/标题示例
+    assert "讲座概况" not in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "评审概况" not in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "会议概况" not in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "【要点梳理】" not in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "### 1. 业务板块/功能方向名称" not in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "模板中声明为单段概括/概览的栏目" in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "模板中声明为业务研讨/要点类的栏目" in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "按模板声明的三级标题层级设立小节" in MINUTES_RENDER_TEMPLATE_PROMPT
+
+    # 3. 议题模板渲染不列具体栏目名/措辞示例
+    assert "【要点梳理】" not in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    assert "推荐以" not in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    assert "模板中的议题研讨类栏目" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    assert "按模板要求的列表格式" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+
+
 def test_prompt_sets_by_view() -> None:
     agenda = minutes_prompt_set(VIEW_AGENDA_OBJECTIVE)
     assert agenda.generation is MINUTES_AGENDA_GENERATION_PROMPT

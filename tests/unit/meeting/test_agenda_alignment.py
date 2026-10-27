@@ -37,6 +37,30 @@ AGENDA_DIR = (
     else PROJECT_ROOT / "agenda"
 )
 
+def test_identify_hub_speakers_english_roles():
+    """英文 Host/Moderator 角色能进入枢纽池，且不误伤真实汇报人。"""
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        DiscussionBlock,
+        _identify_hub_speakers,
+    )
+
+    plan = AgendaPlan(
+        items=[
+            AgendaItemParsed(seq="01", title="Architecture Review", presenters=["Alice Chen"])
+        ]
+    )
+    plan.meta.attendees = "Host: Carol Wu；Moderator: Dave Park"
+    blocks = [
+        DiscussionBlock(speaker="Carol Wu", timestamp="", content="Welcome everyone.", index=0),
+        DiscussionBlock(speaker="Alice Chen", timestamp="", content="Architecture details.", index=1),
+    ]
+    hubs, dual = _identify_hub_speakers(plan, blocks)
+    assert "Carol Wu" in hubs
+    assert "Dave Park" in hubs
+    assert "Alice Chen" not in hubs
+    assert dual == set()
+
+
 def test_alignment_unmentioned_agenda_marks_skipped():
     """核心防幻觉单测：验证 Test 1 中发言块独立路由。
     

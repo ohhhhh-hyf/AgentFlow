@@ -182,35 +182,90 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
     return cols
 
 
+_CJK_PATTERN = re.compile(r"[\u4e00-\u9fa5]")
+
+_NAME_ROLE_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"(?:汇报人|主讲人|报告人|分享人|责任人|发言人|主持人|会议主持|全程与会人|与会人|列席人|分段列席人)\s*[:：]\s*"
+    r"|"
+    r"(?:presenters?|speakers?|reporters?|owners?|hosts?|moderators?|chairs?|chairpersons?|"
+    r"facilitators?|leads?|minutes\s+taker|note\s+taker|session\s+chairs?|presented\s+by)"
+    r"\b\s*(?:[:：\-–—]\s*)?"
+    r")",
+    re.IGNORECASE,
+)
+
+# 强分隔符：分号/逗号/斜杠/竖线/顿号/换行/制表符、and、&、连续空格。
+# 单空格不在这里拆，否则英文全名会被切成两个词。
+_NAME_SPLIT_RE = re.compile(
+    r"[\r\n\t;；,，/|、]+|\s+and\s+|\s+&\s+|\s{2,}",
+    re.IGNORECASE,
+)
+
+_NAME_LABELS = {
+    "公开", "非公开", "汇报类", "审议类",
+    "presenter", "presenters", "speaker", "speakers", "reporter", "reporters",
+    "owner", "owners", "host", "hosts", "moderator", "moderators",
+    "chair", "chairs", "chairperson", "chairpersons", "session chair", "session chairs",
+    "facilitator", "facilitators", "lead", "leads", "minutes taker", "note taker",
+    "tbd", "tbc", "n/a", "none", "all",
+}
+_NAME_LABELS_LOWER = {label.casefold() for label in _NAME_LABELS}
+
+
+def _has_cjk(text: str) -> bool:
+    return bool(_CJK_PATTERN.search(text or ""))
+
+
+def _split_name_chunk(chunk: str) -> list[str]:
+    """拆分单个姓名片段：中文多人名按空格拆，英文全名保持完整。"""
+    chunk = (chunk or "").strip()
+    if not chunk:
+        return []
+    if _has_cjk(chunk):
+        return [part.strip() for part in re.split(r"\s+", chunk) if part.strip()]
+    return [chunk]
+
+
 def clean_presenter_names(raw: str) -> list[str]:
     """从原始单元格中提取干净的汇报人姓名列表。
 
     处理诸如：
     - '汇报人: 张三 00585440' -> ['张三']
     - '张三; 李四' -> ['张三', '李四']
-    - '张三; 李四; 王五' -> ['张三', '李四', '王五']
     - '汇报人: 李四 00939670 张三 00841266' -> ['李四', '张三']
-    - '张三、李四' -> ['张三', '李四']
+    - 'Presenter: Alice Chen' -> ['Alice Chen']
+    - 'Alice Chen；Bob Lee' -> ['Alice Chen', 'Bob Lee']
+    - 'Alice Chen and Bob Lee' -> ['Alice Chen', 'Bob Lee']
+    - '张三；Alice Chen' -> ['张三', 'Alice Chen']
     """
     if not raw or not raw.strip():
         return []
     # 剥离 Markdown 格式符号与首尾空白
     text = re.sub(r"[\*#_`]", "", raw.strip())
-    # 剥离常见角色前缀
-    text = re.sub(r"^(?:汇报人|主讲人|报告人|分享人|责任人|发言人|主持人|会议主持|全程与会人|与会人|列席人|分段列席人)\s*[:：]\s*", "", text, flags=re.I)
     # 剥离 5~8 位连续数字工号
     text = re.sub(r"\b\d{5,8}\b", "", text)
     # 剔除括号及其内工号或备注，如 (委托某某)
     text = re.sub(r"\([^)]*\)|（[^）]*）", "", text)
-    # 按常见分隔符拆分（包含顿号、分号、斜杠、逗号、空格）
-    names = re.split(r"[;；,/，\s、]+", text)
-    valid = []
-    for n in names:
-        n_clean = n.strip()
-        if n_clean and len(n_clean) >= 2 and not n_clean.isdigit():
-            # 过滤诸如 "非公开" "公开" 等标签
-            if n_clean not in {"公开", "非公开", "汇报类", "审议类"}:
-                valid.append(n_clean)
+
+    names: list[str] = []
+    for chunk in _NAME_SPLIT_RE.split(text):
+        # 每个分段都剥离一次角色前缀，避免 "Alice；Moderator: Bob" 残留前缀
+        chunk = _NAME_ROLE_PREFIX_RE.sub("", chunk.strip(), count=1)
+        names.extend(_split_name_chunk(chunk))
+
+    valid: list[str] = []
+    for name in names:
+        n_clean = re.sub(r"\s+", " ", name).strip(" ,;；:：")
+        if not n_clean or n_clean.isdigit():
+            continue
+        if not re.search(r"[A-Za-z\u4e00-\u9fa5]", n_clean):
+            continue
+        if n_clean in _NAME_LABELS or n_clean.casefold() in _NAME_LABELS_LOWER:
+            continue
+        max_len = 20 if _has_cjk(n_clean) else 64
+        if 2 <= len(n_clean) <= max_len:
+            valid.append(n_clean)
     return valid
 
 
@@ -238,7 +293,13 @@ _COMMON_VARIANTS: dict[str, str] = {
     "华": "华", "華": "华",
 }
 
-_SPEAKER_LABEL_PATTERN = r"(?:[^\n:：\d]{1,16}|(?:发言者|说话人|发言人|主讲人|参会人|与会人|Speaker|User|Participant)\s*[\-_#]?\s*\d{1,4})"
+_ENGLISH_NAME_PATTERN = r"[A-Z][A-Za-z.'’\-]*(?:\s+[A-Z][A-Za-z.'’\-]*){0,2}"
+
+_SPEAKER_LABEL_PATTERN = (
+    r"(?:[^\n:：\d]{1,16}"
+    r"|(?:发言者|说话人|发言人|主讲人|参会人|与会人|Speaker|User|Participant)\s*[\-_#]?\s*\d{1,4}"
+    rf"|{_ENGLISH_NAME_PATTERN})"
+)
 
 _SPEAKER_TS_PATTERN = re.compile(
     rf"^(?:"
@@ -249,38 +310,75 @@ _SPEAKER_TS_PATTERN = re.compile(
     re.M,
 )
 _SPEAKER_COLON_PATTERN = re.compile(
-    r"^(?:【([^】\n]{2,16})】|([^\n\d:：]{2,16})\s*[:：])\s*",
+    r"^(?:【([^】\n]{2,16})】|\[([A-Za-z][A-Za-z .'’\-]{1,31})\]|([^\n\d:：]{2,32})\s*[:：])\s*",
     re.M,
 )
 
+_SPEAKER_BRACKET_PATTERN = re.compile(
+    r"^\[([A-Za-z][A-Za-z .'’\-]{1,31})\]", re.M
+)
+
+_SPEAKER_ROLE_LABELS = {"主持人", "评委", "现场发言人"}
+_SPEAKER_ROLE_LABELS_LOWER = {
+    "host", "moderator", "chair", "chairperson", "facilitator", "organizer",
+    "mc", "session chair", "speaker", "panelist", "guest", "attendee",
+    "tbd", "tbc", "n/a", "none", "all",
+}
+
+
+def _normalize_ascii_name(text: str) -> str:
+    """英文姓名归一：大小写、空格、连字符、撇号、点号差异不影响匹配。"""
+    normalized = (text or "").casefold()
+    return re.sub(r"[\s\-–—_.'’]", "", normalized)
+
+
+def _ascii_name_in_text(name: str, text: str) -> bool:
+    """英文姓名按整词边界查找，避免 Ann 误中 Joanne。"""
+    if not name or not text:
+        return False
+    pattern = rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])"
+    return bool(re.search(pattern, text, re.IGNORECASE))
+
 
 def match_presenter_name(p: str, sp: str) -> float:
-    """计算议程汇报人与实际发言人的匹配相似度（支持繁简异体、拼音同音与单字符容错）。"""
+    """计算议程汇报人与实际发言人的匹配相似度（支持繁简异体、拼音同音与英文归一）。"""
     if not p or not sp:
         return 0.0
     p_strip = re.sub(r"[\*#_`\s]", "", p)
     sp_strip = re.sub(r"[\*#_`\s]", "", sp)
     if not p_strip or not sp_strip:
         return 0.0
-    if p_strip == sp_strip or p_strip in sp_strip or sp_strip in p_strip:
+
+    # 中文姓名：保留原有子串、异体字与拼音容错逻辑
+    if _has_cjk(p_strip) or _has_cjk(sp_strip):
+        if p_strip == sp_strip or p_strip in sp_strip or sp_strip in p_strip:
+            return 1.0
+
+        # 变体汉字归一化（繁简与常见异体）
+        p_norm = "".join(_COMMON_VARIANTS.get(c, c) for c in p_strip)
+        sp_norm = "".join(_COMMON_VARIANTS.get(c, c) for c in sp_strip)
+        if p_norm == sp_norm or p_norm in sp_norm or sp_norm in p_norm:
+            return 0.95
+
+        # 语音转写 ASR 常见同音字容错（基于拼音同音比对）
+        if len(p_strip) == len(sp_strip) and len(p_strip) >= 2:
+            try:
+                from pypinyin import lazy_pinyin
+
+                if lazy_pinyin(p_strip) == lazy_pinyin(sp_strip):
+                    return 0.9
+            except Exception:
+                pass
+
+        return 0.0
+
+    # 英文姓名：大小写/空格/连字符/撇号归一后精确匹配，再用整词边界包含
+    p_clean = re.sub(r"[\*#_`]", "", p).strip()
+    sp_clean = re.sub(r"[\*#_`]", "", sp).strip()
+    if _normalize_ascii_name(p_clean) == _normalize_ascii_name(sp_clean):
         return 1.0
-
-    # 变体汉字归一化（繁简与常见异体）
-    p_norm = "".join(_COMMON_VARIANTS.get(c, c) for c in p_strip)
-    sp_norm = "".join(_COMMON_VARIANTS.get(c, c) for c in sp_strip)
-    if p_norm == sp_norm or p_norm in sp_norm or sp_norm in p_norm:
+    if _ascii_name_in_text(p_clean, sp_clean) or _ascii_name_in_text(sp_clean, p_clean):
         return 0.95
-
-    # 语音转写 ASR 常见同音字容错（基于拼音同音比对）
-    if len(p_strip) == len(sp_strip) and len(p_strip) >= 2:
-        try:
-            from pypinyin import lazy_pinyin
-
-            if lazy_pinyin(p_strip) == lazy_pinyin(sp_strip):
-                return 0.9
-        except Exception:
-            pass
-
     return 0.0
 
 
@@ -292,19 +390,27 @@ def extract_speakers_from_transcript(transcript: str) -> list[str]:
     matches = list(_SPEAKER_TS_PATTERN.finditer(text))
     if not matches:
         matches = list(_SPEAKER_COLON_PATTERN.finditer(text))
-        raw_speakers = [(m.group(1) or m.group(2) or "").strip() for m in matches]
+        raw_speakers = [(m.group(1) or m.group(2) or m.group(3) or "").strip() for m in matches]
     else:
         raw_speakers = [
             (m.group(2) if m.group(1) else m.group(3) or "").strip()
             for m in matches
         ]
 
+    # 英文方括号发言人 [Alice Chen] 可与时间戳格式混用，单独补一轮
+    raw_speakers.extend(
+        m.group(1).strip() for m in _SPEAKER_BRACKET_PATTERN.finditer(text)
+    )
+
     seen = set()
     speakers: list[str] = []
     for s in raw_speakers:
         s_clean = re.sub(r"\b\d{5,8}\b", "", s).strip()
-        if s_clean and s_clean not in seen and 2 <= len(s_clean) <= 12:
-            if s_clean not in {"主持人", "评委", "现场发言人"}:
+        if s_clean and s_clean not in seen and 2 <= len(s_clean) <= 32:
+            if (
+                s_clean not in _SPEAKER_ROLE_LABELS
+                and s_clean.casefold() not in _SPEAKER_ROLE_LABELS_LOWER
+            ):
                 seen.add(s_clean)
                 speakers.append(s_clean)
     return speakers
@@ -369,6 +475,13 @@ def reconcile_presenter_names(
                     plan.meta.attendees = plan.meta.attendees.replace(p, cand)
 
     return plan
+
+
+_TITLE_HEADER_ALIASES = {
+    "议题名称", "序号", "编号",
+    "topic", "topic name", "title", "subject", "agenda item", "session", "item",
+    "no", "no.", "seq",
+}
 
 
 def parse_agenda_text(
@@ -475,7 +588,8 @@ def parse_agenda_text(
             if t_col == -1 or t_col >= len(cells):
                 continue
             title = cells[t_col].strip()
-            if not title or title.startswith(("-", "+")) or any(k in title for k in ("议题名称", "Topic", "序号", "编号")):
+            title_key = title.strip().casefold()
+            if not title or title.startswith(("-", "+")) or title_key in _TITLE_HEADER_ALIASES:
                 continue
 
             s_col = cols["seq"]

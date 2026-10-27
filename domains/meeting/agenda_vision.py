@@ -13,7 +13,6 @@ from datetime import datetime
 import logging
 import os
 from pathlib import Path
-import re
 import tempfile
 from typing import Any
 
@@ -22,10 +21,10 @@ from domains.meeting.tasks.agenda_minutes.agenda_parser import (
     AgendaItemParsed,
     AgendaMeta,
     AgendaPlan,
+    clean_presenter_names,
     extract_speakers_from_transcript,
     parse_agenda_text,
     reconcile_presenter_names,
-    _PARSED_AGENDA_CACHE,
     _PARSED_AGENDA_RAW_CACHE,
 )
 from domains.meeting.tasks.agenda_minutes.agenda_extractor import reconstruct_agenda_markdown
@@ -87,8 +86,8 @@ def clean_person_names(raw_val: Any) -> list[str]:
                 names.append(s)
         return names
     if isinstance(raw_val, str) and raw_val.strip():
-        parts = re.split(r"[;；,，、\s]+", raw_val.strip())
-        return [p.strip() for p in parts if p.strip()]
+        # 复用议程 parser 的中英文姓名清洗规则，避免 Alice Chen 被空格拆碎
+        return clean_presenter_names(raw_val)
     return []
 
 
