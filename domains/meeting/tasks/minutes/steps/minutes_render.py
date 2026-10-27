@@ -5,8 +5,8 @@ from collections.abc import AsyncIterator
 
 from core.execution.hard_execution import parse_lang_mode
 from core.runner.prompt_utils import build_render_prompt
-
 from infra.llm import LLMClient
+
 from ..prompt_map import is_agenda_view, minutes_prompt_set, resolve_prompt_view
 from ..prompts import localize_agenda_headings_for_en
 
@@ -36,6 +36,124 @@ def compact_untemplated_minutes(text: str) -> str:
     return body
 
 
+def _field_list(draft: dict, field: str) -> list:
+    """取草稿字段并归一为列表；兼容单字符串，避免逐字符拆分。"""
+    value = draft.get(field)
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str) and value.strip():
+        return [value]
+    return []
+
+
+def _format_list_lines(items: list) -> list[str]:
+    """格式化列表项，支持独占加粗组名（如 **与我相关**：、**姓名**：）。"""
+    lines: list[str] = []
+    for it in items:
+        s = str(it or "").strip()
+        if not s:
+            continue
+        # 独占组名行（如 **与我相关**：、**重点协同**：、**姓名**：）
+        if s.startswith("**") and s.endswith(("：", ":")):
+            if lines and lines[-1] != "":
+                lines.append("")
+            lines.append(s)
+        else:
+            if not s.startswith(("- ", "* ", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.")):
+                lines.append(f"- {s}")
+            else:
+                lines.append(s)
+    return lines
+
+
+def _format_history_lines(items: list) -> list[str]:
+    """历史对比列表：保留已有列表符，其余统一补 `- `。"""
+    lines: list[str] = []
+    for item in items:
+        s = str(item or "").strip()
+        if not s:
+            continue
+        lines.append(s if s.startswith(("- ", "* ")) else f"- {s}")
+    return lines
+
+
+def render_fallback_minutes(
+    draft: dict,
+    *,
+    objective: bool = True,
+    is_personal: bool = False,
+    user_name: str = "",
+    is_en: bool = False,
+) -> str:
+    """7 字段 → 通用兜底纪要的确定性 Markdown 映射（零 LLM 调用）。
+
+    只做字段到栏目的格式化，不做语义推断、不补造事实：
+    - headline → 一级标题
+    - executive_summary[0] → 全文摘要；[1:] → 要点梳理
+    - key_decisions → 关键决策
+    - personally_relevant_points → 全员执行要点 / 职责相关事项
+    - risks_and_blockers → 风险与阻塞
+    - unresolved_questions → 未决问题
+    - history_comparison → 与历史对比（有内容才输出）
+    """
+    empty_msg = (
+        "Please refer directly to the meeting transcript."
+        if is_en
+        else "请直接参考会议原文。"
+    )
+    if not draft:
+        return empty_msg
+
+    headline = str(draft.get("headline") or "").strip()
+    if headline:
+        title = headline
+    elif is_personal and user_name:
+        title = f"{user_name}'s Meeting Minutes" if is_en else f"{user_name}视角会议纪要"
+    elif objective:
+        title = "Meeting Minutes" if is_en else "客观会议纪要"
+    else:
+        title = "Meeting Minutes" if is_en else "会议纪要"
+
+    blocks: list[str] = []
+
+    summary = [
+        str(p).strip()
+        for p in _field_list(draft, "executive_summary")
+        if str(p).strip()
+    ]
+    if summary:
+        summary_heading = "## Executive Summary" if is_en else "## 全文摘要"
+        blocks.append(f"{summary_heading}\n\n{summary[0]}")
+        if len(summary) > 1:
+            points_heading = "## Key Discussion Points" if is_en else "## 要点梳理"
+            blocks.append(f"{points_heading}\n\n" + "\n\n".join(summary[1:]))
+
+    def add_list(field: str, heading_zh: str, heading_en: str) -> None:
+        formatted = _format_list_lines(_field_list(draft, field))
+        if formatted:
+            heading = heading_en if is_en else heading_zh
+            blocks.append(f"{heading}\n\n" + "\n".join(formatted))
+
+    add_list("key_decisions", "## 关键决策", "## Key Decisions")
+    add_list(
+        "personally_relevant_points",
+        "## 职责相关事项" if is_personal else "## 全员执行要点",
+        "## Individual Action Items" if is_personal else "## Action Items",
+    )
+    add_list("risks_and_blockers", "## 风险与阻塞", "## Risks & Blockers")
+    add_list("unresolved_questions", "## 未决问题", "## Open Questions")
+
+    history = _format_history_lines(_field_list(draft, "history_comparison"))
+    if history:
+        history_heading = "## Historical Comparison" if is_en else "## 与历史对比"
+        blocks.append(f"{history_heading}\n\n" + "\n".join(history))
+
+    if not blocks:
+        return f"# {title}\n\n{empty_msg}"
+
+    return f"# {title}\n\n" + "\n\n".join(blocks)
+
+
 class MinutesGenerationRender:
     """把已批准的纪要草稿渲染为最终正文（支持模板与流式）。"""
 
@@ -45,33 +163,18 @@ class MinutesGenerationRender:
     @staticmethod
     def _format_list_items(items: list[str]) -> list[str]:
         """格式化列表项，支持个人视角的独占加粗组名（如 **与我相关**：、**姓名**：）。"""
-        lines: list[str] = []
-        for it in items:
-            s = str(it or "").strip()
-            if not s:
-                continue
-            # 独占组名行（如 **与我相关**：、**重点协同**：、**姓名**：）
-            if s.startswith("**") and (s.endswith("：") or s.endswith(":")):
-                if lines and lines[-1] != "":
-                    lines.append("")
-                lines.append(s)
-            else:
-                if not s.startswith(("- ", "* ", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.")):
-                    lines.append(f"- {s}")
-                else:
-                    lines.append(s)
-        return lines
+        return _format_list_lines(items)
 
     @staticmethod
     def render_draft(state: dict) -> str:
-        """把已批准的纪要草稿纯 Python 确定性组装为规范 Markdown 正文（零 LLM 调用）。"""
+        """把已批准的纪要草稿纯 Python 确定性组装为规范 Markdown 正文（零 LLM 调用）。
+
+        先提取视角/语种，再委托 ``render_fallback_minutes`` 做 7 字段 → 栏目映射；
+        兜底布局固定为：全文摘要 / 要点梳理 / 关键决策 / 执行要点 / 风险 / 未决 / 历史对比。
+        """
         minutes_state = (state.get("lines") or {}).get("minutes") or {}
         draft = minutes_state.get("draft") or {}
         lang = str(state.get("lang") or "zh").strip().lower()
-        is_en = lang == "en"
-
-        if not draft:
-            return "Please refer directly to the meeting transcript." if is_en else "请直接参考会议原文。"
 
         objective = bool(state.get("objective_perspective"))
         user = state.get("user") or {}
@@ -82,78 +185,13 @@ class MinutesGenerationRender:
             and str(user.get("perspective") or "").strip().lower() != "objective"
         )
 
-        headline = str(draft.get("headline") or "").strip()
-        if headline:
-            title = headline
-        elif is_personal:
-            title = f"{name}'s Meeting Minutes" if is_en else f"{name}视角会议纪要"
-        elif objective:
-            title = "Meeting Minutes" if is_en else "客观会议纪要"
-        else:
-            title = "Meeting Minutes" if is_en else "会议纪要"
-
-        blocks: list[str] = []
-
-        # 1. executive_summary -> 全文摘要 / Executive Summary
-        exec_sum = list(draft.get("executive_summary") or [])
-        if exec_sum:
-            summary_paras = [str(p).strip() for p in exec_sum if str(p).strip()]
-            if summary_paras:
-                sec = "## Executive Summary" if is_en else "## 全文摘要"
-                blocks.append(f"{sec}\n\n" + "\n\n".join(summary_paras))
-
-        # 2. key_decisions -> 关键决策 / Key Decisions
-        decisions = list(draft.get("key_decisions") or [])
-        if decisions:
-            formatted_decisions = MinutesGenerationRender._format_list_items(decisions)
-            if formatted_decisions:
-                sec = "## Key Decisions" if is_en else "## 关键决策"
-                blocks.append(f"{sec}\n\n" + "\n".join(formatted_decisions))
-
-        # 3. personally_relevant_points -> 执行要点 / Action Items
-        points = list(draft.get("personally_relevant_points") or [])
-        if points:
-            formatted_points = MinutesGenerationRender._format_list_items(points)
-            if formatted_points:
-                if is_en:
-                    sec_title = "## Individual Action Items" if is_personal else "## Action Items"
-                else:
-                    sec_title = "## 职责相关事项" if is_personal else "## 全员执行要点"
-                blocks.append(f"{sec_title}\n\n" + "\n".join(formatted_points))
-
-        # 4. risks_and_blockers -> 风险与阻塞 / Risks & Blockers
-        risks = list(draft.get("risks_and_blockers") or [])
-        if risks:
-            formatted_risks = MinutesGenerationRender._format_list_items(risks)
-            if formatted_risks:
-                sec = "## Risks & Blockers" if is_en else "## 风险与阻塞"
-                blocks.append(f"{sec}\n\n" + "\n".join(formatted_risks))
-
-        # 5. unresolved_questions -> 未决问题 / Open Questions
-        questions = list(draft.get("unresolved_questions") or [])
-        if questions:
-            formatted_questions = MinutesGenerationRender._format_list_items(questions)
-            if formatted_questions:
-                sec = "## Open Questions" if is_en else "## 未决问题"
-                blocks.append(f"{sec}\n\n" + "\n".join(formatted_questions))
-
-        # 6. history_comparison -> 与历史对比 / Historical Comparison
-        comparison = list(draft.get("history_comparison") or [])
-        if comparison:
-            formatted_comp = [
-                f"- {str(c).strip()}" if not str(c).strip().startswith(("- ", "* ")) else str(c).strip()
-                for c in comparison
-                if str(c).strip()
-            ]
-            if formatted_comp:
-                sec = "## Historical Comparison" if is_en else "## 与历史对比"
-                blocks.append(f"{sec}\n\n" + "\n".join(formatted_comp))
-
-        if not blocks:
-            empty_msg = "Please refer directly to the meeting transcript." if is_en else "请直接参考会议原文。"
-            return f"# {title}\n\n{empty_msg}"
-
-        return f"# {title}\n\n" + "\n\n".join(blocks)
+        return render_fallback_minutes(
+            draft,
+            objective=objective,
+            is_personal=is_personal,
+            user_name=name,
+            is_en=lang == "en",
+        )
 
     @staticmethod
     def _prompt_and_user(context: str, template: str, *, lang: str | None = None) -> tuple[str, str]:

@@ -1,13 +1,12 @@
 """tests/meeting/test_minutes_fast_render.py
-验证 minutes 零 LLM 快速渲染：
-1. render_draft 纯 Python 格式化（客观模式、个人模式、独占组名行、标题动态化）
-2. LinePolicy.uses_llm_render 对默认模板与自定义模板的分流识别
-3. produce_line 零 LLM 调用及内存/历史对照透传
+验证 minutes 渲染路径：
+1. render_draft 纯 Python 兜底格式化（客观模式、个人模式、独占组名行、标题动态化）
+2. LinePolicy.uses_llm_render 的有模板/无模板分流识别
+3. produce_line 无模板兜底零 LLM 调用及内存/历史对照透传
 """
 from __future__ import annotations
 
 import asyncio
-import pytest
 
 from core.runtime.kinds import LinePolicy
 from core.runtime.render import produce_line
@@ -86,28 +85,29 @@ def test_render_draft_personal() -> None:
 
 
 def test_line_policy_uses_llm_render_routing() -> None:
-    """验证 LinePolicy 对通用/个人默认模板及自定义模板的判定。"""
+    """验证 LinePolicy 的有模板/无模板分流：有非空模板走 LLM，空/空白走兜底。"""
     policy = LinePolicy(kind="llm_document", llm_render="if_template")
 
-    # 1. 无模板或布尔值
+    # 1. 无模板 / 空白模板 / 布尔值 → 不调 LLM
     assert policy.uses_llm_render("") is False
+    assert policy.uses_llm_render("   ") is False
     assert policy.uses_llm_render(False) is False
     assert policy.uses_llm_render(True) is True
 
-    # 2. 默认模板名或内容（纯 Python 装配，零 LLM）
-    assert policy.uses_llm_render("general_minutes") is False
-    assert policy.uses_llm_render("personal_minutes") is False
-    assert policy.uses_llm_render("通用纪要") is False
-    assert policy.uses_llm_render("个人视角纪要") is False
-    assert policy.uses_llm_render("# 个人视角纪要\n\n## [会议概况]...") is False
+    # 2. 默认模板（名字或正文）同样走 LLM，不再做纯 Python 特殊放行
+    assert policy.uses_llm_render("general_minutes") is True
+    assert policy.uses_llm_render("personal_minutes") is True
+    assert policy.uses_llm_render("通用纪要") is True
+    assert policy.uses_llm_render("个人视角纪要") is True
+    assert policy.uses_llm_render("# 个人视角纪要\n\n## [会议概况]...") is True
 
-    # 3. 自定义模板（需调 LLM）
+    # 3. 自定义模板（同样走 LLM）
     assert policy.uses_llm_render("project_progress") is True
     assert policy.uses_llm_render("# 项目进度会\n\n## [项目概况]...") is True
 
 
-def test_produce_line_minutes_fast_path_zero_llm() -> None:
-    """验证 produce_line 在 minutes 线走快速短路分支，零 LLM 调用且保留历史记忆对照。"""
+def test_produce_line_minutes_no_template_fallback_zero_llm() -> None:
+    """验证 minutes 无模板时走 render_draft 兜底：零 LLM 调用且保留历史记忆对照。"""
     class MockMinutesRender:
         def __init__(self) -> None:
             self.stream_called = 0
@@ -170,7 +170,7 @@ def test_produce_line_minutes_fast_path_zero_llm() -> None:
             engine = MockEngine()
             state = {
                 "objective_perspective": True,
-                "templates": {"minutes": "general_minutes"},
+                "templates": {"minutes": ""},
                 "lines": {
                     "minutes": {
                         "draft": {

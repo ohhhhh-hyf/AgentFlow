@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
-
 LLM_EXTRACT = "llm_extract"
 LLM_DOCUMENT = "llm_document"
 DETERMINISTIC_PIPELINE = "deterministic_pipeline"
@@ -52,22 +51,18 @@ class LinePolicy:
     extracts_structure: bool = False
 
     def uses_llm_render(self, template: object = False) -> bool:
+        """是否走 LLM 渲染。
+
+        ``if_template``：有非空模板 → LLM；无模板/空白模板 → render_draft 兜底。
+        默认模板 general_minutes / personal_minutes 同样走 LLM，不再做特殊放行。
+        """
         if self.llm_render == "always":
             return True
         if self.llm_render == "never":
             return False
         if self.llm_render == "if_template":
-            if not template:
-                return False
             if isinstance(template, str):
-                s = template.strip()
-                # 通用纪要与个人视角纪要是系统的默认基线模板，字段 1:1 映射，由 render_draft 纯 Python 零延迟装配，不调 LLM
-                if (
-                    not s
-                    or s in {"general_minutes", "personal_minutes", "通用纪要", "个人视角纪要"}
-                    or s.startswith("# 个人视角纪要")
-                ):
-                    return False
+                return bool(template.strip())
             return bool(template)
         raise ValueError(f"未知 llm_render：{self.llm_render}")
 
