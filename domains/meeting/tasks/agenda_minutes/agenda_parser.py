@@ -213,6 +213,11 @@ _NAME_LABELS = {
 _NAME_LABELS_LOWER = {label.casefold() for label in _NAME_LABELS}
 
 
+def normalize_lang(lang: str | None) -> str:
+    """把请求语种归一为 zh/en；空值与未知值按 zh。"""
+    return "en" if (lang or "").strip().lower() == "en" else "zh"
+
+
 def _has_cjk(text: str) -> bool:
     return bool(_CJK_PATTERN.search(text or ""))
 
@@ -726,6 +731,7 @@ __all__ = [
     "clear_agenda_parser_cache",
     "extract_speakers_from_transcript",
     "match_presenter_name",
+    "normalize_lang",
     "parse_agenda_text",
     "reconcile_presenter_names",
 ]

@@ -5,12 +5,14 @@ from dataclasses import dataclass, field
 import logging
 from typing import Any
 
-from domains.meeting.tasks.agenda_minutes.agenda_parser import parse_agenda_text
+from domains.meeting.tasks.agenda_minutes.agenda_parser import (
+    normalize_lang,
+    parse_agenda_text,
+)
 from domains.meeting.tasks.agenda_minutes.alignment_engine import (
     align_agenda_with_transcript,
     group_transcript_blocks,
     is_trivial_ceremonial_item,
-    AgendaAlignment,
     DiscussionBlock,
 )
 
@@ -108,14 +110,17 @@ def build_tagged_transcript_with_head_tail(
     return "\n\n".join(parts)
 
 
-def _extract_valid_agendas_from_alignment(alignment_res: Any) -> list[ValidAgendaItem]:
+def _extract_valid_agendas_from_alignment(
+    alignment_res: Any, *, lang: str = "zh"
+) -> list[ValidAgendaItem]:
     """从对齐结果中过滤出已讨论、非仪式的有效议题，并按现场时序排列。"""
+    lang_key = normalize_lang(lang)
     valid_items: list[ValidAgendaItem] = []
     # 使用 chronological_alignments 确保时序遵循现场真实讨论先后
     for align in alignment_res.chronological_alignments:
         if align.status != "discussed":
             continue
-        if is_trivial_ceremonial_item(align):
+        if is_trivial_ceremonial_item(align, lang=lang_key):
             continue
         if not align.matched_blocks:
             continue
@@ -133,7 +138,9 @@ def _extract_valid_agendas_from_alignment(alignment_res: Any) -> list[ValidAgend
     return valid_items
 
 
-_PROCESS_AGENDA_CACHE: dict[tuple[int, int, int, int, str, str], AgendaProcessResult] = {}
+_PROCESS_AGENDA_CACHE: dict[
+    tuple[int, int, int, int, str, str, str], AgendaProcessResult
+] = {}
 
 
 def clear_agenda_engine_cache() -> None:
@@ -141,7 +148,9 @@ def clear_agenda_engine_cache() -> None:
     _PROCESS_AGENDA_CACHE.clear()
 
 
-def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProcessResult:
+def process_agenda_for_minutes(
+    transcript: str, agenda_text: str, *, lang: str = "zh"
+) -> AgendaProcessResult:
     """提取有效讨论议题，并生成带头尾保护的打标实录（单次解析与对齐）。"""
     t = (transcript or "").strip()
     a = (agenda_text or "").strip()
@@ -152,7 +161,16 @@ def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProce
             tagged_transcript=transcript or "",
         )
 
-    cache_key = (hash(t), hash(a), len(t), len(a), t[:128], a[:128])
+    lang_key = normalize_lang(lang)
+    cache_key = (
+        hash(t),
+        hash(a),
+        len(t),
+        len(a),
+        t[:128],
+        a[:128],
+        lang_key,
+    )
     if cache_key in _PROCESS_AGENDA_CACHE:
         logger.debug(
             "[AGENDA_ENGINE] 命中议程处理综合结果缓存 (有效议题: %d)",
@@ -173,7 +191,7 @@ def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProce
             _PROCESS_AGENDA_CACHE[cache_key] = copy.deepcopy(empty_res)
             return empty_res
 
-        alignment_res = align_agenda_with_transcript(plan, t)
+        alignment_res = align_agenda_with_transcript(plan, t, lang=lang_key)
         if not alignment_res or not alignment_res.alignments:
             empty_res = AgendaProcessResult(
                 has_valid_agenda=False,
@@ -185,7 +203,9 @@ def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProce
             _PROCESS_AGENDA_CACHE[cache_key] = copy.deepcopy(empty_res)
             return empty_res
 
-        valid_agendas = _extract_valid_agendas_from_alignment(alignment_res)
+        valid_agendas = _extract_valid_agendas_from_alignment(
+            alignment_res, lang=lang_key
+        )
         if not valid_agendas:
             empty_res = AgendaProcessResult(
                 has_valid_agenda=False,
@@ -217,7 +237,9 @@ def process_agenda_for_minutes(transcript: str, agenda_text: str) -> AgendaProce
         )
 
 
-def probe_valid_agendas(transcript: str, agenda_text: str) -> list[ValidAgendaItem]:
+def probe_valid_agendas(
+    transcript: str, agenda_text: str, *, lang: str = "zh"
+) -> list[ValidAgendaItem]:
     """快速探测 docs 是否包含与会议转写实质对齐的有效讨论议题（纯 Python，零 LLM 调用）。"""
-    res = process_agenda_for_minutes(transcript, agenda_text)
+    res = process_agenda_for_minutes(transcript, agenda_text, lang=lang)
     return res.valid_agendas if res.has_valid_agenda else []

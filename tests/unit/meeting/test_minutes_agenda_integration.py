@@ -292,9 +292,15 @@ def test_prepare_minutes_passes_lang_to_agenda_vlm(tmp_path, monkeypatch):
         "domains.meeting.agenda_vision.extract_agenda_from_image_docs",
         fake_extract_agenda_from_image_docs,
     )
+    probe_captured: dict = {}
+
+    def fake_probe_valid_agendas(transcript, agenda_text, *, lang="zh"):
+        probe_captured["lang"] = lang
+        return [object()]
+
     monkeypatch.setattr(
         "domains.meeting.agenda_engine.probe_valid_agendas",
-        lambda transcript, agenda_text: [object()],
+        fake_probe_valid_agendas,
     )
 
     req = TaskRequest(
@@ -305,6 +311,7 @@ def test_prepare_minutes_passes_lang_to_agenda_vlm(tmp_path, monkeypatch):
     prep = _prepare("meeting", "minutes", req, "u_test_vlm_lang")
 
     assert captured["lang"] == "en"
+    assert probe_captured["lang"] == "en"
     assert "agenda_text" in prep.extra_line_inputs
 
 
@@ -704,7 +711,7 @@ def test_minutes_prompt_matter_oriented_governance():
     # 1. 核心诱因根治：验证公共基底彻底废除“主体+动作”句式公式，引入三层主体与就事论事
     assert "主体 + 核心动作/主张 + 量化指标/定调依据 + 最终结论/后续安排" not in _MINUTES_COMMON_BASE
     assert "分章节主体表达规范（就事论事原则）" in _MINUTES_COMMON_BASE
-    assert "避免在每句话开头机械堆砌“某某提出/某某认为/某某指出”等发言动词" in _MINUTES_COMMON_BASE
+    assert "避免机械堆砌发言动词" in _MINUTES_COMMON_BASE
 
     # 2. 负向对抗字眼治理：验证核心生成 Prompt 不包含杜绝/拒绝等对抗句式
     for p in [MINUTES_OBJECTIVE_GENERATION_PROMPT, MINUTES_AGENDA_GENERATION_PROMPT]:
@@ -790,3 +797,42 @@ def test_orchestrator_line_shared_context_recency_injection():
     }
     ctx_actions = nodes._line_shared_context(state_actions, "actions")
     assert "【审定议题草稿生成执行准绳】" not in ctx_actions
+
+
+@pytest.mark.anyio
+async def test_orchestrator_process_agenda_passes_lang(monkeypatch):
+    """orchestrator 二次处理必须把 state.lang 传给 process_agenda_for_minutes。"""
+    from domains.meeting import agenda_engine
+    from domains.meeting.orchestrator import MeetingAgentSystem
+
+    captured: dict[str, str] = {}
+    item = ValidAgendaItem(
+        seq="01",
+        title="Architecture Review",
+        presenters=["Alice Chen"],
+    )
+
+    def fake_process(transcript, agenda_text, *, lang="zh"):
+        captured["lang"] = lang
+        return AgendaProcessResult(
+            has_valid_agenda=True,
+            valid_agendas=[item],
+            tagged_transcript=(
+                "【现场审定的有效议题清单】：\n"
+                "1. 议题：Architecture Review"
+            ),
+        )
+
+    monkeypatch.setattr(agenda_engine, "process_agenda_for_minutes", fake_process)
+    system = MeetingAgentSystem(MagicMock())
+    node = system._make_meeting_understanding_node(["minutes"])
+    state = {
+        "transcript": "Alice Chen 00:01\nArchitecture review details",
+        "line_extra": {"agenda_text": "1. Architecture Review"},
+        "lang": "en",
+        "user": {},
+    }
+
+    result = await node(state)
+    assert captured["lang"] == "en"
+    assert result["has_valid_agenda"] is True

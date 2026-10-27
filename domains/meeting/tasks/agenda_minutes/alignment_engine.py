@@ -22,6 +22,7 @@ from .agenda_parser import (
     AgendaItemParsed,
     AgendaPlan,
     match_presenter_name,
+    normalize_lang,
     reconcile_presenter_names,
 )
 
@@ -200,11 +201,182 @@ _OPENING_MARKERS = {
     "大家看本次", "大家看一下", "各位好", "开始汇报", "我先共享", "我来汇报"
 }
 
+# ── 英文语种信号集（仅在 lang="en" 时启用；中文列表完全不动） ───────────────
+_CLOSING_PATTERNS_EN = (
+    re.compile(r"\bthat(?:'s| is) all for today\b", re.IGNORECASE),
+    re.compile(
+        r"\bthat concludes (?:the|our|today'?s) (?:meeting|session|discussion)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\blet'?s call it a day\b", re.IGNORECASE),
+    re.compile(r"\bwe(?:'re| are) done\b", re.IGNORECASE),
+    re.compile(r"\bi(?:'ll| will) stop here\b", re.IGNORECASE),
+    re.compile(r"\bto wrap up\b", re.IGNORECASE),
+    re.compile(r"\bthanks everyone\b", re.IGNORECASE),
+    re.compile(r"\bthank you all\b", re.IGNORECASE),
+    re.compile(r"\bsee you next time\b", re.IGNORECASE),
+    re.compile(r"\bbye(?:-bye)?\b", re.IGNORECASE),
+)
 
-def _is_session_closing(content: str) -> bool:
+_CLOSING_EXCLUSION_PATTERN_EN = re.compile(
+    r"\b(?:thank you|thanks)(?:\s+(?:all|everyone))?\s+for\s+(?:the|your)?\s*"
+    r"(?:question|feedback|comment|point|clarification|suggestion)\b"
+    r"|\bthanks for pointing (?:that|this) out\b"
+    r"|\bgood question\b"
+    r"|\b(?:let me|i(?:'ll| will))\s+clarify\b"
+    r"|\bi(?:'ll| will)\s+explain\b",
+    re.IGNORECASE,
+)
+
+_OPENING_PATTERNS_EN = (
+    re.compile(
+        r"\bcan (?:you|everyone|everybody) (?:see|view) my screen\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:i(?:'m| am)|let me)\s+(?:sharing|share)\s+(?:my\s+)?screen\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\blet me share\b", re.IGNORECASE),
+    re.compile(r"\blet'?s get started\b", re.IGNORECASE),
+    re.compile(r"\blet'?s begin\b", re.IGNORECASE),
+    re.compile(
+        r"\bgood (?:morning|afternoon|evening)(?:,)?\s+everyone\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bi(?:'ll| will) start with\b", re.IGNORECASE),
+    re.compile(r"\btoday i(?:'ll| will) walk you through\b", re.IGNORECASE),
+    re.compile(r"\bhere(?:'s| is) the agenda\b", re.IGNORECASE),
+)
+
+_EQUIPMENT_CHITCHAT_PATTERNS_EN = (
+    re.compile(r"\bcan (?:you|everyone|everybody) hear me\b", re.IGNORECASE),
+    re.compile(r"\byou(?:'re| are) on mute\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:microphone|mic)\b\s*"
+        r"(?:(?:is\s+)?not working|issue|problem|broken)?\s*[.!]?\s*$"
+        r"|\b(?:check|test)\s+(?:the\s+)?(?:microphone|mic)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:lost|bad|poor|unstable)\s+(?:the\s+)?connection\b"
+        r"|\bconnection (?:issue|problem|dropped|lost)\b"
+        r"|\breconnect(?:ing|ed)?\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\blagging\b|\bfrozen\b", re.IGNORECASE),
+    re.compile(r"\bscreen shar(?:e|ing)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:one moment|give me a second|hold on a second|just a moment)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:coffee|bathroom)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:take a|short|coffee|lunch)\s+break\b|\bbreak time\b",
+        re.IGNORECASE,
+    ),
+)
+
+_EN_HOST_HANDOVER_PATTERN = re.compile(
+    r"\b(?:"
+    r"next up|up next|"
+    r"now we(?:'ll| will) hear from|"
+    r"please welcome|i'?d like to invite|"
+    r"hand (?:it )?over to|over to|"
+    r"let'?s move on(?: to)?|let'?s go to|"
+    r"moving on(?: to)?|switching to"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_EN_HOST_GENERIC_PATTERN = re.compile(
+    r"\b(?:next (?:item|one|topic|session)|next (?:presenter|speaker))\b",
+    re.IGNORECASE,
+)
+
+_EN_ANONYMOUS_SPEAKERS = {"speaker", "participant", "user", "attendee"}
+
+
+def _speaker_is_host_role(speaker: str, lang: str) -> bool:
+    """判断发言人标签本身是否为主持/评委角色。"""
+    if lang == "en":
+        return bool(
+            re.search(
+                r"\b(?:host|moderator|chair|chairperson|facilitator|organizer|mc|session chair)\b",
+                speaker,
+                re.IGNORECASE,
+            )
+        )
+    return any(
+        role in speaker
+        for role in ("主持人", "会议主持", "执行主席", "大会主席", "评委", "MC", "会务")
+    )
+
+
+def _english_name_parts(name: str) -> list[str]:
+    """去掉英文姓名前的 Mr./Ms./Dr. 等头衔后拆分姓名。"""
+    clean = re.sub(
+        r"^(?:Mr|Ms|Mrs|Dr|Prof)\.?\s+",
+        "",
+        (name or "").strip(),
+        flags=re.IGNORECASE,
+    )
+    return [part for part in re.split(r"\s+", clean) if part]
+
+
+def _presenter_mentioned(
+    name: str,
+    text: str,
+    *,
+    lang: str,
+    first_name_counts: dict[str, int],
+) -> bool:
+    """在串场片段中判断是否点名了某位汇报人。"""
+    if not name or not text:
+        return False
+    if lang == "en":
+        if match_presenter_name(name, text) >= NAME_MATCH_ACCEPT:
+            return True
+        parts = _english_name_parts(name)
+        if len(parts) >= 2:
+            first_name = parts[0]
+            if (
+                first_name_counts.get(first_name.casefold(), 0) == 1
+                and match_presenter_name(first_name, text) >= NAME_MATCH_ACCEPT
+            ):
+                return True
+            last_name = parts[-1]
+            if re.search(
+                rf"\b(?:Mr|Ms|Mrs|Dr|Prof)\.?\s+{re.escape(last_name)}\b",
+                text,
+                re.IGNORECASE,
+            ):
+                return True
+        return False
+
+    # 中文姓名：保留原有精确、滑动窗口与姓氏+尊称匹配
+    if name in text:
+        return True
+    for i in range(len(text) - len(name) + 1):
+        if match_presenter_name(name, text[i : i + len(name)]) >= NAME_MATCH_ACCEPT:
+            return True
+    if len(name) >= 2:
+        surname = name[0]
+        if re.search(rf"{re.escape(surname)}(?:工|老师|总|经理|博士|专家)", text):
+            return True
+    return False
+
+
+def _is_session_closing(content: str, *, lang: str = "zh") -> bool:
     """判定是否为议题实质收尾信号，带上下文语义消歧（排除答辩抗辩致谢）。"""
     if not content:
         return False
+    lang_key = normalize_lang(lang)
+    if lang_key == "en":
+        # 英文致谢高频，先排除“感谢提问/反馈”，避免误判收尾
+        if _CLOSING_EXCLUSION_PATTERN_EN.search(content):
+            return False
+        return any(pat.search(content) for pat in _CLOSING_PATTERNS_EN)
     # 优先消歧：如果紧跟"指出/建议/我再解释"，属于答辩抗辩，绝非收尾
     if _CLOSING_EXCLUSION_PATTERN.search(content):
         return False
@@ -213,20 +385,27 @@ def _is_session_closing(content: str) -> bool:
     return any(m in content for m in _CLOSING_MARKERS)
 
 
-def _is_opening_signal(content: str) -> bool:
+def _is_opening_signal(content: str, *, lang: str = "zh") -> bool:
     """判定是否为新议题开场/共享桌面/就绪宣讲信号。"""
     if not content:
         return False
+    if normalize_lang(lang) == "en":
+        return any(pat.search(content) for pat in _OPENING_PATTERNS_EN)
     if any(pat.search(content) for pat in _OPENING_PATTERNS):
         return True
     return any(m in content for m in _OPENING_MARKERS)
 
 
-def _is_equipment_or_chitchat(content: str) -> bool:
+def _is_equipment_or_chitchat(content: str, *, lang: str = "zh") -> bool:
     """判定是否为纯设备试音或过场闲聊（且无实质长篇内容）。"""
     if not content or len(content) > 120:
         return False
-    return any(pat.search(content) for pat in _EQUIPMENT_CHITCHAT_PATTERNS)
+    patterns = (
+        _EQUIPMENT_CHITCHAT_PATTERNS_EN
+        if normalize_lang(lang) == "en"
+        else _EQUIPMENT_CHITCHAT_PATTERNS
+    )
+    return any(pat.search(content) for pat in patterns)
 
 
 
@@ -239,6 +418,8 @@ def _detect_host_roadsign(
     dual_speakers: set[str] | None = None,
     active_seq: str | None = None,
     unique_tokens_map: dict[str, list[str]] | None = None,
+    *,
+    lang: str = "zh",
 ) -> tuple[str | None, bool]:
     """检测主持人/枢纽人员的串场交接信号（交通警察路标）。
 
@@ -250,26 +431,47 @@ def _detect_host_roadsign(
     if not content:
         return None, False
 
-    is_native_role = any(r in speaker for r in ["主持人", "会议主持", "执行主席", "大会主席", "评委", "MC", "会务"])
+    lang_key = normalize_lang(lang)
+    is_native_role = _speaker_is_host_role(speaker, lang_key)
     is_hub = (
         speaker in hub_speakers
         or (dual_speakers and speaker in dual_speakers)
         or is_native_role
         or not speaker
         or speaker == "现场发言人"
+        or (
+            lang_key == "en"
+            and speaker.strip().casefold() in _EN_ANONYMOUS_SPEAKERS
+        )
     )
     if not is_hub:
         return None, False
 
     # 提取交接触发动词之后的子串，排除前半句致谢客套（如"辛苦刘工，下面有请林工"）
+    handover_patterns = (
+        (_EN_HOST_HANDOVER_PATTERN,)
+        if lang_key == "en"
+        else (
+            _HOST_NEXT_PHRASE_PATTERN,
+            _HOST_HANDOVER_VERB_PATTERN,
+            _HOST_DIRECT_INVITE_PATTERN,
+        )
+    )
     target_snippet = ""
-    for pat in [_HOST_NEXT_PHRASE_PATTERN, _HOST_HANDOVER_VERB_PATTERN, _HOST_DIRECT_INVITE_PATTERN]:
+    for pat in handover_patterns:
         m = pat.search(content)
         if m:
             target_snippet = content[m.start():]
             break
 
-    has_handover_intent = bool(target_snippet or _HOST_GENERIC_PATTERN.search(content))
+    generic_pattern = (
+        _EN_HOST_GENERIC_PATTERN
+        if lang_key == "en"
+        else _HOST_GENERIC_PATTERN
+    )
+    has_handover_intent = bool(
+        target_snippet or generic_pattern.search(content)
+    )
     if not has_handover_intent:
         return None, False
 
@@ -283,6 +485,20 @@ def _detect_host_roadsign(
         plan.items,
         key=lambda it: (0 if item_indices[it.seq] >= active_idx else 1, item_indices[it.seq]),
     )
+
+    first_name_counts: dict[str, int] = {}
+    if lang_key == "en":
+        for it in plan.items:
+            names = list(it.presenters)
+            if hasattr(it, "recorders"):
+                names.extend(it.recorders)
+            if hasattr(it, "members"):
+                names.extend(it.members)
+            for name in names:
+                parts = _english_name_parts(name)
+                if len(parts) >= 2:
+                    key = parts[0].casefold()
+                    first_name_counts[key] = first_name_counts.get(key, 0) + 1
 
     # 1. 尝试匹配明确的目标议程人选或关键词
     for it in candidate_items:
@@ -298,16 +514,13 @@ def _detect_host_roadsign(
             # 若当前活跃议题本身即包含该主讲人，主持人称呼该主讲人属于议题内互动/总结，绝不倒流切换
             if it.seq != active_seq and active_seq and any(match_presenter_name(p, p_act) >= NAME_MATCH_ACCEPT for p_act in items_by_seq[active_seq].presenters):
                 continue
-            # 精确匹配与滑动窗口模糊音形匹配（如语音转写的严永红与颜永红）
-            if p in search_scope:
+            if _presenter_mentioned(
+                p,
+                search_scope,
+                lang=lang_key,
+                first_name_counts=first_name_counts,
+            ):
                 return it.seq, False
-            for i in range(len(search_scope) - len(p) + 1):
-                if match_presenter_name(p, search_scope[i:i+len(p)]) >= NAME_MATCH_ACCEPT:
-                    return it.seq, False
-            if len(p) >= 2:
-                surname = p[0]
-                if re.search(rf"{re.escape(surname)}(?:工|老师|总|经理|博士|专家)", search_scope):
-                    return it.seq, False
 
         # 仅唯一区分性专名词汇可作为特定议题路标（多议题共有的词如“特邀报告”、“评审”等只触发泛指串场）
         tokens = unique_tokens_map.get(it.seq, []) if unique_tokens_map else extract_distinctive_tokens(it.title)
@@ -522,8 +735,11 @@ def _score_block_for_item(
     roadsign_seq: str | None = None,
     dual_speakers: set[str] | None = None,
     active_seq: str | None = None,
+    *,
+    lang: str = "zh",
 ) -> float:
     score = 0.0
+    lang_key = normalize_lang(lang)
     sp = b.speaker.strip()
     content = b.content
 
@@ -578,10 +794,34 @@ def _score_block_for_item(
     for name in all_team:
         if not name:
             continue
-        if (name in content or match_presenter_name(name, content) >= NAME_MATCH_ACCEPT) and name != sp:
+        mentioned = match_presenter_name(name, content) >= NAME_MATCH_ACCEPT
+        if not mentioned and lang_key == "en":
+            parts = _english_name_parts(name)
+            if len(parts) >= 2:
+                bare_name = " ".join(parts)
+                if (
+                    bare_name != name
+                    and match_presenter_name(bare_name, content)
+                    >= NAME_MATCH_ACCEPT
+                ):
+                    mentioned = True
+        if mentioned and name != sp:
             score += 2.0
             break
-        if len(name) >= 2 and re.search(rf"{re.escape(name[0])}(?:工|老师|总|经理|博士|专家)", content):
+        if lang_key == "en":
+            parts = _english_name_parts(name)
+            if len(parts) >= 2:
+                last_name = parts[-1]
+                if re.search(
+                    rf"\b(?:Mr|Ms|Mrs|Dr|Prof)\.?\s+{re.escape(last_name)}\b",
+                    content,
+                    re.IGNORECASE,
+                ):
+                    score += 2.0
+                    break
+        elif len(name) >= 2 and re.search(
+            rf"{re.escape(name[0])}(?:工|老师|总|经理|博士|专家)", content
+        ):
             score += 2.0
             break
 
@@ -630,7 +870,28 @@ def _detect_alignment_track(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> 
     return "NAMED"
 
 
-def _build_item_signals_for_content_track(it: AgendaItemParsed) -> list[str]:
+_CONTENT_EVENT_KEYWORDS_EN = (
+    "keynote",
+    "opening remarks",
+    "speech",
+    "address",
+    "panel",
+    "q&a",
+    "discussion",
+    "signing ceremony",
+    "award",
+    "group photo",
+    "video",
+    "break",
+    "lunch",
+    "tour",
+    "demo",
+)
+
+
+def _build_item_signals_for_content_track(
+    it: AgendaItemParsed, *, lang: str = "zh"
+) -> list[str]:
     """为无主讲人模式（Track B）构建每个议题的高敏路标与核心语义特征词集。"""
     title = it.title or ""
     desc = getattr(it, "description", "") or ""
@@ -646,6 +907,26 @@ def _build_item_signals_for_content_track(it: AgendaItemParsed) -> list[str]:
             signals.append(tok)
 
     combined = f"{title} {desc}"
+
+    if normalize_lang(lang) == "en":
+        combined_lower = combined.casefold()
+        for keyword in _CONTENT_EVENT_KEYWORDS_EN:
+            if keyword in combined_lower:
+                signals.append(keyword)
+        for role in (
+            "CEO", "CTO", "CFO", "COO", "VP",
+            "Director", "Manager", "Lead", "Head",
+        ):
+            if re.search(rf"\b{re.escape(role)}\b", combined, re.IGNORECASE):
+                signals.append(role)
+        for match in re.finditer(
+            r"\b(?:Dr|Prof)\.?\s+([A-Z][A-Za-z.'’\-]*)",
+            combined,
+            re.IGNORECASE,
+        ):
+            signals.append(match.group(0))
+            signals.append(match.group(1))
+        return list(dict.fromkeys(s for s in signals if s and len(s) >= 2))
 
     # 角色与尊称提取（提取姓氏+尊称如 张总、李工等）
     m_role = re.search(r"([\u4e00-\u9fa5]{1,4})(?:总|工|老师|主任|院长|博士|专家|主席)", combined)
@@ -689,11 +970,27 @@ _HIGH_CONFIDENCE_SIGNALS = {
     "团队交流", "互动交流", "领导致辞",
 }
 
+_TRANSITION_ROADSIGN_PATTERN_EN = re.compile(
+    r"\b(?:next|moving on|let'?s move|up next|switching to|going to|"
+    r"start with|begin with|wrap up)\b",
+    re.IGNORECASE,
+)
+
+_HIGH_CONFIDENCE_SIGNALS_EN = {
+    "group photo",
+    "signing ceremony",
+    "q&a",
+    "keynote",
+    "opening remarks",
+}
+
 
 def _align_by_topics_and_roadsigns(
     plan: AgendaPlan,
     blocks: list[DiscussionBlock],
     all_speakers: set[str],
+    *,
+    lang: str = "zh",
 ) -> AlignmentResult:
     """Track B: 基于主持人路标、语义特征词密度与单向流动的匿名实录对齐引擎。"""
     items = plan.items
@@ -712,19 +1009,40 @@ def _align_by_topics_and_roadsigns(
         ]
         return AlignmentResult(plan=plan, alignments=alignments, all_speakers=all_speakers, adhoc_blocks=[])
 
-    item_signals = {it.seq: _build_item_signals_for_content_track(it) for it in items}
+    lang_key = normalize_lang(lang)
+    item_signals = {
+        it.seq: _build_item_signals_for_content_track(it, lang=lang_key)
+        for it in items
+    }
 
     def _find_transition_candidate(b: DiscussionBlock, from_idx: int) -> tuple[str, int, str] | None:
         content = b.content
-        has_trans_pattern = bool(_TRANSITION_ROADSIGN_PATTERN.search(content))
+        transition_pattern = (
+            _TRANSITION_ROADSIGN_PATTERN_EN
+            if lang_key == "en"
+            else _TRANSITION_ROADSIGN_PATTERN
+        )
+        high_confidence = (
+            _HIGH_CONFIDENCE_SIGNALS_EN
+            if lang_key == "en"
+            else _HIGH_CONFIDENCE_SIGNALS
+        )
+        has_trans_pattern = bool(transition_pattern.search(content))
         cands: list[tuple[str, int, str]] = []
         for idx in range(from_idx, len(items)):
             seq = items[idx].seq
             signals = item_signals[seq]
             for sig in signals:
-                if sig in content:
-                    if has_trans_pattern or sig in _HIGH_CONFIDENCE_SIGNALS:
-                        cands.append((seq, idx, sig))
+                matched = (
+                    _match_token_in_text(sig, content)
+                    if lang_key == "en"
+                    else sig in content
+                )
+                if not matched:
+                    continue
+                normalized_sig = sig.casefold() if lang_key == "en" else sig
+                if has_trans_pattern or normalized_sig in high_confidence:
+                    cands.append((seq, idx, sig))
         if not cands:
             return None
         # 优先匹配专有度最高（信号字长更长）的路标，同长度优先最近未处理议题
@@ -809,7 +1127,7 @@ def _align_by_topics_and_roadsigns(
     )
 
 
-_ALIGNMENT_CACHE: dict[tuple[int, int, int, str], AlignmentResult] = {}
+_ALIGNMENT_CACHE: dict[tuple[int, int, int, str, str], AlignmentResult] = {}
 
 
 def clear_alignment_cache() -> None:
@@ -820,16 +1138,19 @@ def clear_alignment_cache() -> None:
 def align_agenda_with_transcript(
     plan: AgendaPlan,
     transcript: str,
+    *,
+    lang: str = "zh",
 ) -> AlignmentResult:
     """基于发言人切换与议程人员网络匹配的通用对齐引擎（带进程内单例缓存与去重）。"""
     t = (transcript or "").strip()
+    lang_key = normalize_lang(lang)
     plan_sig = "|".join(f"{it.seq}:{it.title}" for it in plan.items)
-    cache_key = (hash(t), len(t), len(plan.items), plan_sig)
+    cache_key = (hash(t), len(t), len(plan.items), plan_sig, lang_key)
     if cache_key in _ALIGNMENT_CACHE:
         logger.debug("[AGENDA_ALIGNMENT] 命中议程与转写对齐结果缓存 (共 %d 项)", len(plan.items))
         return copy.deepcopy(_ALIGNMENT_CACHE[cache_key])
 
-    res = _align_agenda_with_transcript_impl(plan, transcript)
+    res = _align_agenda_with_transcript_impl(plan, transcript, lang=lang_key)
     if len(_ALIGNMENT_CACHE) >= 64:
         _ALIGNMENT_CACHE.pop(next(iter(_ALIGNMENT_CACHE)))
     _ALIGNMENT_CACHE[cache_key] = copy.deepcopy(res)
@@ -839,6 +1160,8 @@ def align_agenda_with_transcript(
 def _align_agenda_with_transcript_impl(
     plan: AgendaPlan,
     transcript: str,
+    *,
+    lang: str = "zh",
 ) -> AlignmentResult:
     """基于发言人切换与议程人员网络匹配的通用对齐引擎。
 
@@ -849,6 +1172,7 @@ def _align_agenda_with_transcript_impl(
     4. 最终纪要时序遵循现场研讨时间轴流淌；
     5. 主持人串场路标识别与转场闲聊/设备噪声隔离（三态状态机）。
     """
+    lang_key = normalize_lang(lang)
     reconcile_presenter_names(plan, transcript=transcript)
     blocks = group_transcript_blocks(transcript, plan=plan)
     all_speakers = set(b.speaker for b in blocks if b.speaker)
@@ -861,7 +1185,9 @@ def _align_agenda_with_transcript_impl(
         len(all_speakers),
     )
     if track == "CONTENT":
-        return _align_by_topics_and_roadsigns(plan, blocks, all_speakers)
+        return _align_by_topics_and_roadsigns(
+            plan, blocks, all_speakers, lang=lang_key
+        )
 
     item_tokens = {it.seq: extract_distinctive_tokens(it.title) for it in plan.items}
     all_tok_counts: dict[str, int] = {}
@@ -887,9 +1213,9 @@ def _align_agenda_with_transcript_impl(
     pending_roadsign: str | None = None
 
     for b in blocks:
-        is_closing = _is_session_closing(b.content)
-        is_opening = _is_opening_signal(b.content)
-        is_noise = _is_equipment_or_chitchat(b.content)
+        is_closing = _is_session_closing(b.content, lang=lang_key)
+        is_opening = _is_opening_signal(b.content, lang=lang_key)
+        is_noise = _is_equipment_or_chitchat(b.content, lang=lang_key)
 
         roadsign_target, is_generic_handover = _detect_host_roadsign(
             b.speaker,
@@ -899,6 +1225,7 @@ def _align_agenda_with_transcript_impl(
             dual_speakers=dual_speakers,
             active_seq=active_seq,
             unique_tokens_map=unique_item_tokens,
+            lang=lang_key,
         )
 
         if roadsign_target:
@@ -920,6 +1247,7 @@ def _align_agenda_with_transcript_impl(
                 roadsign_seq=pending_roadsign,
                 dual_speakers=dual_speakers,
                 active_seq=active_seq,
+                lang=lang_key,
             )
             for it in plan.items
         }
@@ -1014,7 +1342,14 @@ def _align_agenda_with_transcript_impl(
         if hasattr(it, "members"):
             all_team.extend(it.members)
 
-        has_team = any(any(p in b.speaker for p in all_team) for b in it_blocks)
+        has_team = any(
+            any(
+                match_presenter_name(p, b.speaker) >= NAME_MATCH_ACCEPT
+                for p in all_team
+                if p
+            )
+            for b in it_blocks
+        )
         has_distinctive = any(_match_token_in_text(tok, evidence) for tok in item_tokens[it.seq])
 
         if (has_team and (len(it_blocks) >= 2 or len(evidence) >= 15 or has_distinctive)) or (
@@ -1086,7 +1421,7 @@ _SUBSTANTIVE_KEYWORDS = (
 )
 
 
-def is_trivial_ceremonial_item(align: AgendaAlignment) -> bool:
+def is_trivial_ceremonial_item(align: AgendaAlignment, *, lang: str = "zh") -> bool:
     """判定一个议程对齐项是否为纯会务动线、作息日程或极低密度的过场仪式（非实质性研讨议题）。
 
     过滤判据：

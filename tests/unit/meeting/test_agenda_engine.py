@@ -176,3 +176,145 @@ def test_parser_log_dedup_across_different_transcript_speakers(caplog):
 
     agenda_log_count = caplog.text.count("[AGENDA_PARSER] 既定议程单识别成功")
     assert agenda_log_count == 1, f"Expected 1 agenda log, got {agenda_log_count}"
+
+
+def test_probe_valid_agendas_passes_lang(monkeypatch):
+    """入口探测必须把 lang 透传给 process_agenda_for_minutes。"""
+    from domains.meeting import agenda_engine
+
+    captured: dict[str, str] = {}
+
+    def fake_process(transcript, agenda_text, *, lang="zh"):
+        captured["lang"] = lang
+        return AgendaProcessResult(
+            has_valid_agenda=True,
+            valid_agendas=[],
+            tagged_transcript="",
+        )
+
+    monkeypatch.setattr(agenda_engine, "process_agenda_for_minutes", fake_process)
+    agenda_engine.probe_valid_agendas("t", "a", lang="en")
+    assert captured["lang"] == "en"
+
+
+def test_process_agenda_passes_lang(monkeypatch):
+    """二次处理必须把 lang 透传给 alignment。"""
+    from domains.meeting import agenda_engine
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import (
+        AgendaItemParsed,
+        AgendaPlan,
+    )
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        AgendaAlignment,
+        AlignmentResult,
+        DiscussionBlock,
+    )
+
+    item = AgendaItemParsed(
+        seq="01", title="Architecture Review", presenters=["Alice Chen"]
+    )
+    captured: dict[str, str] = {}
+
+    def fake_parse(text, transcript="", candidate_speakers=None):
+        return AgendaPlan(items=[item])
+
+    def fake_align(plan, transcript, *, lang="zh"):
+        captured["lang"] = lang
+        block = DiscussionBlock(
+            speaker="Alice Chen",
+            timestamp="00:01",
+            content="Architecture review details and release plan.",
+            index=0,
+        )
+        align = AgendaAlignment(
+            item=plan.items[0],
+            status="discussed",
+            matched_speakers=["Alice Chen"],
+            matched_blocks=[block],
+            start_index=0,
+            end_index=1,
+        )
+        return AlignmentResult(
+            plan=plan,
+            alignments=[align],
+            all_speakers={"Alice Chen"},
+            adhoc_blocks=[],
+        )
+
+    monkeypatch.setattr(agenda_engine, "parse_agenda_text", fake_parse)
+    monkeypatch.setattr(agenda_engine, "align_agenda_with_transcript", fake_align)
+    agenda_engine.clear_agenda_engine_cache()
+
+    res = agenda_engine.process_agenda_for_minutes(
+        "Alice Chen 00:01\nArchitecture review details and release plan.",
+        "1. Architecture Review",
+        lang="en",
+    )
+    assert captured["lang"] == "en"
+    assert res.has_valid_agenda is True
+    assert res.valid_agendas[0].title == "Architecture Review"
+
+
+def test_process_agenda_for_minutes_english_cache_key(monkeypatch):
+    """同一输入在 zh/en 下不得共用 process 缓存。"""
+    from domains.meeting import agenda_engine
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import (
+        AgendaItemParsed,
+        AgendaPlan,
+    )
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import AlignmentResult
+
+    item = AgendaItemParsed(
+        seq="01", title="Architecture Review", presenters=["Alice Chen"]
+    )
+    calls: list[str] = []
+
+    def fake_parse(text, transcript="", candidate_speakers=None):
+        return AgendaPlan(items=[item])
+
+    def fake_align(plan, transcript, *, lang="zh"):
+        calls.append(lang)
+        return AlignmentResult(
+            plan=plan,
+            alignments=[],
+            all_speakers=set(),
+            adhoc_blocks=[],
+        )
+
+    monkeypatch.setattr(agenda_engine, "parse_agenda_text", fake_parse)
+    monkeypatch.setattr(agenda_engine, "align_agenda_with_transcript", fake_align)
+    agenda_engine.clear_agenda_engine_cache()
+
+    agenda_engine.process_agenda_for_minutes("t", "a", lang="zh")
+    agenda_engine.process_agenda_for_minutes("t", "a", lang="en")
+    assert calls == ["zh", "en"]
+
+
+def test_extract_valid_agendas_passes_lang(monkeypatch):
+    """仪式过滤必须收到正确的 lang。"""
+    from types import SimpleNamespace
+
+    from domains.meeting import agenda_engine
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import AgendaItemParsed
+
+    captured: dict[str, str] = {}
+
+    def fake_trivial(align, *, lang="zh"):
+        captured["lang"] = lang
+        return False
+
+    monkeypatch.setattr(agenda_engine, "is_trivial_ceremonial_item", fake_trivial)
+    align = SimpleNamespace(
+        status="discussed",
+        item=AgendaItemParsed(
+            seq="01", title="Architecture Review", presenters=[]
+        ),
+        matched_blocks=[object()],
+        start_index=0,
+        end_index=1,
+    )
+    res = SimpleNamespace(chronological_alignments=[align])
+
+    valid = agenda_engine._extract_valid_agendas_from_alignment(res, lang="en")
+    assert captured["lang"] == "en"
+    assert len(valid) == 1

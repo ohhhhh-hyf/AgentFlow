@@ -1372,7 +1372,11 @@ class _Nodes(DomainNodes):
             if "minutes" in selected and agenda_text and transcript_input:
                 from domains.meeting.agenda_engine import process_agenda_for_minutes
 
-                agenda_res = process_agenda_for_minutes(transcript_input, agenda_text)
+                agenda_res = process_agenda_for_minutes(
+                    transcript_input,
+                    agenda_text,
+                    lang=state.get("lang") or "zh",
+                )
                 if agenda_res.has_valid_agenda:
                     state["valid_agendas"] = agenda_res.valid_agendas
                     state["tagged_transcript"] = agenda_res.tagged_transcript

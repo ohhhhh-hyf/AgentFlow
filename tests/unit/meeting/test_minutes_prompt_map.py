@@ -16,6 +16,8 @@ from domains.meeting.tasks.minutes.prompt_map import (
 )
 from domains.meeting.tasks.minutes.prompts import (
     AGENDA_AUX_PROMPT_BLOCK,
+    NOTES_PROMPT_BLOCK,
+    VISION_PROMPT_BLOCK,
     MINUTES_AGENDA_GENERATION_PROMPT,
     MINUTES_AGENDA_RENDER_PROMPT,
     MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
@@ -60,9 +62,10 @@ def test_resolve_prompt_view() -> None:
 
 def test_minutes_prompt_no_content_examples() -> None:
     """Prompt 只保留通用规则与格式占位符，不夹带具体栏目名/指标/措辞示例。"""
-    # 1. 指标类型不锁定
+    # 1. 指标类型不锁定，按原文实际业务要素展开
     assert "吞吐/延迟/时限/金额" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "关键量化指标及其对照基线" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "关键数据" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "不预设会议类型" in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
     # 2. 普通模板渲染不列具体栏目名/标题示例
     assert "讲座概况" not in MINUTES_RENDER_TEMPLATE_PROMPT
@@ -79,6 +82,31 @@ def test_minutes_prompt_no_content_examples() -> None:
     assert "推荐以" not in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
     assert "模板中的议题研讨类栏目" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
     assert "按模板要求的列表格式" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+
+    # 4. 不再出现具体会议类型软引导
+    assert "企业交付/技术评审" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "研讨/辩论/访谈" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+    # 5. 决议措辞不引用具体句式
+    assert "格式如：事项名称 + 统一定调与指标" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "[事项名称] + [定调/指标]" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "如“【事项】统一定调/指标要求”" not in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "以业务事项为主干，直接陈述定调结论" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "如“某某建议/某某指出”" not in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
+    assert "如“【事项】定调结论”" not in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
+    assert "口语化发言前缀" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
+    assert "规范公文决议体" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
+
+    # 6. 发言动词不再给具体负向示例
+    assert "某某提出/某某认为/某某指出" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "某某提出/某某指出" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "避免机械堆砌发言动词" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+    # 7. 笔记/视觉材料不列具体示例
+    assert "（如吐槽、疑问、随手标记）" not in NOTES_PROMPT_BLOCK
+    assert "个人批注、主观评论与随手标记" in NOTES_PROMPT_BLOCK
+    assert "（如PPT、屏幕截图、现场拍照、白板记录、数据报表等）" not in VISION_PROMPT_BLOCK
+    assert "会议视觉材料的识别文本" in VISION_PROMPT_BLOCK
 
 
 def test_prompt_sets_by_view() -> None:

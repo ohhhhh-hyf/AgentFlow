@@ -744,7 +744,11 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             from domains.meeting.agenda_engine import probe_valid_agendas
 
             valid_agendas = (
-                probe_valid_agendas(transcript, candidate_agenda_text)
+                probe_valid_agendas(
+                    transcript,
+                    candidate_agenda_text,
+                    lang=req.lang,
+                )
                 if (candidate_agenda_text and transcript)
                 else []
             )
