@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.config import (
+    resolve_agenda_template_format,
     resolve_template_format,
     template_dir,
     template_key,
@@ -105,6 +106,22 @@ def test_template_format_resolution_by_language():
 
     zh_title_fmt = resolve_template_format("通用纪要", lang="zh")
     assert "[全文摘要]" in zh_title_fmt
+
+
+def test_agenda_template_resolution_by_language():
+    """议题模板目录按语种隔离：zh/ 与 en/ 各自命中对应议题模板。"""
+    zh_fmt = resolve_agenda_template_format("general_minutes", lang="zh")
+    assert resolve_agenda_template_format("general_minutes") == zh_fmt
+    assert "以现场审定的有效议题清单为主线展开" in zh_fmt
+    assert "### 一. 议题名称" in zh_fmt
+
+    en_fmt = resolve_agenda_template_format("general_minutes", lang="en")
+    assert "[Executive Summary]" in en_fmt
+    assert "[Key Discussion Points]" in en_fmt
+    assert "[Decisions & Rulings]" in en_fmt
+    assert "### I. Topic Title" in en_fmt
+    assert "### 1. Topic Title" not in en_fmt
+    assert "以现场审定的有效议题" not in en_fmt
 
 
 def test_batch1_english_templates_resolution():
@@ -427,6 +444,29 @@ async def test_minutes_supervisor_prompt_assembly():
     assert "半角标点、[TBD] 状态标签与标准英文缩写属于标准公文规范" in sys_prompt_en
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "context",
+    [
+        "视角模式：objective\n输出语种要求：英文（English）\n\n草稿上下文",
+        "视角模式：personal\n输出语种要求：英文（English）\n\n草稿上下文",
+        "议题模式：agenda_enhanced\n视角模式：objective\n输出语种要求：英文（English）\n\n草稿上下文",
+    ],
+)
+async def test_supervisor_english_prompt_keeps_common_rules(context):
+    """英文壳只剥人设首句，不能把公共审核规则切掉。"""
+    mock_client = MagicMock()
+    mock_client.structured = AsyncMock(return_value=MagicMock())
+
+    supervisor = MinutesGenerationSupervisor(mock_client)
+    await supervisor.review(context, lang="en")
+
+    prompt = mock_client.structured.call_args[0][0]
+    assert "## 领域审核规则：纪要生成" in prompt
+    assert "### 核心审查原则与免审边界" in prompt
+    assert "提炼字段为审查重点" in prompt
+
+
 def test_minutes_render_prompt_and_fallback_draft():
     """测试渲染器 Prompt 插槽装配与零 LLM 确定性兜底渲染。"""
     # 1. 渲染 Prompt 测试
@@ -662,4 +702,133 @@ async def test_prepared_run_lang_propagation():
         lang="en",
     )
     assert en_prep.lang == "en"
+
+
+# ── 英文议程标题序号与 supervisor 比对口径 ────────────────────────────────────
+
+
+def test_localize_agenda_headings_for_en():
+    from domains.meeting.tasks.minutes.prompts import localize_agenda_headings_for_en
+
+    text = "### 一. 议题A / ### 二. 议题B / 中文数字序号"
+    out = localize_agenda_headings_for_en(text)
+    assert "### I. 议题A" in out
+    assert "### II. 议题B" in out
+    assert "罗马数字序号" in out
+    assert "### 一." not in out
+    assert "### 二." not in out
+    assert "中文数字序号" not in out
+
+
+@pytest.mark.anyio
+async def test_agenda_en_generation_prompt_uses_roman_headings():
+    from domains.meeting.models import Minutes
+    from domains.meeting.tasks.minutes.steps.minutes_agent import MinutesGenerationAgent
+
+    captured: dict = {}
+
+    class FakeClient:
+        async def structured(self, system, *args, **kwargs):
+            captured["system"] = system
+            return Minutes(headline="Test")
+
+    agent = MinutesGenerationAgent(FakeClient())
+    ctx = (
+        "议题模式：agenda_enhanced\n"
+        "视角模式：objective\n"
+        "输出语种要求：英文（English）\n\n"
+        "会议理解：\n{}"
+    )
+    await agent.run(ctx, lang="en", source_transcript="tagged transcript")
+
+    prompt = captured["system"]
+    assert "### I." in prompt
+    assert "### 一." not in prompt
+    assert "罗马数字序号" in prompt
+    assert "中文数字序号" not in prompt
+
+
+@pytest.mark.anyio
+async def test_agenda_en_supervisor_prompt_uses_roman_headings():
+    from domains.meeting.tasks.minutes.steps.minutes_supervisor import (
+        MinutesGenerationSupervisor,
+    )
+
+    mock_client = MagicMock()
+    mock_client.structured = AsyncMock(return_value=MagicMock())
+    supervisor = MinutesGenerationSupervisor(mock_client)
+    ctx = (
+        "议题模式：agenda_enhanced\n"
+        "视角模式：objective\n"
+        "输出语种要求：英文（English）\n\n"
+        "草稿上下文"
+    )
+    await supervisor.review(ctx, lang="en")
+
+    prompt = mock_client.structured.call_args[0][0]
+    assert "### I." in prompt
+    assert "### II." in prompt
+    assert "### 一." not in prompt
+    assert "三级标题序号" in prompt
+    assert "中文数字序号" not in prompt
+    assert "标题一致性口径" in prompt
+    assert "忽略大小写" in prompt
+    assert "语义被改写" in prompt
+
+
+def test_agenda_en_render_prompt_uses_roman_headings():
+    from domains.meeting.tasks.minutes.steps.minutes_render import (
+        MinutesGenerationRender,
+    )
+
+    render = MinutesGenerationRender(MagicMock())
+    ctx = (
+        "议题模式：agenda_enhanced\n"
+        "视角模式：objective\n"
+        "输出语种要求：英文（English）\n\n"
+        "草稿"
+    )
+    prompt, _ = render._prompt_and_user(ctx, "", lang="en")
+    assert "### I." in prompt
+    assert "### 一." not in prompt
+    assert "罗马数字序号" in prompt
+
+    prompt_tpl, _ = render._prompt_and_user(
+        ctx, "# Template\n{{scalar:要点梳理}}", lang="en"
+    )
+    assert "### I." in prompt_tpl
+    assert "### 一." not in prompt_tpl
+
+
+def test_agenda_zh_prompts_keep_chinese_headings():
+    from domains.meeting.tasks.minutes.prompts import (
+        MINUTES_AGENDA_GENERATION_PROMPT,
+        MINUTES_AGENDA_RENDER_PROMPT,
+        MINUTES_AGENDA_SUPERVISOR_PROMPT,
+    )
+
+    for prompt in (
+        MINUTES_AGENDA_GENERATION_PROMPT,
+        MINUTES_AGENDA_RENDER_PROMPT,
+        MINUTES_AGENDA_SUPERVISOR_PROMPT,
+    ):
+        assert "### 一." in prompt
+        assert "### I." not in prompt
+
+    assert "中文数字序号" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "中文数字序号" in MINUTES_AGENDA_RENDER_PROMPT
+    assert "三级标题序号" in MINUTES_AGENDA_SUPERVISOR_PROMPT
+
+
+def test_agenda_supervisor_title_normalization_rule():
+    from domains.meeting.tasks.minutes.prompts import MINUTES_AGENDA_SUPERVISOR_PROMPT
+
+    prompt = MINUTES_AGENDA_SUPERVISOR_PROMPT
+    assert "### 标题一致性口径" in prompt
+    assert "忽略大小写" in prompt
+    assert "连续空白" in prompt
+    assert "连字符差异" in prompt
+    assert "语义被改写" in prompt
+    assert "英文标题保留原文" in prompt
+    assert "标题比对口径" in prompt
 

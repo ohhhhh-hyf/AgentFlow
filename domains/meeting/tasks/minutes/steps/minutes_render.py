@@ -7,7 +7,8 @@ from core.execution.hard_execution import parse_lang_mode
 from core.runner.prompt_utils import build_render_prompt
 
 from infra.llm import LLMClient
-from ..prompt_map import minutes_prompt_set, resolve_prompt_view
+from ..prompt_map import is_agenda_view, minutes_prompt_set, resolve_prompt_view
+from ..prompts import localize_agenda_headings_for_en
 
 
 def compact_untemplated_minutes(text: str) -> str:
@@ -191,6 +192,9 @@ class MinutesGenerationRender:
 
             untemplated_prompt = _wrap_en(untemplated_prompt)
             template_prompt = _wrap_en(template_prompt)
+            if is_agenda_view(view):
+                untemplated_prompt = localize_agenda_headings_for_en(untemplated_prompt)
+                template_prompt = localize_agenda_headings_for_en(template_prompt)
 
         return build_render_prompt(
             context,

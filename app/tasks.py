@@ -727,6 +727,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
                     image_docs=image_docs,
                     transcript=transcript,
                     image_paths=image_paths,
+                    lang=req.lang,
                 )
                 if ocr_text:
                     candidate_parts.append(ocr_text)

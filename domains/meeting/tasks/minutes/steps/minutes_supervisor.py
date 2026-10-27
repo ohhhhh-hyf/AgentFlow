@@ -5,8 +5,16 @@ from domains.shared.supervisor import GlobalSupervisor, StructuredDomainSupervis
 
 from ....models import MinutesSupervisorReview
 from ..contracts import MINUTES_SUPERVISOR_OUTPUT_CONTRACT
-from ..prompt_map import minutes_prompt_set, prompt_label, resolve_prompt_view
-from ..prompts import MINUTES_SUPERVISOR_DOMAIN_PROMPT
+from ..prompt_map import (
+    is_agenda_view,
+    minutes_prompt_set,
+    prompt_label,
+    resolve_prompt_view,
+)
+from ..prompts import (
+    MINUTES_SUPERVISOR_DOMAIN_PROMPT,
+    localize_agenda_headings_for_en,
+)
 
 
 class MinutesGenerationSupervisor(StructuredDomainSupervisor):
@@ -44,6 +52,8 @@ class MinutesGenerationSupervisor(StructuredDomainSupervisor):
                 f"1. 严格拦截任何未翻译的中文残留段落；\n"
                 f"2. 半角标点、[TBD] 状态标签与标准英文缩写属于标准公文规范，一律 approve 放行。"
             )
+            if is_agenda_view(view):
+                domain_prompt = localize_agenda_headings_for_en(domain_prompt)
         else:
             domain_prompt = raw_domain_prompt
 

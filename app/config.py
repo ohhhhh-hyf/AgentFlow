@@ -405,18 +405,22 @@ def resolve_template_format(template_value: str, lang: str = "zh") -> str:
     return wrap_template_requirement(fmt, req)
 
 
-def agenda_template_dir() -> Path:
-    """按议题输出纪要的专属模板目录（resources/agenda_templates/）。"""
-    return PROJECT_ROOT / "resources" / "agenda_templates"
+def agenda_template_dir(lang: str = "zh") -> Path:
+    """按议题输出纪要的专属模板目录（resources/agenda_templates/{lang}/）。
+
+    目录按语种物理隔离：中文走 zh/，英文走 en/。
+    """
+    lang_key = (lang or "zh").strip().lower()
+    return PROJECT_ROOT / "resources" / "agenda_templates" / lang_key
 
 
 def resolve_agenda_template_format(template_value: str, lang: str = "zh") -> str:
-    """优先从 agenda_templates/ 加载模板；若不存在则自动平滑回退至普通模板目录。"""
+    """优先从 agenda_templates/{lang}/ 加载模板；若不存在则自动平滑回退至普通模板目录。"""
     value = (template_value or "").strip()
     if not value:
         return ""
     t_id = value.replace(".md", "").strip()
-    agenda_dir = agenda_template_dir()
+    agenda_dir = agenda_template_dir(lang)
     candidate_paths = [
         agenda_dir / f"{t_id}.md",
     ]

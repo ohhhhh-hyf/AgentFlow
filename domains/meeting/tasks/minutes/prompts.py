@@ -171,6 +171,21 @@ AGENDA_AUX_PROMPT_BLOCK = """## 辅助材料使用规约（仅在上下文出现
 - 无法归属到任何审定议题的辅助事实，不写入正文，不新增议题；
 - 字段级使用方式遵循下方共享辅助规则（用户关键点 / 用户笔记 / 视觉信息）。"""
 
+# ── 英文议程标题本地化 ────────────────────────────────────────────────────────
+_AGENDA_EN_HEADING_REPLACEMENTS = (
+    ("### 一.", "### I."),
+    ("### 二.", "### II."),
+    ("中文数字序号", "罗马数字序号"),
+)
+
+
+def localize_agenda_headings_for_en(text: str) -> str:
+    """英文议程模式下把中文标题序号本地化为罗马数字。"""
+    for old, new in _AGENDA_EN_HEADING_REPLACEMENTS:
+        text = text.replace(old, new)
+    return text
+
+
 # 兼容别名
 MINUTES_GENERATION_SYSTEM_PROMPT = MINUTES_OBJECTIVE_GENERATION_PROMPT
 
@@ -194,7 +209,9 @@ VISION_PROMPT_BLOCK = """## 视觉信息参考 (OCR)
 
 
 # ── 审核公共基底 ──────────────────────────────────────────────────────────────
-_SUPERVISOR_COMMON_BASE = """## 领域审核规则：纪要生成
+_SUPERVISOR_COMMON_BASE = """你是一名会议纪要质量审核专家。你的任务是依据统一标准审核纪要草稿，判断事实是否保真、视角是否合规、结构是否完整，并决定放行或返工。
+
+## 领域审核规则：纪要生成
 
 ### 核心审查原则与免审边界
 - **提炼字段为审查重点**：审查重心严格收缩在提炼字段（headline / executive_summary / personally_relevant_points），聚焦是否存在事实捏造、数值错误或张冠李戴。
@@ -241,7 +258,8 @@ _AGENDA_SUPERVISOR_COMMON_BASE = _SUPERVISOR_COMMON_BASE.replace(
 ).replace(
     "  • 辅助材料额外违规判定：若正文直接泄露【用户划线原话与笔记】中的批注或主观吐槽，亦判定为缺陷 reject。",
     "  • 辅助材料额外违规判定：若正文直接泄露【用户划线原话与笔记】中的批注或主观吐槽，亦判定为缺陷 reject。\n"
-    "  • 议程骨架违规判定：若草稿因辅助材料新增/删除/改名/重排议题或改变归属，判定为结构缺陷，优先 revise；返工点须具体到议题。",
+    "  • 议程骨架违规判定：若草稿因辅助材料新增/删除/改名/重排议题或改变归属，判定为结构缺陷，优先 revise；返工点须具体到议题。\n"
+    "  • 标题比对口径：大小写、空白、标点、连字符差异不判改名；语义改写、意译或替换才判改名。",
 )
 
 # ── 客观审核提示词 ────────────────────────────────────────────────────────────
@@ -272,7 +290,7 @@ MINUTES_PERSONAL_SUPERVISOR_PROMPT = _SUPERVISOR_COMMON_BASE + "\n\n" + _PERSONA
 _AGENDA_SUPERVISOR_RULES = """### 审定议题模式审查专项
 1. **议题完整性与时序审查**：
    - 审查草稿 executive_summary 是否覆盖本次审定的有效讨论议题；
-   - 审查中文数字序号（### 一.、### 二.）及列表项（- ）、四级子主题（#### 1. ）树状结构，判定为标准规范直接放行；
+   - 审查三级标题序号（### 一.、### 二.）及列表项（- ）结构，判定为标准规范直接放行；不使用四级标题与数字编号；
 2. **事实保真与决议放行**：
    - 重点审查正文技术参数与结论是否在打标原文中有据可查，是否存在虚构人名或数字；
    - 决议项以事项名称为主干陈述最终决议，去口头前缀属于公文规范，予以认可并放行；
@@ -280,7 +298,13 @@ _AGENDA_SUPERVISOR_RULES = """### 审定议题模式审查专项
 
 ### 辅助材料与议程骨架
 - 辅助材料不得成为新增、删除、改名、重排议题或改变议题归属的依据；
-- 若草稿因辅助材料改变了议程覆盖、标题、顺序或归属，判定为结构缺陷，优先 revise，并给出具体返工点（指出来自哪条辅助材料、应回到哪个议题）。"""
+- 若草稿因辅助材料改变了议程覆盖、标题、顺序或归属，判定为结构缺陷，优先 revise，并给出具体返工点（指出来自哪条辅助材料、应回到哪个议题）。
+
+### 标题一致性口径
+- 标题比对忽略大小写、首尾与连续空白、半角/全角标点、常见连字符差异（- / – / —）；
+- 标题序号前缀（三级标题的序号部分）不属于标题本体，不参与比对；
+- 仅当标题语义被改写、意译或替换时，才判定为“改名”；
+- 英文模式下，英文标题保留原文，不得翻译成中文。"""
 
 MINUTES_AGENDA_SUPERVISOR_PROMPT = _AGENDA_SUPERVISOR_COMMON_BASE + "\n\n" + _AGENDA_SUPERVISOR_RULES
 
@@ -406,6 +430,7 @@ __all__ = [
     "NOTES_PROMPT_BLOCK",
     "VISION_PROMPT_BLOCK",
     "AGENDA_AUX_PROMPT_BLOCK",
+    "localize_agenda_headings_for_en",
     "MINUTES_GENERATION_SYSTEM_PROMPT",
     "MINUTES_OBJECTIVE_GENERATION_PROMPT",
     "MINUTES_PERSONAL_GENERATION_PROMPT",

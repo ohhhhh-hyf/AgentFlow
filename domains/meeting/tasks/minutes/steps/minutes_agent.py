@@ -13,6 +13,7 @@ from ..prompts import (
     KEYPOINTS_PROMPT_BLOCK,
     NOTES_PROMPT_BLOCK,
     VISION_PROMPT_BLOCK,
+    localize_agenda_headings_for_en,
 )
 from ..prompt_map import (
     is_agenda_view,
@@ -131,6 +132,8 @@ class MinutesGenerationAgent:
                 f"3. 专业术语、专有名词与人名保留英文原文写法；\n"
                 f"4. 执行要点统一采用 `[Owner] Action + Deliverable + Deadline` 结构清晰陈述。"
             )
+            if is_agenda:
+                system_prompt = localize_agenda_headings_for_en(system_prompt)
         else:
             system_prompt = raw_system_prompt
 

@@ -59,6 +59,37 @@ AGENDA_VISION_PROMPT = """你是一名「会议议程与日程结构化解析专
 若图片内容与会议/议程完全无关，请输出：{"theme": null, "date_time": null, "attendees": [], "agenda_items": []}"""
 
 
+# 英文议程图片专项规则（仅 lang=en 时插入，位置在【输出约束】之前）
+AGENDA_VISION_EN_TAIL = """【英文识别规约】：
+1. 图片为英文会议议程；theme、title、presenters、attendees 等字段一律保留图片中的英文原文，不要翻译成中文。
+2. 人名、公司名、产品名、技术术语、缩写按原文保留，不要意译、改写或擅自展开；保留原文大小写与标点。
+3. 职衔清洗需覆盖英文称谓：Professor、Dr.、Director、Manager、Engineer、Expert、Consultant、Chief、Lead、Head 等。
+4. 后勤过滤需覆盖英文环节：Registration、Networking、Coffee Break、Lunch、Reception、Shuttle、Recess 等。
+5. 若图片中混有中文（如中英双语议程），按原样保留对应文本，不做统一翻译。
+6. JSON 字段名保持英文原样（theme / date_time / attendees / agenda_items / seq / title / presenters / time_range / duration），不要翻译或改名。"""
+
+
+def build_agenda_vision_prompt(lang: str = "zh") -> str:
+    """按请求语种构建议程图片识别 prompt。
+
+    - 空 / None / zh / 未知值：原样返回中文 ``AGENDA_VISION_PROMPT``；
+    - en：只替换首句为英文议程解析专家，并在【输出约束】之前插入英文识别规约，
+      其余中文主体保持不变。
+    """
+    lang_key = (lang or "zh").strip().lower()
+    if lang_key != "en":
+        return AGENDA_VISION_PROMPT
+
+    parts = AGENDA_VISION_PROMPT.split("。", 1)
+    body = parts[1] if len(parts) == 2 else AGENDA_VISION_PROMPT
+    body = body.replace(
+        "\n\n【输出约束】：",
+        "\n\n" + AGENDA_VISION_EN_TAIL + "\n\n【输出约束】：",
+        1,
+    )
+    return "你是一名「英文会议议程与日程结构化解析专家」。" + body
+
+
 def img2b64_string(path: str | Path) -> str:
     """读取图片，依据 EXIF 自动校正旋转方向，并输出标准 JPEG Base64 字符串。"""
     try:
@@ -214,8 +245,12 @@ class AgendaVisionClient:
         prompt_id: str = "AGENDA_VISION",
         max_retries: int = 3,
         retry_delay: float = 1.0,
+        lang: str = "zh",
     ) -> dict[str, Any] | None:
         """从图片提取结构化议程 JSON，具备最多 max_retries 次指数退避重试。
+
+        Args:
+            lang: 请求语种；空/zh 使用中文 prompt，en 使用英文专项 prompt。
 
         Returns:
             dict: 成功时返回议程 JSON（至少包含 agenda_items 键且格式合法）；
@@ -234,7 +269,9 @@ class AgendaVisionClient:
                     max_retries,
                     path_obj.name,
                 )
-                status_code, result = self._predict_once(path_obj, prompt_id=prompt_id)
+                status_code, result = self._predict_once(
+                    path_obj, prompt_id=prompt_id, lang=lang
+                )
                 if status_code == 200 and isinstance(result, dict) and "parse_error" not in result:
                     items = result.get("agenda_items")
                     logger.info(
@@ -271,7 +308,9 @@ class AgendaVisionClient:
         )
         return None
 
-    def _predict_once(self, image_path: Path, prompt_id: str) -> tuple[int, dict[str, Any]]:
+    def _predict_once(
+        self, image_path: Path, prompt_id: str, lang: str = "zh"
+    ) -> tuple[int, dict[str, Any]]:
         """执行单次 HTTP SSE 预测请求并解析流式数据。"""
         uuid_str = str(int(time.time()))
         url = (
@@ -280,6 +319,8 @@ class AgendaVisionClient:
         translocation_id = f"jlq_{uuid_str}"[:63]
 
         img_b64 = img2b64_string(image_path)
+        prompt = build_agenda_vision_prompt(lang)
+        logger.info("[VLM] 议程识别 prompt lang=%s", (lang or "zh").strip().lower())
         params = {
             "data": {
                 "translocationId": translocation_id,
@@ -287,7 +328,7 @@ class AgendaVisionClient:
                 "inputFormat": "base64",
                 "requestId": translocation_id,
                 "image": img_b64,
-                "prompt": AGENDA_VISION_PROMPT,
+                "prompt": prompt,
             },
             "meta": {
                 "subId": "2",

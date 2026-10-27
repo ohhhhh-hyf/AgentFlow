@@ -129,3 +129,35 @@ def test_extract_agenda_fallback_channel_when_vlm_fails(tmp_path):
         assert "OCR兜底识别议题" in md
         # 验证在 VLM 失败时，无缝且确定地触发了传统 OCR 兜底
         mock_ocr_fallback.assert_called_once()
+
+
+def test_extract_agenda_from_image_docs_forwards_lang(tmp_path):
+    img = tmp_path / "agenda_en.png"
+    img.write_bytes(b"dummy")
+
+    mock_vlm_client = MagicMock()
+    mock_vlm_client.extract_agenda.return_value = {
+        "agenda_items": [
+            {
+                "seq": "01",
+                "title": "Cloud Migration",
+                "presenters": ["Alice"],
+            }
+        ]
+    }
+
+    with patch(
+        "domains.meeting.agenda_vision.ocr_fallback_single_agenda_doc"
+    ) as mock_ocr_fallback:
+        plan, md = extract_agenda_from_image_docs(
+            image_paths=[img],
+            vlm_client=mock_vlm_client,
+            lang="en",
+        )
+
+    assert plan is not None
+    assert plan.items[0].title == "Cloud Migration"
+    mock_vlm_client.extract_agenda.assert_called_once_with(
+        img, max_retries=3, lang="en"
+    )
+    mock_ocr_fallback.assert_not_called()

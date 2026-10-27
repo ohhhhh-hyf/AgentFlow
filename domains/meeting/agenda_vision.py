@@ -242,6 +242,7 @@ def extract_agenda_from_image_docs(
     candidate_speakers: list[str] | set[str] | None = None,
     image_paths: list[Path | str] | None = None,
     vlm_client: AgendaVisionClient | None = None,
+    lang: str = "zh",
 ) -> tuple[AgendaPlan | None, str]:
     """从议程图片中抽取结构化议程（主通道优先 VLM 视觉大模型，重试 3 次失败则降级传统 OCR 兜底）。
 
@@ -252,6 +253,7 @@ def extract_agenda_from_image_docs(
         candidate_speakers: 候选发言人列表/集合
         image_paths: 直接传入的图片路径列表（若传入则优先使用）
         vlm_client: 外部注入的视觉客户端（供单元测试 Mock 使用）
+        lang: 请求语种；空/zh 使用中文 prompt，en 使用英文专项 prompt
 
     Returns:
         (plan, markdown_text): 返回解析出的强类型 AgendaPlan 对象与规范 Markdown 议程文本。
@@ -281,7 +283,7 @@ def extract_agenda_from_image_docs(
 
     for img_p in resolved_paths:
         logger.info("[AGENDA_VISION] 尝试通过视觉大模型抽取议程: %s", img_p.name)
-        vlm_res = client.extract_agenda(img_p, max_retries=3)
+        vlm_res = client.extract_agenda(img_p, max_retries=3, lang=lang)
         if vlm_res and isinstance(vlm_res, dict) and vlm_res.get("agenda_items"):
             single_plan = vision_json_to_agenda_plan(
                 vlm_res,
