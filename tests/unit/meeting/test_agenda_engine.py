@@ -318,3 +318,138 @@ def test_extract_valid_agendas_passes_lang(monkeypatch):
     valid = agenda_engine._extract_valid_agendas_from_alignment(res, lang="en")
     assert captured["lang"] == "en"
     assert len(valid) == 1
+
+
+def test_process_agenda_for_minutes_english_filters_ceremonial():
+    """英文议题增强链路：Group Photo / Lunch Break / Video Playback 不进入有效议题。"""
+    from domains.meeting import agenda_engine
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import (
+        clear_agenda_parser_cache,
+    )
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        clear_alignment_cache,
+    )
+
+    agenda = """
+| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| --- | --- | --- | --- |
+| 01 | Group Photo |  | 5 min |
+| 02 | Architecture Review | Alice Chen | 20 min |
+| 03 | Lunch Break |  | 60 min |
+| 04 | Release Plan | Bob Lee | 15 min |
+| 05 | Video Playback |  | 10 min |
+"""
+    transcript = (
+        "[00:00:05] Carol Wu: Good morning everyone. Let's get started.\n\n"
+        "[00:00:15] Carol Wu: Next up, Alice Chen.\n\n"
+        "[00:00:25] Alice Chen: The architecture review covers the gateway "
+        "redesign. We measured 120 ms latency and will release the new version "
+        "next month.\n\n"
+        "[00:10:00] Carol Wu: Moving on to the next item, Bob.\n\n"
+        "[00:10:10] Bob Lee: The release plan has three milestones. We will "
+        "complete testing by November and launch in December.\n\n"
+        "[00:15:00] Carol Wu: Let's take a group photo.\n\n"
+        "[00:16:00] Carol Wu: We'll have lunch after this.\n\n"
+        "[00:20:00] Carol Wu: That's all for today. Thanks everyone.\n"
+    )
+
+    clear_agenda_parser_cache()
+    clear_alignment_cache()
+    agenda_engine.clear_agenda_engine_cache()
+
+    res = agenda_engine.process_agenda_for_minutes(
+        transcript,
+        agenda,
+        lang="en",
+    )
+    assert res.has_valid_agenda is True
+    assert [item.title for item in res.valid_agendas] == [
+        "Architecture Review",
+        "Release Plan",
+    ]
+
+
+_EN_AGENDA = """
+| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| --- | --- | --- | --- |
+| 01 | Architecture Review | Alice Chen | 20 min |
+| 02 | Release Plan | Bob Lee | 15 min |
+"""
+
+_EN_TRANSCRIPT = (
+    "[00:00:05] Carol Wu: Good morning everyone. Let's get started.\n\n"
+    "[00:00:15] Carol Wu: Next up, Alice Chen.\n\n"
+    "[00:00:25] Alice Chen: The architecture review covers the gateway redesign. "
+    "We measured 120 ms latency and will release the new version next month.\n\n"
+    "[00:10:00] Carol Wu: Moving on to the next item, Bob.\n\n"
+    "[00:10:10] Bob Lee: The release plan has three milestones. "
+    "We will complete testing by November and launch in December.\n\n"
+    "[00:20:00] Carol Wu: That's all for today. Thanks everyone.\n"
+)
+
+
+def _clear_agenda_caches() -> None:
+    from domains.meeting import agenda_engine
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import (
+        clear_agenda_parser_cache,
+    )
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        clear_alignment_cache,
+    )
+
+    clear_agenda_parser_cache()
+    clear_alignment_cache()
+    agenda_engine.clear_agenda_engine_cache()
+
+
+def test_probe_valid_agendas_english():
+    """真实英文议程 + 英文转写：probe 应返回两个有效议题。"""
+    from domains.meeting.agenda_engine import probe_valid_agendas
+
+    _clear_agenda_caches()
+    valid = probe_valid_agendas(_EN_TRANSCRIPT, _EN_AGENDA, lang="en")
+    assert [item.title for item in valid] == [
+        "Architecture Review",
+        "Release Plan",
+    ]
+
+
+def test_process_agenda_for_minutes_english():
+    """真实英文议程 + 英文转写：process 应产出有效议题与英文打标转写。"""
+    from domains.meeting.agenda_engine import process_agenda_for_minutes
+
+    _clear_agenda_caches()
+    res = process_agenda_for_minutes(_EN_TRANSCRIPT, _EN_AGENDA, lang="en")
+    assert res.has_valid_agenda is True
+    assert [item.title for item in res.valid_agendas] == [
+        "Architecture Review",
+        "Release Plan",
+    ]
+    assert "Architecture Review" in res.tagged_transcript
+    assert "Release Plan" in res.tagged_transcript
+
+
+def test_english_ceremonial_and_skipped_filtering():
+    """英文仪式项与未讨论项都不进入有效议题。"""
+    from domains.meeting.agenda_engine import process_agenda_for_minutes
+
+    agenda = """
+| 序号 | 议题名称 | 汇报人/主讲人 |
+| --- | --- | --- |
+| 01 | Group Photo |  |
+| 02 | Architecture Review | Alice Chen |
+| 03 | Security Update | Dave Park |
+"""
+    transcript = (
+        "[00:00:05] Carol Wu: Good morning everyone.\n\n"
+        "[00:00:15] Carol Wu: Next up, Alice Chen.\n\n"
+        "[00:00:25] Alice Chen: The architecture review covers the gateway "
+        "redesign. We measured 120 ms latency and will release the new version "
+        "next month.\n\n"
+        "[00:20:00] Carol Wu: That's all for today. Thanks everyone.\n"
+    )
+
+    _clear_agenda_caches()
+    res = process_agenda_for_minutes(transcript, agenda, lang="en")
+    assert res.has_valid_agenda is True
+    assert [item.title for item in res.valid_agendas] == ["Architecture Review"]

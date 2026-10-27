@@ -1420,6 +1420,50 @@ _SUBSTANTIVE_KEYWORDS = (
     "任务令", "动员", "表彰", "誓师",
 )
 
+_CEREMONIAL_ITEM_PATTERN_EN = re.compile(
+    r"\b(?:"
+    r"group photo|photo|video|warm[- ]up video|promo|"
+    r"coffee break|break|lunch|dinner|refreshments|"
+    r"tour|visit|walk|gather|sign[- ]in|registration|"
+    r"collect materials|departure|check[- ]out"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_SUBSTANTIVE_KEYWORDS_EN = (
+    "review", "release", "architecture", "optimization", "evolution",
+    "algorithm", "model", "system", "insight", "workshop", "defense",
+    "proposal", "technical", "code", "metric", "latency", "version",
+    "launch", "roadmap", "speech", "remarks", "report", "presentation",
+    "share", "interaction", "exchange", "q&a", "signing", "award",
+    "design", "planning", "summary", "progress", "alignment", "testing",
+    "deployment", "commercial",
+)
+
+_PURE_LOGISTICS_KEYWORDS_EN = (
+    "tour", "visit", "walk", "gather", "sign in", "sign-in",
+    "registration", "collect materials", "departure", "check out", "check-out",
+    "lunch", "dinner", "refreshments", "coffee break", "break",
+)
+
+_EN_SUBSTANTIVE_OVERRIDES = (
+    "technical", "review", "report", "evolution", "algorithm",
+    "architecture", "system", "code", "model", "latency",
+)
+
+
+def _word_in_text(keyword: str, text: str) -> bool:
+    """英文关键词整词匹配，避免 read 命中 already。"""
+    if not keyword or not text:
+        return False
+    return bool(
+        re.search(
+            rf"(?<![A-Za-z0-9]){re.escape(keyword)}(?![A-Za-z0-9])",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
 
 def is_trivial_ceremonial_item(align: AgendaAlignment, *, lang: str = "zh") -> bool:
     """判定一个议程对齐项是否为纯会务动线、作息日程或极低密度的过场仪式（非实质性研讨议题）。
@@ -1435,16 +1479,59 @@ def is_trivial_ceremonial_item(align: AgendaAlignment, *, lang: str = "zh") -> b
     desc = (it.description or "").strip()
     combined = f"{title} {desc}"
 
+    # 统计现场发言支撑（中英文共用）
+    blocks = align.matched_blocks
+    block_count = len(blocks)
+    total_chars = sum(len(b.content) for b in blocks)
+
+    if normalize_lang(lang) == "en":
+        has_ceremonial = bool(_CEREMONIAL_ITEM_PATTERN_EN.search(combined))
+        has_substantive = any(
+            _word_in_text(k, combined) for k in _SUBSTANTIVE_KEYWORDS_EN
+        )
+
+        if has_ceremonial:
+            # A1: 纯物理动线或餐饮作息且无技术性覆盖词
+            pure_logistics = any(
+                _word_in_text(k, combined) for k in _PURE_LOGISTICS_KEYWORDS_EN
+            )
+            if pure_logistics and not any(
+                _word_in_text(k, combined) for k in _EN_SUBSTANTIVE_OVERRIDES
+            ):
+                return True
+
+            # A2: 零证据直接剔除
+            if align.status == "skipped" or block_count == 0:
+                return True
+
+            # A3: 低密度过场
+            if block_count <= 3 and total_chars < 120:
+                return True
+
+            # A4: 有实质内容支撑则保留
+            if has_substantive and total_chars >= 120:
+                return False
+
+            if total_chars < 150:
+                return True
+
+        # 情况 B：微弱讨论且无主讲人、无实质词
+        if (
+            align.status == "discussed"
+            and not it.presenters
+            and not has_substantive
+            and block_count <= 2
+            and total_chars < 60
+        ):
+            return True
+
+        return False
+
     # 1. 纯会务行程与生活作息特征
     has_ceremonial = bool(_CEREMONIAL_ITEM_PATTERN.search(combined))
 
     # 2. 强业务/技术特征词（若标题明确包含技术/评审/方案/模型等，坚决不误伤）
     has_substantive = any(k in combined for k in _SUBSTANTIVE_KEYWORDS)
-
-    # 统计现场发言支撑
-    blocks = align.matched_blocks
-    block_count = len(blocks)
-    total_chars = sum(len(b.content) for b in blocks)
 
     # 情况 A：命中了会务动线/作息/过场关键词
     if has_ceremonial:

@@ -865,3 +865,106 @@ def test_align_english_transcript_content_track():
     assert statuses["02"] == "discussed"
     assert statuses["03"] == "discussed"
     assert statuses["04"] == "discussed"
+
+
+def test_english_ceremonial_filtering():
+    """英文仪式/后勤项剔除，实质议题保留。"""
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        AgendaAlignment,
+        is_trivial_ceremonial_item,
+    )
+
+    for title in [
+        "Group Photo",
+        "Lunch Break",
+        "Video Playback",
+        "Campus Tour",
+        "Registration",
+        "Coffee Break",
+    ]:
+        item = AgendaItemParsed(seq="01", title=title, presenters=[])
+        align = AgendaAlignment(item=item, status="skipped", matched_blocks=[])
+        assert is_trivial_ceremonial_item(align, lang="en") is True, title
+
+    for title in [
+        "Architecture Review",
+        "Release Plan",
+        "Technical Deep Dive",
+        "Q&A Session",
+    ]:
+        item = AgendaItemParsed(seq="01", title=title, presenters=[])
+        align = AgendaAlignment(item=item, status="skipped", matched_blocks=[])
+        assert is_trivial_ceremonial_item(align, lang="en") is False, title
+
+
+def test_english_ceremonial_discussed_short():
+    """英文仪式项即使有极短讨论，也应判为过场。"""
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        AgendaAlignment,
+        DiscussionBlock,
+        is_trivial_ceremonial_item,
+    )
+
+    item = AgendaItemParsed(seq="01", title="Group Photo", presenters=[])
+    block = DiscussionBlock(
+        speaker="Carol Wu",
+        timestamp="",
+        content="Everyone, please come to the front for a group photo.",
+        index=0,
+    )
+    align = AgendaAlignment(
+        item=item,
+        status="discussed",
+        matched_blocks=[block],
+    )
+    assert is_trivial_ceremonial_item(align, lang="en") is True
+
+
+def test_english_substantive_ceremonial_item_kept():
+    """标题含 video 但内容有实质技术讨论时，不应误删。"""
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        AgendaAlignment,
+        DiscussionBlock,
+        is_trivial_ceremonial_item,
+    )
+
+    item = AgendaItemParsed(
+        seq="01",
+        title="Video Playback Performance Review",
+        presenters=["Alice Chen"],
+    )
+    text = (
+        "The video playback performance review covers latency, frame dropping, "
+        "and codec optimization across the release build. "
+    ) * 3
+    blocks = [
+        DiscussionBlock(
+            speaker="Alice Chen",
+            timestamp="",
+            content=text,
+            index=i,
+        )
+        for i in range(3)
+    ]
+    align = AgendaAlignment(
+        item=item,
+        status="discussed",
+        matched_blocks=blocks,
+    )
+    assert is_trivial_ceremonial_item(align, lang="en") is False
+
+
+def test_english_ceremonial_lang_isolation():
+    """中英文仪式过滤互不串用。"""
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        AgendaAlignment,
+        is_trivial_ceremonial_item,
+    )
+
+    cn_item = AgendaItemParsed(seq="01", title="全体合影", presenters=[])
+    cn_align = AgendaAlignment(item=cn_item, status="skipped", matched_blocks=[])
+    assert is_trivial_ceremonial_item(cn_align, lang="en") is False
+
+    en_item = AgendaItemParsed(seq="02", title="Group Photo", presenters=[])
+    en_align = AgendaAlignment(item=en_item, status="skipped", matched_blocks=[])
+    assert is_trivial_ceremonial_item(en_align, lang="zh") is False

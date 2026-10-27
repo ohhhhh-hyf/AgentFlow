@@ -69,6 +69,16 @@ def test_vision_json_english_presenters_not_split():
     assert plan.items[1].presenters == ["Carol Wu", "Dave Park"]
 
 
+def test_vision_json_english_attendees_not_split():
+    """VLM 返回字符串型英文与会人时，同样不能被空格拆碎。"""
+    data = {
+        "attendees": "Alice Chen, Bob Lee",
+        "agenda_items": [],
+    }
+    plan = vision_json_to_agenda_plan(data)
+    assert plan.meta.attendees == "Alice Chen；Bob Lee"
+
+
 def test_vision_json_mixed_cn_en_names():
     """中英混排名单：中文多人名与英文全名都要保持正确。"""
     data = {

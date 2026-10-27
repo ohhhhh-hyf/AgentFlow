@@ -836,3 +836,222 @@ async def test_orchestrator_process_agenda_passes_lang(monkeypatch):
     result = await node(state)
     assert captured["lang"] == "en"
     assert result["has_valid_agenda"] is True
+
+
+_EN_AGENDA = """
+| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
+| --- | --- | --- | --- |
+| 01 | Architecture Review | Alice Chen | 20 min |
+| 02 | Release Plan | Bob Lee | 15 min |
+"""
+
+_EN_TRANSCRIPT = (
+    "[00:00:05] Carol Wu: Good morning everyone. Let's get started.\n\n"
+    "[00:00:15] Carol Wu: Next up, Alice Chen.\n\n"
+    "[00:00:25] Alice Chen: The architecture review covers the gateway redesign. "
+    "We measured 120 ms latency and will release the new version next month.\n\n"
+    "[00:10:00] Carol Wu: Moving on to the next item, Bob.\n\n"
+    "[00:10:10] Bob Lee: The release plan has three milestones. "
+    "We will complete testing by November and launch in December.\n\n"
+    "[00:20:00] Carol Wu: That's all for today. Thanks everyone.\n"
+)
+
+_ZH_AGENDA = """
+| 序号 | 议题名称 | 汇报人/主讲人 |
+| --- | --- | --- |
+| 01 | 架构评审 | 张三 |
+| 02 | 发布计划 | 李四 |
+"""
+
+_ZH_TRANSCRIPT = (
+    "张三 00:01\n关于架构评审，网关重构把时延降低到120ms，下月发布新版本。\n\n"
+    "李四 00:10\n关于发布计划，我们有三个里程碑，十一月完成测试，十二月上线。\n"
+)
+
+
+def _make_minutes_mock_client(called_labels: list[str], *, headline: str):
+    from unittest.mock import MagicMock
+
+    from domains.meeting.models_generated import (
+        MeetingUnderstanding,
+        Minutes,
+        MinutesSupervisorReview,
+    )
+
+    client = MagicMock()
+
+    async def mock_structured(prompt, *args, **kwargs):
+        label = kwargs.get("label", "")
+        called_labels.append(label)
+        if "meeting_understanding" in label:
+            return MeetingUnderstanding(
+                meeting_brief="测试",
+                meeting_purpose="目的",
+                scene="通用",
+            )
+        if "minutes/agent" in label:
+            return Minutes(headline=headline, executive_summary=["段落1"])
+        if "minutes/supervisor" in label:
+            return MinutesSupervisorReview(
+                decision="approve",
+                facts_check={"passed": True, "issues": []},
+                perspective_check={"passed": True, "issues": []},
+                consistency_check={"passed": True, "issues": []},
+                feedback=[],
+            )
+        raise ValueError(f"Unexpected label {label}")
+
+    client.structured.side_effect = mock_structured
+    return client
+
+
+async def _run_minutes_graph(
+    *,
+    transcript: str,
+    lang: str,
+    agenda_text: str = "",
+    headline: str = "测试标题",
+):
+    from domains.meeting.agenda_engine import clear_agenda_engine_cache
+    from domains.meeting.orchestrator import MeetingAgentSystem
+    from domains.meeting.tasks.agenda_minutes.agenda_parser import (
+        clear_agenda_parser_cache,
+    )
+    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
+        clear_alignment_cache,
+    )
+
+    clear_agenda_parser_cache()
+    clear_alignment_cache()
+    clear_agenda_engine_cache()
+
+    called: list[str] = []
+    client = _make_minutes_mock_client(called, headline=headline)
+    system = MeetingAgentSystem(client)
+    graph = system._build_graph(["minutes"])
+    state = {
+        "transcript": transcript,
+        "user": {},
+        "lang": lang,
+        "line_extra": {"agenda_text": agenda_text} if agenda_text else {},
+        "lines": {"minutes": {"revision_count": 0}},
+    }
+    final = await graph.ainvoke(state)
+    return system, final, called
+
+
+@pytest.mark.anyio
+async def test_minutes_agenda_en_pipeline():
+    """英文议题增强 minutes 线：有效议题、打标转写、agenda prompt 全部就绪。"""
+    _, final, called = await _run_minutes_graph(
+        transcript=_EN_TRANSCRIPT,
+        lang="en",
+        agenda_text=_EN_AGENDA,
+    )
+    assert final.get("has_valid_agenda") is True
+    assert [item.title for item in final.get("valid_agendas") or []] == [
+        "Architecture Review",
+        "Release Plan",
+    ]
+    assert "Architecture Review" in final.get("tagged_transcript", "")
+    assert "minutes/agent/agenda" in called
+
+
+@pytest.mark.anyio
+async def test_minutes_agenda_zh_unchanged():
+    """中文议题增强 minutes 线：行为保持原有议题归属。"""
+    _, final, called = await _run_minutes_graph(
+        transcript=_ZH_TRANSCRIPT,
+        lang="zh",
+        agenda_text=_ZH_AGENDA,
+    )
+    assert final.get("has_valid_agenda") is True
+    assert [item.title for item in final.get("valid_agendas") or []] == [
+        "架构评审",
+        "发布计划",
+    ]
+    assert "架构评审" in final.get("tagged_transcript", "")
+    assert "minutes/agent/agenda" in called
+
+
+@pytest.mark.anyio
+async def test_minutes_normal_en_does_not_enter_agenda_mode():
+    """英文普通纪要无议程 docs：不得误入议程模式。"""
+    _, final, called = await _run_minutes_graph(
+        transcript="Alice Chen 00:01\nThe architecture review covers the gateway redesign.",
+        lang="en",
+    )
+    assert not final.get("has_valid_agenda")
+    assert not any("minutes/agent/agenda" in label for label in called)
+    assert any("minutes/agent/objective" in label for label in called)
+    assert any("meeting_understanding" in label for label in called)
+
+
+@pytest.mark.anyio
+async def test_minutes_normal_zh_unchanged():
+    """中文普通纪要无议程 docs：保持普通纪要路径。"""
+    _, final, called = await _run_minutes_graph(
+        transcript="张三 10:00: 今天讨论常规事项。",
+        lang="zh",
+    )
+    assert not final.get("has_valid_agenda")
+    assert not any("minutes/agent/agenda" in label for label in called)
+    assert any("minutes/agent/objective" in label for label in called)
+
+
+@pytest.mark.anyio
+async def test_normal_minutes_english_unchanged():
+    """英文普通纪要草稿/渲染字段不被议程逻辑改写。"""
+    _, final, called = await _run_minutes_graph(
+        transcript="Alice Chen 00:01\nThe architecture review covers the gateway redesign.",
+        lang="en",
+        headline="English Minutes Headline",
+    )
+    assert not final.get("has_valid_agenda")
+    minutes_state = ((final.get("lines") or {}).get("minutes") or {})
+    draft = minutes_state.get("draft") or {}
+    assert draft.get("headline") == "English Minutes Headline"
+    assert draft.get("executive_summary") == ["段落1"]
+    assert any("minutes/agent/objective" in label for label in called)
+
+
+@pytest.mark.anyio
+async def test_normal_minutes_zh_unchanged():
+    """中文普通纪要草稿/渲染字段不被议程逻辑改写。"""
+    _, final, called = await _run_minutes_graph(
+        transcript="张三 10:00: 今天讨论常规事项。",
+        lang="zh",
+        headline="中文普通纪要标题",
+    )
+    assert not final.get("has_valid_agenda")
+    minutes_state = ((final.get("lines") or {}).get("minutes") or {})
+    draft = minutes_state.get("draft") or {}
+    assert draft.get("headline") == "中文普通纪要标题"
+    assert draft.get("executive_summary") == ["段落1"]
+    assert any("minutes/agent/objective" in label for label in called)
+
+
+def test_normal_minutes_with_non_agenda_docs_falls_back(tmp_path, monkeypatch):
+    """英文非议程 docs 必须静默回退普通纪要资料流程。"""
+    doc_path = tmp_path / "finance.txt"
+    doc_path.write_text(
+        "Q3 net profit increased by 15% and cash flow remains healthy.",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "app.tasks._input_file",
+        lambda user_id, kind, name: doc_path,
+    )
+
+    req = TaskRequest(
+        lang="en",
+        texts={"transcript": "Alice Chen: We discussed the quarterly report."},
+        docs=["finance.txt"],
+    )
+    prep = _prepare("meeting", "minutes", req, "u_test_en_non_agenda")
+
+    assert "agenda_text" not in prep.extra_line_inputs
+    assert prep.input_files is not None
+    transcript_content = prep.input_files.read_text(encoding="utf-8")
+    assert "finance.txt" in transcript_content or "net profit" in transcript_content
