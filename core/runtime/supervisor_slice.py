@@ -365,9 +365,6 @@ def summarize_understanding(understanding: object) -> str:
     )
     if purpose:
         lines.append(f"目的：{purpose}")
-    scene = _clean(understanding.get("scene"))
-    if scene:
-        lines.append(f"场景：{scene}")
 
     topics = (
         understanding.get("session_segments")

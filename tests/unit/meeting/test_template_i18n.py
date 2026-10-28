@@ -409,7 +409,7 @@ async def test_minutes_agent_prompt_and_carry_enforce():
 
     # 1. 英文生成
     ctx_en = "输出语种要求：英文（English）\n\n上下文"
-    await agent.run(ctx_en, lang="en")
+    await agent.run(ctx_en, view="objective", lang="en")
     call_args_en = mock_client.structured.call_args
     sys_prompt_en = call_args_en[0][0]
     assert "【核心人设与交付目标】" in sys_prompt_en
@@ -434,7 +434,7 @@ async def test_minutes_supervisor_prompt_assembly():
 
     supervisor = MinutesGenerationSupervisor(mock_client)
     ctx_en = "输出语种要求：英文（English）\n\n草稿上下文"
-    await supervisor.review(ctx_en, lang="en")
+    await supervisor.review(ctx_en, view="objective", lang="en")
 
     call_args_en = mock_client.structured.call_args
     sys_prompt_en = call_args_en[0][0]
@@ -446,20 +446,29 @@ async def test_minutes_supervisor_prompt_assembly():
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    "context",
+    ("context", "view"),
     [
-        "视角模式：objective\n输出语种要求：英文（English）\n\n草稿上下文",
-        "视角模式：personal\n输出语种要求：英文（English）\n\n草稿上下文",
-        "议题模式：agenda_enhanced\n视角模式：objective\n输出语种要求：英文（English）\n\n草稿上下文",
+        (
+            "视角模式：objective\n输出语种要求：英文（English）\n\n草稿上下文",
+            "objective",
+        ),
+        (
+            "视角模式：personal\n输出语种要求：英文（English）\n\n草稿上下文",
+            "personal",
+        ),
+        (
+            "议题模式：agenda_enhanced\n视角模式：objective\n输出语种要求：英文（English）\n\n草稿上下文",
+            "agenda_objective",
+        ),
     ],
 )
-async def test_supervisor_english_prompt_keeps_common_rules(context):
+async def test_supervisor_english_prompt_keeps_common_rules(context, view):
     """英文壳只剥人设首句，不能把公共审核规则切掉。"""
     mock_client = MagicMock()
     mock_client.structured = AsyncMock(return_value=MagicMock())
 
     supervisor = MinutesGenerationSupervisor(mock_client)
-    await supervisor.review(context, lang="en")
+    await supervisor.review(context, view=view, lang="en")
 
     prompt = mock_client.structured.call_args[0][0]
     assert "## 领域审核规则：纪要生成" in prompt
@@ -468,11 +477,16 @@ async def test_supervisor_english_prompt_keeps_common_rules(context):
 
 
 def test_minutes_render_prompt_and_fallback_draft():
-    """测试渲染器 Prompt 插槽装配与零 LLM 确定性兜底渲染。"""
-    # 1. 渲染 Prompt 测试
+    """测试渲染器模板 Prompt 装配与零 LLM 确定性兜底渲染。"""
+    # 1. 模板渲染 Prompt 测试（无模板 LLM prompt 已删除）
     render = MinutesGenerationRender(MagicMock())
     ctx_en = "输出语种要求：英文（English）\n\n草稿"
-    prompt_en, user_en = render._prompt_and_user(ctx_en, "", lang="en")
+    prompt_en, user_en = render._prompt_and_user(
+        ctx_en,
+        "# Template\n{{scalar:Summary}}",
+        view="objective",
+        lang="en",
+    )
     assert "【核心人设与交付目标】" in prompt_en
     assert "你是专职的【英文（English）】会议纪要渲染器" in prompt_en
     assert "## 语言红线" in prompt_en
@@ -575,7 +589,6 @@ async def test_end_to_end_english_minutes_pipeline():
     dummy_und = MeetingUnderstanding(
         meeting_brief="Brief overview of cloud migration meeting",
         meeting_purpose="Discuss cloud migration timeline",
-        scene="通用",
         decisions=["Target migration completion by Nov 15th."],
         open_questions=["Vendor support SLA for weekends."],
         risks=["Network throughput during peak hours."],
@@ -739,7 +752,12 @@ async def test_agenda_en_generation_prompt_uses_roman_headings():
         "输出语种要求：英文（English）\n\n"
         "会议理解：\n{}"
     )
-    await agent.run(ctx, lang="en", source_transcript="tagged transcript")
+    await agent.run(
+        ctx,
+        view="agenda_objective",
+        lang="en",
+        source_transcript="tagged transcript",
+    )
 
     prompt = captured["system"]
     assert "### I." in prompt
@@ -763,7 +781,7 @@ async def test_agenda_en_supervisor_prompt_uses_roman_headings():
         "输出语种要求：英文（English）\n\n"
         "草稿上下文"
     )
-    await supervisor.review(ctx, lang="en")
+    await supervisor.review(ctx, view="agenda_objective", lang="en")
 
     prompt = mock_client.structured.call_args[0][0]
     assert "### I." in prompt
@@ -788,35 +806,48 @@ def test_agenda_en_render_prompt_uses_roman_headings():
         "输出语种要求：英文（English）\n\n"
         "草稿"
     )
-    prompt, _ = render._prompt_and_user(ctx, "", lang="en")
+    prompt, _ = render._prompt_and_user(
+        ctx,
+        "# Template\n{{scalar:要点梳理}}",
+        view="agenda_objective",
+        lang="en",
+    )
     assert "### I." in prompt
     assert "### 一." not in prompt
-    assert "罗马数字序号" in prompt
 
-    prompt_tpl, _ = render._prompt_and_user(
-        ctx, "# Template\n{{scalar:要点梳理}}", lang="en"
+
+def test_personal_en_render_prompt_uses_normal_template_prompt():
+    """非 agenda 的 personal / role_template 不进入议题渲染 prompt。"""
+    from domains.meeting.tasks.minutes.steps.minutes_render import (
+        MinutesGenerationRender,
     )
-    assert "### I." in prompt_tpl
-    assert "### 一." not in prompt_tpl
+
+    render = MinutesGenerationRender(MagicMock())
+    ctx = "视角模式：personal\n输出语种要求：英文（English）\n\n草稿"
+    prompt, _ = render._prompt_and_user(
+        ctx,
+        "# Template\n{{scalar:Summary}}",
+        view="personal",
+        lang="en",
+    )
+    assert "【栏目语义自适应映射】" in prompt
+    assert "严格遵循模板栏目规约与公文层级标准完成排版" not in prompt
 
 
 def test_agenda_zh_prompts_keep_chinese_headings():
     from domains.meeting.tasks.minutes.prompts import (
         MINUTES_AGENDA_GENERATION_PROMPT,
-        MINUTES_AGENDA_RENDER_PROMPT,
         MINUTES_AGENDA_SUPERVISOR_PROMPT,
     )
 
     for prompt in (
         MINUTES_AGENDA_GENERATION_PROMPT,
-        MINUTES_AGENDA_RENDER_PROMPT,
         MINUTES_AGENDA_SUPERVISOR_PROMPT,
     ):
         assert "### 一." in prompt
         assert "### I." not in prompt
 
     assert "中文数字序号" in MINUTES_AGENDA_GENERATION_PROMPT
-    assert "中文数字序号" in MINUTES_AGENDA_RENDER_PROMPT
     assert "三级标题序号" in MINUTES_AGENDA_SUPERVISOR_PROMPT
 
 

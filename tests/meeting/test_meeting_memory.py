@@ -1211,7 +1211,7 @@ def test_minutes_agent_stale_purge_integration():
             )
 
     agent = MinutesGenerationAgent(MockClient())
-    res = asyncio.run(agent.run(shared_ctx))
+    res = asyncio.run(agent.run(shared_ctx, view="objective"))
     check("agent.run 自动剥离未重申旧决议", res.key_decisions == ["上线GPU集群"], str(res.key_decisions))
     check("agent.run 自动将旧决议归入往期沿革", any("8月18日前优化 minutes_trace" in h for h in res.history_comparison), str(res.history_comparison))
 

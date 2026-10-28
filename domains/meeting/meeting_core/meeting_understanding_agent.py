@@ -5,15 +5,11 @@ from collections.abc import Iterable
 from infra.llm import LLMClient
 from ..models import MeetingUnderstanding
 from .prompts import (
-    MEETING_UNDERSTANDING_SYSTEM_PROMPT,
-    MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT,
     MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT,
+    build_understanding_prompt,
 )
-from .contracts import (
-    MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
-    build_core_contract_for_tasks,
-    is_actions_risks_only_tasks,
-)
+from .contracts import build_core_contract_for_tasks
+from .understanding_profiles import resolve_profile
 
 
 class MeetingUnderstandingAgent:
@@ -65,17 +61,19 @@ class MeetingUnderstandingAgent:
         if omitted:
             missable = missable | omitted
 
-        target_contract = contract_str if active_tasks is not None else (
-            contract_str if omitted else MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT
-        )
+        target_contract = contract_str
 
-        is_lightweight = is_actions_risks_only_tasks(tasks, memory_on=memory_on)
-        if is_agenda_enhanced:
+        profile = resolve_profile(
+            tasks,
+            memory_on=memory_on,
+            is_agenda=is_agenda_enhanced,
+        )
+        task = tasks[0] if tasks and len(tasks) == 1 else ""
+        if profile is None:
+            # 议题兼容分支：继续使用旧议题 prompt。
             raw_system_prompt = MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT
-        elif is_lightweight:
-            raw_system_prompt = MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
         else:
-            raw_system_prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
+            raw_system_prompt = build_understanding_prompt(profile, task=task)
 
         if (lang or "").strip().lower() == "en":
             role_prefix = "英文（English）"
@@ -116,17 +114,6 @@ class MeetingUnderstandingAgent:
                     for top in result.topics
                     if isinstance(top, dict)
                 ]
-
-            # 辩论/争议交锋兼容
-            if hasattr(result, "debates") and not result.debates and result.topics:
-                top_debates = []
-                for t in result.topics:
-                    if isinstance(t, dict):
-                        for d in (t.get("debates") or []):
-                            if isinstance(d, dict) and d not in top_debates:
-                                top_debates.append(d)
-                if top_debates:
-                    result.debates = top_debates
 
             # 彻底拔除 topics，避免克隆膨胀
             result.topics = []

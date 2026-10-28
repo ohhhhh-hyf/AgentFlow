@@ -71,6 +71,9 @@ class MeetingState(TypedDict, total=False):
     line_modes: dict[str, str]
     # 可选：各任务线附加上下文（线名 → 如记忆注入）
     line_extra: dict[str, str]
+    # 各任务线的运行视角（线名 → objective/personal/role_template/agenda_objective）。
+    # 当前仅 minutes 使用；必须显式声明，LangGraph 只传 TypedDict 声明过的 key。
+    line_views: dict[str, str]
     # 语种标识（"zh" | "en"，供下游各节点、篇幅预算与渲染器使用）
     lang: str
     # 审定议题模式状态字段（用于 minutes 任务在检测到有效议程时跨节点传递）

@@ -38,7 +38,6 @@ def _normal_state(template: str) -> dict:
         "meeting_understanding": {
             "meeting_brief": "周会",
             "meeting_purpose": "同步进展",
-            "scene": "团队例会",
             "session_segments": [],
             "topics": [],
             "decisions": [],
@@ -79,20 +78,22 @@ def test_all_templates_are_excluded_from_generation_context() -> None:
     assert checked >= 40
 
 
-def test_all_templates_render_prompt_has_mapping_and_fold() -> None:
+def test_all_templates_render_prompt_has_mapping_without_fold() -> None:
     renderer = MinutesGenerationRender(MagicMock())
     checked = 0
     for lang, _stem, template in _iter_templates():
-        for ctx in (
-            "视角模式：objective",
-            "议题模式：agenda_enhanced\n视角模式：objective",
+        for ctx, view in (
+            ("视角模式：objective", "objective"),
+            ("议题模式：agenda_enhanced\n视角模式：objective", "agenda_objective"),
         ):
-            prompt, user = renderer._prompt_and_user(ctx, template, lang=lang)
+            prompt, user = renderer._prompt_and_user(
+                ctx, template, view=view, lang=lang
+            )
             assert "key_decisions" in prompt
             assert "personally_relevant_points" in prompt
             assert "risks_and_blockers" in prompt
             assert "unresolved_questions" in prompt
-            assert prompt.count(FOLD_CLAUSE) == 3
+            assert FOLD_CLAUSE not in prompt
             assert "无对应栏目时的折叠规则" not in prompt
             assert user.strip()
             checked += 1

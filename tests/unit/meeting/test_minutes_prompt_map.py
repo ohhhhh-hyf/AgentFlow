@@ -12,28 +12,24 @@ from domains.meeting.tasks.minutes.prompt_map import (
     is_agenda_view,
     minutes_prompt_set,
     prompt_label,
-    resolve_prompt_view,
+    render_template_prompt,
 )
 from domains.meeting.tasks.minutes.prompts import (
     AGENDA_AUX_PROMPT_BLOCK,
     NOTES_PROMPT_BLOCK,
     VISION_PROMPT_BLOCK,
     MINUTES_AGENDA_GENERATION_PROMPT,
-    MINUTES_AGENDA_RENDER_PROMPT,
     MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
     MINUTES_AGENDA_SUPERVISOR_PROMPT,
     MINUTES_OBJECTIVE_GENERATION_PROMPT,
-    MINUTES_OBJECTIVE_RENDER_PROMPT,
     MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
     MINUTES_PERSONAL_GENERATION_PROMPT,
-    MINUTES_PERSONAL_RENDER_PROMPT,
     MINUTES_PERSONAL_SUPERVISOR_PROMPT,
     MINUTES_RENDER_TEMPLATE_PROMPT,
 )
 from domains.meeting.tasks.minutes.steps.minutes_agent import MinutesGenerationAgent
 from domains.meeting.views import (
     VIEW_AGENDA_OBJECTIVE,
-    VIEW_OBJECTIVE,
     VIEW_PERSONAL,
     VIEW_ROLE_TEMPLATE,
 )
@@ -49,15 +45,18 @@ _CONTRACT_KEYS = (
 )
 
 
-def test_resolve_prompt_view() -> None:
-    assert (
-        resolve_prompt_view("议题模式：agenda_enhanced\n视角模式：objective")
-        == VIEW_AGENDA_OBJECTIVE
-    )
-    assert resolve_prompt_view("视角模式：personal") == VIEW_PERSONAL
-    assert resolve_prompt_view("视角模式：role_template") == VIEW_ROLE_TEMPLATE
-    assert resolve_prompt_view("视角模式：objective") == VIEW_OBJECTIVE
-    assert resolve_prompt_view("") == VIEW_OBJECTIVE
+def test_minutes_generation_steps_do_not_parse_view_from_context() -> None:
+    """防回归：生产代码不得重新引入 context → view 的反解析。"""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3] / "domains" / "meeting"
+    forbidden = ("resolve_prompt_view", "resolve_render_prompt")
+    offenders = []
+    for path in root.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        if any(name in text for name in forbidden):
+            offenders.append(str(path))
+    assert not offenders, offenders
 
 
 def test_minutes_prompt_no_content_examples() -> None:
@@ -113,16 +112,12 @@ def test_prompt_sets_by_view() -> None:
     agenda = minutes_prompt_set(VIEW_AGENDA_OBJECTIVE)
     assert agenda.generation is MINUTES_AGENDA_GENERATION_PROMPT
     assert agenda.supervisor is MINUTES_AGENDA_SUPERVISOR_PROMPT
-    assert agenda.render is MINUTES_AGENDA_RENDER_PROMPT
-    assert agenda.render_template is MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
     assert is_agenda_view(agenda.view)
     assert prompt_label(agenda.view) == "agenda"
 
     personal = minutes_prompt_set(VIEW_PERSONAL)
     assert personal.generation is MINUTES_PERSONAL_GENERATION_PROMPT
     assert personal.supervisor is MINUTES_PERSONAL_SUPERVISOR_PROMPT
-    assert personal.render is MINUTES_PERSONAL_RENDER_PROMPT
-    assert personal.render_template is MINUTES_RENDER_TEMPLATE_PROMPT
     assert prompt_label(personal.view) == "personal"
 
     # role_template 沿用 objective prompts（与既有行为一致），但保留 view 标签
@@ -130,13 +125,24 @@ def test_prompt_sets_by_view() -> None:
     assert role.view == VIEW_ROLE_TEMPLATE
     assert role.generation is MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert role.supervisor is MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
-    assert role.render is MINUTES_OBJECTIVE_RENDER_PROMPT
-    assert role.render_template is MINUTES_RENDER_TEMPLATE_PROMPT
     assert prompt_label(role.view) == "objective"
 
     # 未知 view 回退 objective，不抛 500
     fallback = minutes_prompt_set("unknown")
     assert fallback.generation is MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+
+def test_render_template_prompt_only_agenda_differs() -> None:
+    """渲染只分 agenda / 非 agenda；personal、role_template 共用普通 prompt。"""
+    for view in ("", "objective", "personal", "role_template"):
+        assert is_agenda_view(view) is False
+        assert render_template_prompt(view) is MINUTES_RENDER_TEMPLATE_PROMPT
+
+    assert is_agenda_view(VIEW_AGENDA_OBJECTIVE) is True
+    assert (
+        render_template_prompt(VIEW_AGENDA_OBJECTIVE)
+        is MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    )
 
 
 def test_agenda_contract_clean() -> None:
@@ -165,7 +171,13 @@ def test_agenda_agent_uses_agenda_contract() -> None:
         "视角模式：objective\n\n"
         "会议理解：\n{}\n"
     )
-    asyncio.run(agent.run(agenda_context, source_transcript="tagged transcript"))
+    asyncio.run(
+        agent.run(
+            agenda_context,
+            view="agenda_objective",
+            source_transcript="tagged transcript",
+        )
+    )
     assert captured["contract"] == MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT
     combined = captured["system"] + "\n" + captured["contract"]
     assert "个人模式下" not in combined
@@ -174,23 +186,25 @@ def test_agenda_agent_uses_agenda_contract() -> None:
 
     captured.clear()
     normal_context = "视角模式：objective\n\n会议理解：\n{}\n"
-    asyncio.run(agent.run(normal_context))
+    asyncio.run(agent.run(normal_context, view="objective"))
     assert captured["contract"] == MINUTES_GENERATION_OUTPUT_CONTRACT
 
 
-def test_agenda_supervisor_prompt_drops_upstream_carry_claims() -> None:
-    prompt = MINUTES_AGENDA_SUPERVISOR_PROMPT
-    assert "搬运项免审" not in prompt
-    assert "上游事实搬运项" not in prompt
-    assert "历史记忆隔离审查" not in prompt
-    assert "本轮送审范围" in prompt
-    assert "历史记忆审查" in prompt
-    # 既有放行规则必须保留
-    assert "属于符合公文规范的表述优化，予以充分认可并放行通过" in prompt
-
-    # 普通 objective/personal 审核 prompt 不受影响
-    assert "搬运项免审" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
-    assert "搬运项免审" in MINUTES_PERSONAL_SUPERVISOR_PROMPT
+def test_supervisor_prompts_share_scope_without_carry_claims() -> None:
+    for prompt in (
+        MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
+        MINUTES_PERSONAL_SUPERVISOR_PROMPT,
+        MINUTES_AGENDA_SUPERVISOR_PROMPT,
+    ):
+        assert "搬运项免审" not in prompt
+        assert "上游事实搬运项" not in prompt
+        assert "历史记忆隔离审查" not in prompt
+        assert "本轮送审范围" in prompt
+        assert "只审送审稿中实际出现的内容" in prompt
+        assert "历史记忆审查" in prompt
+        assert "key_decisions" not in prompt
+        # 既有放行规则必须保留
+        assert "属于符合公文规范的表述优化，予以充分认可并放行通过" in prompt
 
 
 # ── 议题辅助材料 prompt 规约 ──────────────────────────────────────────────────
@@ -270,7 +284,11 @@ def test_agenda_draft_without_headings_still_completes() -> None:
         "会议理解：\n{}\n"
     )
     result = asyncio.run(
-        agent.run(agenda_context, source_transcript="tagged transcript")
+        agent.run(
+            agenda_context,
+            view="agenda_objective",
+            source_transcript="tagged transcript",
+        )
     )
 
     # 没有 ### 标题也不抛错、不拦截，草稿照常返回

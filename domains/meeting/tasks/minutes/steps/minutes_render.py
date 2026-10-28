@@ -7,7 +7,7 @@ from core.execution.hard_execution import parse_lang_mode
 from core.runner.prompt_utils import build_render_prompt
 from infra.llm import LLMClient
 
-from ..prompt_map import is_agenda_view, minutes_prompt_set, resolve_prompt_view
+from ..prompt_map import is_agenda_view, render_template_prompt
 from ..prompts import localize_agenda_headings_for_en
 
 
@@ -194,17 +194,24 @@ class MinutesGenerationRender:
         )
 
     @staticmethod
-    def _prompt_and_user(context: str, template: str, *, lang: str | None = None) -> tuple[str, str]:
+    def _prompt_and_user(
+        context: str,
+        template: str,
+        *,
+        view: str,
+        lang: str | None = None,
+    ) -> tuple[str, str]:
         """组装渲染 prompt 与用户消息（普通与流式共用）。
 
-        模板分支逻辑由 tools.core.prompt_utils.build_render_prompt 提供：
+        模板分支逻辑由 core.runner.prompt_utils.build_render_prompt 提供：
         有模板时模板原样拼进用户消息（LLM 只替换占位符，其余逐字符保留）。
-        无模板时，根据视角模式动态分发客观或个人渲染提示词。
+        无模板生产路径由 ``render_draft`` 确定性兜底，不再保留无模板 LLM prompt。
         """
-        view = resolve_prompt_view(context)
-        prompt_set = minutes_prompt_set(view)
-        untemplated_prompt = prompt_set.render
-        template_prompt = prompt_set.render_template
+        view = (view or "").strip().lower()
+        if not view:
+            raise ValueError("minutes render view is required")
+        template_prompt = render_template_prompt(view)
+        is_agenda = is_agenda_view(view)
 
         lang_val = lang or parse_lang_mode(context)
         if (lang_val or "").strip().lower() == "en":
@@ -228,16 +235,14 @@ class MinutesGenerationRender:
                     f"2. 标点符号统一使用标准半角英文标点（逗号后带空格）。"
                 )
 
-            untemplated_prompt = _wrap_en(untemplated_prompt)
             template_prompt = _wrap_en(template_prompt)
-            if is_agenda_view(view):
-                untemplated_prompt = localize_agenda_headings_for_en(untemplated_prompt)
+            if is_agenda:
                 template_prompt = localize_agenda_headings_for_en(template_prompt)
 
         return build_render_prompt(
             context,
             template,
-            untemplated_prompt,
+            "",
             template_prompt,
         )
 
@@ -246,6 +251,7 @@ class MinutesGenerationRender:
         approved_context: str,
         template: str = "",
         *,
+        view: str,
         max_tokens: int | None = None,
         temperature: float | None = None,
         lang: str | None = None,
@@ -255,7 +261,12 @@ class MinutesGenerationRender:
         ``max_tokens`` 由编排层按目标字数给出：本地端点没有隐含输出上限（托管 API 自带
         ~8k），退化时会一路写满上下文（实测 49k token / 9 分钟），必须由调用方设硬上限。
         """
-        prompt, user = self._prompt_and_user(approved_context, template, lang=lang)
+        prompt, user = self._prompt_and_user(
+            approved_context,
+            template,
+            view=view,
+            lang=lang,
+        )
         has_template = bool((template or "").strip())
         temp = temperature if temperature is not None else (0.0 if has_template else None)
         text = await self.client.text(
@@ -268,10 +279,16 @@ class MinutesGenerationRender:
         approved_context: str,
         template: str = "",
         *,
+        view: str,
         lang: str | None = None,
     ) -> AsyncIterator[str]:
         """流式渲染纪要正文：LLM token 逐块产出（SSE）。"""
-        prompt, user = self._prompt_and_user(approved_context, template, lang=lang)
+        prompt, user = self._prompt_and_user(
+            approved_context,
+            template,
+            view=view,
+            lang=lang,
+        )
         async for chunk in self.client.stream_text(prompt, user, label="minutes/render"):
             yield chunk
 

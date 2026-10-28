@@ -86,7 +86,6 @@ def test_minutes_chain_consistency() -> None:
     from domains.meeting.tasks.minutes.contracts import MINUTES_GENERATION_OUTPUT_CONTRACT as gen_contract
     from domains.meeting.tasks.minutes.prompts import (
         MINUTES_GENERATION_SYSTEM_PROMPT as draft,
-        MINUTES_RENDER_PROMPT as render,
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as supervisor,
     )
     from core.templates.body_rules import BODY_FORMAT_RULES
@@ -95,21 +94,17 @@ def test_minutes_chain_consistency() -> None:
     # ③ 形态单点化：渲染路径逐字包含同一份规则（草稿已解耦）
     for label, text in (
         ("自由渲染 PLACEHOLDER_RULES", PLACEHOLDER_RULES),
-        ("纪要渲染 prompt", render),
     ):
         check(f"{label} 逐字包含 BODY_FORMAT_RULES（单点维护）", BODY_FORMAT_RULES in text, "")
     check("纪要草稿已与排版规则解耦（不包含 BODY_FORMAT_RULES）", BODY_FORMAT_RULES not in draft, "")
-    check("形态单点：人分组用 `**姓名**：` 独占行、本人那组叫「与我相关」、不把人名写成 `##`",
-          "「人」不是板块" in BODY_FORMAT_RULES
-          and "（本人那一组写 `**与我相关**：`）" in BODY_FORMAT_RULES
-          and "不得把人名或「与我相关」写成 `##` 标题" in BODY_FORMAT_RULES, "")
-    check("形态单点：受控二级缩进显式场景触发口径到位",
-          "受控二级缩进（显式场景触发）" in BODY_FORMAT_RULES
-          and "现状/问题 与 解决方案 并存时" in BODY_FORMAT_RULES
-          and "赞成观点/优势 与 潜在顾虑/风险 并存时" in BODY_FORMAT_RULES
-          and "核心交付物 包含多个并列指标/模块/时限时" in BODY_FORMAT_RULES, "")
+    check("形态单点：人分组用 `**姓名**：` 独占行、本人组叫「与我相关」、不把人名写成标题",
+          "人名不作标题" in BODY_FORMAT_RULES
+          and "按人分组用独占一行 `**姓名**：`" in BODY_FORMAT_RULES
+          and "本人组用 `**与我相关**：`" in BODY_FORMAT_RULES, "")
+    check("形态单点：单条多维度用二级缩进",
+          "单条包含多个维度时用 2 空格 `  - ` 展开" in BODY_FORMAT_RULES, "")
     stale = ["每栏至少 2 个分类标签", "每条 20–80 字", "每条 2–3 处（分类标签"]
-    hit = [k for k in stale if any(k in t for t in (PLACEHOLDER_RULES, draft, render))]
+    hit = [k for k in stale if any(k in t for t in (PLACEHOLDER_RULES, draft))]
     check("旧形态口径已从全部路径清除", not hit, f"残留={hit}")
 
     # ② 摘要分段：三处同一套（段数按内容、单段 ≤约 200 字——**只按字数口径**），旧数字已清除
@@ -150,7 +145,7 @@ def test_minutes_chain_consistency() -> None:
     old_summary = [
         k
         for k in ("全篇 2–8 条", "每段最多 3 句", "2–8 条", "≤4 段", "每段 2–5 句", "2–5 句")
-        if k in draft or k in gen_contract or k in render
+        if k in draft or k in gen_contract
     ]
     check("旧的互斥摘要口径已清除", not old_summary, f"残留={old_summary}")
 
@@ -171,8 +166,8 @@ def test_understanding_trim_lists() -> None:
 
     cases = (
         ("minutes", {"action_hints", "risk_hints", "dependencies"}),
-        ("risks", {"action_hints", "debates"}),
-        ("actions", {"risk_hints", "debates", "open_questions", "risks"}),
+        ("risks", {"action_hints", "decisions", "dependencies"}),
+        ("actions", {"risk_hints", "dependencies", "open_questions", "risks"}),
     )
     for line, expected_omitted_subset in cases:
         contract_str, omitted = build_core_contract_for_tasks([line])
@@ -398,103 +393,66 @@ def test_understanding_skip_never_retries() -> None:
           "allow_missing=missable" in src and "键名必须保留" in src
           and 'missable = skipped | {"speakers"}' in src, "")
     node_src = Path("domains/meeting/orchestrator.py").read_text(encoding="utf-8")
-    check("理解裁剪按选线 + 模板栏位（发布会类不抽用不到的字段）",
-          "skip_fields_for_template(template)" in node_src
+    check("理解裁剪只按选线，不再按模板栏位",
+          "skip_fields_for_template" not in node_src
           and "skip_fields=skip" in node_src, "")
 
-def test_template_aware_understanding_skip() -> None:
-    """minutes 单线：理解层再按**模板栏位**裁一次（模板没有风险/未决栏就不抽）。
+def test_template_no_longer_affects_understanding_skip() -> None:
+    """minutes 单线：理解层只按选线裁剪，模板栏位不再参与。
 
-    回归背景（2026-09-18 耗时复盘）：minutes 的 pack 只取
-    brief/purpose/scene/topics/decisions/risks/open_questions——
-    action_hints / risk_hints / dependencies 这条线从不消费；risks / open_questions 也只
-    在模板真有风险/未决栏时才进正文。而理解层输出是整条链最贵的中间件：它要进草稿、审核、
-    装配每一次调用的上下文（实测一篇 6000 字发布会实录抽了 6.2k token / 1.3 万字符）。
-    发布会四栏、讲座四栏、课堂四栏、访谈三栏都用不到这两栏，属于纯浪费。
+    背景：旧逻辑按模板关键词跳过 risks/open_questions，英文模板会全部误判，
+    且模板没有风险栏不代表最终纪要不需要这些事实。现已移除模板关键词层。
     """
+    from domains.meeting.meeting_core.contracts import build_core_contract_for_tasks
     from domains.meeting.orchestrator import UNDERSTANDING_SKIP_FIELDS, _Nodes
-    from domains.meeting.understanding_skip import skip_fields_for_template
 
     base = set(UNDERSTANDING_SKIP_FIELDS["minutes"])
-    check("minutes 基础裁剪带走 action_hints/risk_hints/dependencies",
-          {"action_hints", "risk_hints", "dependencies"} <= base, f"{sorted(base)}")
+    check(
+        "minutes 基础裁剪带走 action_hints/risk_hints/dependencies",
+        {"action_hints", "risk_hints", "dependencies"} <= base,
+        f"{sorted(base)}",
+    )
 
     d = _active_dir()
 
     def load(name: str) -> str:
         return (d / f"{name}.md").read_text(encoding="utf-8")
 
-    both = frozenset({"risks", "open_questions"})
-    mb = load("media_briefing")
-    check("新闻发布：无风险/未决栏 → 再跳 risks/open_questions",
-          skip_fields_for_template(mb) == both, f"{sorted(skip_fields_for_template(mb))}")
-    check("通用纪要：[要点梳理] 含「待确认与风险」→ 一个都不跳",
-          skip_fields_for_template(load("general_minutes")) == frozenset(),
-          f"{sorted(skip_fields_for_template(load('general_minutes')))}")
-    check("团队例会：协作需求提到阻塞 → risks 保留",
-          "risks" not in skip_fields_for_template(load("team_meeting")), "")
-    check("项目进度：有「风险预警」栏 → risks 保留（open_questions 无落点仍可跳）",
-          "risks" not in skip_fields_for_template(load("project_progress")),
-          f"{sorted(skip_fields_for_template(load('project_progress')))}")
-    check("讲座/访谈/课堂/产品发布：四类都用不到风险与未决 → 全跳",
-          all(
-              skip_fields_for_template(load(n)) == both
-              for n in (
-                  "special_lecture",
-                  "interview_transcript",
-                  "class_transcript",
-                  "product_launch",
-                  "media_qa_session",
-              )
-          ),
-          "",
-      )
-    check("空模板 → 不裁（宁多不漏）", skip_fields_for_template("") == frozenset(), "")
-
-    # 覆盖率守卫：29 个模板都要得出结论，且只可能跳这两个字段
-    allowed = {"risks", "open_questions"}
-    out_of_range: list[tuple[str, list[str]]] = []
-    trimmed: list[str] = []
-    for md in sorted(d.glob("*.md")):
-        if md.stem.lower() == "readme":
-            continue
-        got = skip_fields_for_template(md.read_text(encoding="utf-8"))
-        if not got <= allowed:
-            out_of_range.append((md.stem, sorted(got)))
-        if got == both:
-            trimmed.append(md.stem)
-    check("每个模板的裁剪结论都落在允许集合内", not out_of_range, f"{out_of_range}")
-    check("至少 10 个模板（发布会/讲座/课堂/访谈类）拿到两栏裁剪",
-          len(trimmed) >= 10, f"仅 {len(trimmed)} 个：{trimmed}")
-
-    # 节点侧合并：单线 minutes + 模板 → 五项；多线/无模板不裁
-    merged = frozenset(base | both)
-
     def skip_of(names: list[str], tpl: str = "") -> frozenset[str]:
         return _Nodes._understanding_skip(object(), names, tpl)
 
-    check("单线 minutes + 新闻发布模板 → 五项一起跳",
-          skip_of(["minutes"], mb) == merged, f"{sorted(skip_of(['minutes'], mb))}")
-    check("多线请求不裁（理解还要服务待办/风险线）",
-          skip_of(["minutes", "actions"], mb) == frozenset(), "")
-    check("未给模板的单线 minutes → 只跳基础三项",
-          skip_of(["minutes"]) == frozenset(base), f"{sorted(skip_of(['minutes']))}")
-    check("其它线不受模板影响（actions 线模板不给也不改集合）",
-          skip_of(["actions"], mb) == UNDERSTANDING_SKIP_FIELDS["actions"], "")
-
-    from domains.meeting.meeting_core.contracts import (
-        build_core_contract_for_tasks,
+    mb = load("media_briefing")
+    check(
+        "模板不再影响单线 minutes 裁剪",
+        skip_of(["minutes"], mb) == frozenset(base)
+        and skip_of(["minutes"], load("general_minutes")) == frozenset(base),
+        f"{sorted(skip_of(['minutes'], mb))}",
+    )
+    check(
+        "英文模板不再误跳 risks/open_questions",
+        skip_of(["minutes"], "## [Risk Alerts]\\n## [Open Questions]") == frozenset(base),
+        f"{sorted(skip_of(['minutes'], '## [Risk Alerts]'))}",
+    )
+    check(
+        "多线仍按交集裁剪（minutes + actions）",
+        skip_of(["minutes", "actions"], mb) == frozenset({"risk_hints", "dependencies"}),
+        f"{sorted(skip_of(['minutes', 'actions'], mb))}",
+    )
+    check(
+        "其它线不受模板影响",
+        skip_of(["actions"], mb) == UNDERSTANDING_SKIP_FIELDS["actions"],
+        "",
     )
 
-    contract_mb, omitted_mb = build_core_contract_for_tasks(["minutes"], template_text=mb)
-    check("动态契约把模板未包含项列进 omitted",
-          all(k in omitted_mb for k in ("risks", "open_questions")),
-          f"{sorted(omitted_mb)}")
-    check("动态契约物理剔除未包含字段",
-          all(f'"{k}"' not in contract_mb for k in ("risks", "open_questions")),
-          "")
+    contract_mb, omitted_mb = build_core_contract_for_tasks(["minutes"])
+    check(
+        "minutes 动态契约始终包含 risks/open_questions",
+        all(k in contract_mb for k in ("risks", "open_questions"))
+        and not any(k in omitted_mb for k in ("risks", "open_questions")),
+        f"omitted={sorted(omitted_mb)}",
+    )
 
-    # 节点侧：裁剪集合确实随 state 里的模板变化（不是建节点时定死）
+    # 节点侧：模板变化不再改变 skip；focus/channel 行为保持
     import asyncio
 
     class _FakeAgent:
@@ -509,7 +467,7 @@ def test_template_aware_understanding_skip() -> None:
             class _Out:
                 @staticmethod
                 def model_dump() -> dict:
-                    return {"scene": "通用"}
+                    return {"meeting_purpose": "测试"}
 
             return _Out()
 
@@ -524,26 +482,39 @@ def test_template_aware_understanding_skip() -> None:
     host = _Host(fake)
     node = _Nodes._make_meeting_understanding_node(host, ["minutes"])
     asyncio.run(node({"transcript": "原文略。", "templates": {"minutes": mb}}))
+    asyncio.run(node({"transcript": "原文略。"}))
+    check(
+        "节点传入的 skip 不随模板变化",
+        [frozenset(s) for _, s in fake.seen] == [frozenset(base), frozenset(base)],
+        f"{[(f, sorted(s)) for f, s in fake.seen]}",
+    )
+    check(
+        "节点在裁剪非空时仍报线名",
+        [f for f, _ in fake.seen] == ["minutes", "minutes"],
+        "",
+    )
+
     asyncio.run(
         node(
             {
                 "transcript": "原文略。",
-                "templates": {"minutes": load("general_minutes")},
+                "user": {"name": "赵衡", "name_aliases": ["小赵"]},
             }
         )
     )
-    asyncio.run(node({"transcript": "原文略。"}))
-    check("节点按 state 模板定裁剪：新闻发布五项 / 通用纪要三项 / 无模板三项",
-          [frozenset(s) for _, s in fake.seen] == [merged, frozenset(base), frozenset(base)],
-          f"{[(f, sorted(s)) for f, s in fake.seen]}")
-    check("节点只在裁剪非空时报线名（无裁剪则不给 focus）",
-          [f for f, _ in fake.seen] == ["minutes", "minutes", "minutes"], "")
-
-    # 本用户称呼表由节点按 state 画像现算（客观/无画像 → 空串，不注入）
-    asyncio.run(node({"transcript": "原文略。", "user": {"name": "赵衡", "name_aliases": ["小赵"]}}))
-    check("节点把称呼表传给理解层",
-          "赵衡（全称）" in (fake.channel or "") and "小赵" in (fake.channel or ""), str(fake.channel))
-    asyncio.run(node({"transcript": "原文略。", "user": {"perspective": "objective", "name": "赵衡"}}))
+    check(
+        "节点把称呼表传给理解层",
+        "赵衡（全称）" in (fake.channel or "") and "小赵" in (fake.channel or ""),
+        str(fake.channel),
+    )
+    asyncio.run(
+        node(
+            {
+                "transcript": "原文略。",
+                "user": {"perspective": "objective", "name": "赵衡"},
+            }
+        )
+    )
     check("客观视角不传称呼表", not fake.channel, str(fake.channel))
 
 def test_long_generation_output_cap() -> None:
@@ -1032,7 +1003,8 @@ def test_understanding_speakers_field() -> None:
     from domains.meeting.meeting_core.contracts import (
         MeetingUnderstandingGenerationContract,
     )
-    from domains.meeting.meeting_core.prompts import MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    from domains.meeting.meeting_core.prompts import build_understanding_prompt
+    from domains.meeting.meeting_core.understanding_profiles import TASK_PROFILES
     from domains.meeting.models_generated import MeetingUnderstanding
     from domains.meeting.orchestrator import (
         _EMPTY_MEETING_UNDERSTANDING,
@@ -1048,11 +1020,11 @@ def test_understanding_speakers_field() -> None:
           "")
     check("空结构常量带 speakers（降级路径不炸）", _EMPTY_MEETING_UNDERSTANDING.get("speakers") == [], "")
 
-    prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    prompt = build_understanding_prompt(TASK_PROFILES["minutes"], task="minutes")
     check("理解 prompt：称呼按姓名、角色、原始编号回退，不猜姓名",
-          "发言人与角色对照" in prompt and "姓名 > 原文明确角色 > 原始编号" in prompt
-          and "只有编号时保留原始编号" in prompt and "不猜姓名、不新编编号" in prompt, "")
-    check("理解 prompt：姓名不再从 participants 语义里挤（单列字段）",
+          "优先使用真实姓名" in prompt and "只有编号时如实保留原始编号" in prompt
+          and "不推断、不编造" in prompt, "")
+    check("理解 prompt：姓名从 speakers 单列字段来，不从 participants 语义挤",
           "speakers：" in prompt, "")
 
     check("speakers 不在任何线的裁剪集合里（人名所有线都要）",
@@ -1116,7 +1088,7 @@ def test_qa_name_priority() -> None:
 
     from core.templates.body_rules import BODY_FORMAT_RULES
 
-    rule = next(l for l in BODY_FORMAT_RULES.splitlines() if "成员称呼" in l)
+    rule = next(l for l in BODY_FORMAT_RULES.splitlines() if "称呼" in l)
     check("全局称呼规则：文中出现过姓名就用姓名（已知姓名不得退回角色）",
           "原文任何位置出现过该人的姓名就用姓名" in rule
           and "已知姓名时不得退回角色" in rule, rule[:80])
@@ -1185,16 +1157,16 @@ def test_understanding_user_channel() -> None:
     from domains.meeting.meeting_core.meeting_understanding_agent import (
         MeetingUnderstandingAgent,
     )
-    from domains.meeting.meeting_core.prompts import MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    from domains.meeting.meeting_core.prompts import build_understanding_prompt
+    from domains.meeting.meeting_core.understanding_profiles import TASK_PROFILES
     from domains.shared.perspective import build_user_channel
 
-    prompt = MEETING_UNDERSTANDING_SYSTEM_PROMPT
-    check("理解 prompt：称呼表把别称归全称、编号发言人不绑",
-          "【本用户称呼】" in prompt and "永远不等于本用户" in prompt
-          and "归到全称那一个写法" in prompt,
+    prompt = build_understanding_prompt(TASK_PROFILES["minutes"], task="minutes")
+    check("理解 prompt：称呼表把别称归全称",
+          "【本用户称呼】" in prompt and "统一归一到全称" in prompt,
           "")
-    check("理解 prompt：仍是「不猜姓名」的口径（只统一既有称呼）",
-          "不猜姓名" in prompt and "不要拿用户姓名去替换别人" in prompt, "")
+    check("理解 prompt：仍是「不猜姓名」的口径",
+          "不推断、不编造" in prompt and "真实姓名" in prompt, "")
 
     block = build_user_channel(
         {"name": "赵衡", "name_aliases": ["小赵", "赵工"], "role": "后端工程师"}
@@ -1419,7 +1391,6 @@ def test_person_reference_rules() -> None:
     """
     from domains.meeting.tasks.minutes.prompts import (
         MINUTES_GENERATION_SYSTEM_PROMPT as GEN,
-        MINUTES_RENDER_PROMPT as RENDER,
         MINUTES_SUPERVISOR_DOMAIN_PROMPT as REVIEW,
     )
 
@@ -1429,14 +1400,6 @@ def test_person_reference_rules() -> None:
     check("草稿：真人口径段同步（省主语 / 只在该用时用「你」/ 人名照写）",
           "只保留与该姓名直接相关内容" in GEN and "照原文写真名" in GEN
           and "不混用" in GEN, "")
-    check("渲染：人名口径四条齐备（省主语 / 真名 / 你 / 不混用）",
-          "本人动作省主语" in RENDER and "他人动作写真名" in RENDER
-          and "只有待办/提醒/被点名才用「你」" in RENDER
-          and "同一句与相邻两句不混用" in RENDER, "")
-    check("渲染：不再写「正文用第二人称「你」指代本人」那种全篇「你」的口径",
-          "正文用第二人称「你」指代本人" not in RENDER, "")
-    check("通顺性：给本人动作省主语开口子（否则被判半截句）",
-          "真人模式叙述本人动作时主语可省" in RENDER, "")
     check("审核：客观/职业模板出现「你」「您」仍要拦",
           "**客观/职业模板**正文出现「你」「您」" in REVIEW, "")
     check("审核：真人模式把分工/责任人写成「你」要拦",
@@ -1534,8 +1497,6 @@ def test_render_context_personal_injection() -> None:
     客观没区别。这里锁住：命中块进所有非客观线、偏好块只进纪要线；渲染提示词写明聚焦口径。
     """
     from domains.meeting.orchestrator import _Nodes
-    from domains.meeting.tasks.minutes.prompts import MINUTES_RENDER_PROMPT
-
     class _Host(_Nodes):
         """只借方法；用真实 _render_context，其余依赖最小化。"""
 
@@ -1579,21 +1540,12 @@ def test_render_context_personal_injection() -> None:
     check("渲染上下文（客观）：命中块与偏好块都不注入",
           "本用户命中" not in objective and "本用户偏好" not in objective, "")
 
-    check("渲染提示词：真人模式以本人为叙事主线（非相关板块可压缩）",
-          "真人模式聚焦" in MINUTES_RENDER_PROMPT
-          and "以本人为叙事主线" in MINUTES_RENDER_PROMPT
-          and "可压缩成一句带过" in MINUTES_RENDER_PROMPT, "")
-    check("渲染提示词：真人聚焦不得漏全局结论（与审核口径对齐）",
-          "影响全局的结论、范围纳入/排除、关键数字仍不得漏" in MINUTES_RENDER_PROMPT, "")
-    check("渲染提示词：给了命中表就以它为准",
-          "以它为准" in MINUTES_RENDER_PROMPT
-          and "未命中的条目不要写成他的事" in MINUTES_RENDER_PROMPT, "")
 
 def test_render_view_directive() -> None:
     """装配那一轮的「本视角纪律」：模板路径正文是通用填充器逐栏写的，纪律必须随栏下发。
 
     回归背景（2026-09-21 用户第二轮实测「还是整体输出」）：上一版把聚焦规则写进
-    ``MINUTES_RENDER_PROMPT``，但**带模板时那条路根本不执行**——逐栏填充的 system 只有
+    旧的无模板 LLM 渲染提示词，但**带模板时那条路根本不执行**——逐栏填充的 system 只有
     「你只写本栏正文」，正文只按模板栏名（全文摘要 / 分段速览）走，于是真人模式照样写成
     整场纪要（实测 8172 字、超本篇参考上限 48%，与客观版看不出区别）。这里锁住：
     纪律进每一栏的用户消息、经领域钩子只在真人纪要线生效、客观与其它线一字不变。

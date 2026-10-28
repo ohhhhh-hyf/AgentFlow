@@ -490,18 +490,21 @@ def test_review_context_slimming() -> None:
 
 def test_prompt_contracts() -> None:
     from domains.meeting.meeting_core import contracts as core_contracts
-    from domains.meeting.meeting_core import prompts as core_prompts
+    from domains.meeting.meeting_core.prompts import build_understanding_prompt
+    from domains.meeting.meeting_core.understanding_profiles import TASK_PROFILES
     from domains.meeting.tasks.minutes.prompts import (
         MINUTES_GENERATION_SYSTEM_PROMPT,
         MINUTES_SUPERVISOR_DOMAIN_PROMPT,
     )
 
-    understanding_prompt = core_prompts.MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    understanding_prompt = build_understanding_prompt(
+        TASK_PROFILES["minutes"], task="minutes"
+    )
     contract_text = core_contracts.MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT
-    check("理解层 prompt：包含 context_and_debate 脉络",
-          "context_and_debate" in understanding_prompt, "")
-    check("理解层契约：包含 context_and_debate 字段",
-          "context_and_debate" in contract_text, "")
+    check("理解层 prompt：包含 context_and_reasoning 脉络",
+          "context_and_reasoning" in understanding_prompt, "")
+    check("理解层契约：包含 context_and_reasoning 字段",
+          "context_and_reasoning" in contract_text, "")
     check("纪要生成：提示词非空并可用",
           bool(MINUTES_GENERATION_SYSTEM_PROMPT), "")
     check("审核 prompt：包含基础审核口径",

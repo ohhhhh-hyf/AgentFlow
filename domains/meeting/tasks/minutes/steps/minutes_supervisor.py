@@ -9,7 +9,6 @@ from ..prompt_map import (
     is_agenda_view,
     minutes_prompt_set,
     prompt_label,
-    resolve_prompt_view,
 )
 from ..prompts import (
     MINUTES_SUPERVISOR_DOMAIN_PROMPT,
@@ -31,8 +30,16 @@ class MinutesGenerationSupervisor(StructuredDomainSupervisor):
     label = "minutes/supervisor"
     extra_kwargs = {"max_tokens": 3000}
 
-    async def review(self, context: str, *, lang: str | None = None) -> MinutesSupervisorReview:
-        view = resolve_prompt_view(context)
+    async def review(
+        self,
+        context: str,
+        *,
+        view: str,
+        lang: str | None = None,
+    ) -> MinutesSupervisorReview:
+        view = (view or "").strip().lower()
+        if not view:
+            raise ValueError("minutes supervisor view is required")
         prompt_set = minutes_prompt_set(view)
         raw_domain_prompt = prompt_set.supervisor
         label_mode = prompt_label(view)

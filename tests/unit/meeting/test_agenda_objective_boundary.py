@@ -588,11 +588,15 @@ def test_minutes_agent_uses_explicit_source_transcript(
         "════════\n议题正文"
     )
     asyncio.run(
-        agent.run(shared, source_transcript="完整 tagged transcript")
+        agent.run(
+            shared,
+            view="objective",
+            source_transcript="完整 tagged transcript",
+        )
     )
     assert captured["transcript"] == "完整 tagged transcript"
 
     captured.clear()
-    asyncio.run(agent.run(shared))
+    asyncio.run(agent.run(shared, view="objective"))
     assert captured["transcript"] != "完整 tagged transcript"
     assert "议题正文" not in captured["transcript"]

@@ -263,8 +263,8 @@ class DomainNodes:
                 "**摘录未覆盖 ≠ 无依据**：只有摘录中出现与之相反的内容、或上方理解摘要里"
                 "也没有该事实，才能判捏造或矛盾；未覆盖时**不得据此 revise 或 reject**——"
                 "可在 feedback 里写「未能核对：X」并照常 approve（程序会记录待核对项）。"
-                "草稿中从理解层逐字搬运/引用的字段（如决策、风险、未决问题），"
-                "请对照下方理解摘要核对「没改没漏」；原文摘录重点核对提炼字段与理解层本身。"
+                "送审稿中实际出现的字段，请对照原文摘录与理解摘要核对；"
+                "未出现在送审稿中的字段，不在本轮审核范围。"
             )
         parts = [f"{source_note}\n{excerpt}"]
         summary = summarize_understanding(understanding)
@@ -617,6 +617,15 @@ class DomainNodes:
                         if template_text
                         else "none"
                     )
+                if "view" in sig.parameters:
+                    view = (state.get("line_views") or {}).get(line_name)
+                    if not view:
+                        raise ValueError(f"missing line view: line={line_name}")
+                    run_kwargs["view"] = view
+                elif has_var_kw:
+                    view = (state.get("line_views") or {}).get(line_name)
+                    if view:
+                        run_kwargs["view"] = view
                 result = await agent.run(
                     self._revision_context(
                         context,
@@ -774,10 +783,23 @@ class DomainNodes:
             progress("[agent:start] name=%s_review line=%s", line_name, line_name)
             supervisor = getattr(self, cfg["supervisor_attr"])
             sig = inspect.signature(supervisor.review)
+            has_var_kw = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD
+                for p in sig.parameters.values()
+            )
             rev_kwargs = {}
-            if "lang" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+            if "lang" in sig.parameters or has_var_kw:
                 rev_kwargs["lang"] = state.get("lang", "zh")
             try:
+                if "view" in sig.parameters:
+                    view = (state.get("line_views") or {}).get(line_name)
+                    if not view:
+                        raise ValueError(f"missing line view: line={line_name}")
+                    rev_kwargs["view"] = view
+                elif has_var_kw:
+                    view = (state.get("line_views") or {}).get(line_name)
+                    if view:
+                        rev_kwargs["view"] = view
                 review = await supervisor.review(
                     self._supervisor_context(state, line_name),
                     **rev_kwargs,

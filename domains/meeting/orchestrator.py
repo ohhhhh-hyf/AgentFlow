@@ -139,7 +139,6 @@ from .tasks.risks.contracts import RISK_FALLBACK_RULES
 
 logger = logging.getLogger(__name__)
 
-
 def _template_fingerprint(template: str) -> str:
     """模板正文指纹（用于日志/监控关联，不参与业务判断）。"""
     text = (template or "").strip()
@@ -169,7 +168,6 @@ _EMPTY_CONSENSUS_DECISION = {
 _EMPTY_MEETING_UNDERSTANDING = {
     "meeting_brief": "",
     "meeting_purpose": "",
-    "scene": "通用",
     "speakers": [],
     "session_segments": [],
     "topics": [],
@@ -178,7 +176,6 @@ _EMPTY_MEETING_UNDERSTANDING = {
     "risks": [],
     "action_hints": [],
     "risk_hints": [],
-    "debates": [],
     "dependencies": [],
 }
 
@@ -273,6 +270,7 @@ _REJECT_AGENDA_MINUTES_REVIEW = {
     "decision_fidelity_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
+
 
 # ── 拒绝审核常量生成区结束 ──
 
@@ -400,7 +398,7 @@ _ADDITIONAL_SKIP_FIELDS: dict[str, frozenset[str]] = {
     "minutes_styles": frozenset({"action_hints", "risk_hints", "dependencies"}),
     "mindmap": frozenset({"action_hints", "risk_hints", "dependencies", "open_questions", "risks"}),
     "agenda_minutes": frozenset({
-        "meeting_brief", "meeting_purpose", "scene", "speakers", "topics",
+        "meeting_brief", "meeting_purpose", "speakers", "topics",
         "decisions", "open_questions", "risks", "action_hints", "risk_hints", "dependencies",
     }),
 }
@@ -466,26 +464,26 @@ class _Nodes(DomainNodes):
     # 理解层参与审核摘录的字段白名单（线名 → 保留字段）。
     _understanding_needle_keep: dict[str, frozenset[str]] = {
         "actions": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "decisions",
+            "meeting_brief", "meeting_purpose", "decisions",
             "action_hints", "dependencies", "session_segments",
         }),
         "risks": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "risks",
+            "meeting_brief", "meeting_purpose", "risks",
             "open_questions", "risk_hints", "dependencies", "session_segments",
         }),
         "minutes": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "speakers",
+            "meeting_brief", "meeting_purpose", "speakers",
             "decisions", "risks", "open_questions", "dependencies",
             "session_segments",
         }),
         "minutes_trace": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "speakers",
+            "meeting_brief", "meeting_purpose", "speakers",
             "decisions", "risks", "open_questions",
             "action_hints", "risk_hints", "dependencies", "session_segments",
         }),
         "consensus_decision": frozenset({
-            "meeting_brief", "meeting_purpose", "scene", "speakers",
-            "decisions", "debates", "open_questions", "session_segments",
+            "meeting_brief", "meeting_purpose", "speakers",
+            "decisions", "open_questions", "session_segments",
         }),
     }
 
@@ -582,21 +580,11 @@ class _Nodes(DomainNodes):
                 if isinstance(item, dict)
             ]
 
-        raw_debates = u.get("debates") or []
-        if not raw_debates and raw_topics:
-            for item in raw_topics:
-                if isinstance(item, dict):
-                    for d in (item.get("debates") or []):
-                        if isinstance(d, dict) and d not in raw_debates:
-                            raw_debates.append(d)
-
         base = {
             "meeting_brief": u.get("meeting_brief") or u.get("meeting_purpose") or "",
             "meeting_purpose": u.get("meeting_purpose") or "",
-            "scene": u.get("scene") or "通用",
             "speakers": u.get("speakers") or [],
             "session_segments": raw_segments,
-            "debates": raw_debates,
         }
 
         # 决议、风险、未决事项提取（优先直接消费平铺顶级列表，兼顾从 topics 兜底提取）
@@ -633,17 +621,19 @@ class _Nodes(DomainNodes):
                 "action_hints": u.get("action_hints") or [],
                 "decisions": top_decisions,
                 "directive_decisions": directive_decisions,
-                "dependencies": u.get("dependencies") or [],
             }
         if line_name == "risks":
-            return {
+            pack = {
                 **base,
                 "session_segments": raw_segments,
                 "risk_hints": u.get("risk_hints") or [],
                 "risks": top_risks,
-                "dependencies": u.get("dependencies") or [],
                 "risk_related_open_questions": top_open_questions,
             }
+            # dependencies 只在 memory_on 场景由理解层输出；有值才注入。
+            if u.get("dependencies"):
+                pack["dependencies"] = u.get("dependencies") or []
+            return pack
         if line_name in {"minutes_trace", "minutes_styles"}:
             return {
                 **base,
@@ -659,7 +649,14 @@ class _Nodes(DomainNodes):
             return {
                 **base,
                 "session_segments": raw_segments,
-                "debates": raw_debates,
+                "decisions": top_decisions,
+                "risks": top_risks,
+                "open_questions": top_open_questions,
+            }
+        if line_name == "mindmap":
+            return {
+                **base,
+                "session_segments": raw_segments,
                 "decisions": top_decisions,
                 "risks": top_risks,
                 "open_questions": top_open_questions,
@@ -1054,8 +1051,8 @@ class _Nodes(DomainNodes):
         """装配那一轮的「本栏写作纪律」：真人模式按本人聚焦，客观/职业模板不注入。
 
         为什么必须从这里下发：带模板时正文由 ``tools.templates.router`` 通用填充器逐栏写，
-        system 里只有「你只写本栏正文」——``MINUTES_RENDER_PROMPT`` 那条路不执行。不下发
-        取舍纪律，模型就只剩模板栏名（全文摘要 / 分段速览）可依，个人模式照样写成整场纪要
+        system 里只有「你只写本栏正文」；旧的无模板 LLM 渲染路径已删除，不能再依赖它。
+        不下发取舍纪律，模型就只剩模板栏名（全文摘要 / 分段速览）可依，个人模式照样写成整场纪要
         （实测 8172 字、超本篇参考上限 48%，与客观版看不出区别）。
 
         职业模板不发：那份画像没有真人姓名，「你」无从指代，关注域已由【用户视角模型】块承担。
@@ -1267,7 +1264,23 @@ class _Nodes(DomainNodes):
             )
             builder.add_edge("meeting_understanding", "perspective_modeling")
             cores = ["perspective_modeling"]
+        if "minutes" in selected:
+            # view 必须等 meeting_understanding 写入 has_valid_agenda 后再裁决，
+            # 并固化进 state，供生成 / 审核共用同一份结果。
+            builder.add_node("minutes_view", self._make_minutes_view_node())
+            builder.add_edge(cores[-1], "minutes_view")
+            cores = ["minutes_view"]
         return cores
+
+    def _make_minutes_view_node(self):
+        """把本次 minutes 的有效 view 固化到 state["line_views"]。"""
+
+        async def node(state: dict) -> dict:
+            views = dict(state.get("line_views") or {})
+            views["minutes"] = self._minutes_view(state, "minutes")
+            return {"line_views": views}
+
+        return node
 
     # ── 核心节点：会议理解（公共事实底座）──────────────────────
 
@@ -1350,15 +1363,14 @@ class _Nodes(DomainNodes):
     def _understanding_skip(
         self, line_names, template: str = "", memory_on: bool = False
     ) -> frozenset[str]:
-        """按任务线与模板动态计算理解输出裁剪集合。
+        """按任务线动态计算理解输出裁剪集合。
 
         - 单线运行时按各线注册表裁剪；
         - 多线并发时计算各线非必要字段的交集（即所有激活任务均不消费的字段持续裁剪）；
-        - minutes 线按模板栏位再次裁剪：模板没有风险/未决栏时，risks / open_questions 也不进理解输出；
-        - 开启会议记忆时保留 action_hints / risks / open_questions，供跨场状态机使用。
+        - minutes 不再按模板栏位裁剪：模板没有风险/未决栏，不代表最终纪要不需要这些事实；
+        - 开启会议记忆时保留 action_hints / risks / open_questions，供跨场状态机使用；
+        - ``template`` 参数保留兼容，不再参与裁剪。
         """
-        from .understanding_skip import skip_fields_for_template
-
         selected = [name for name in (line_names or []) if name]
         if not selected:
             return frozenset()
@@ -1366,10 +1378,7 @@ class _Nodes(DomainNodes):
         def _get_line_skip(line: str) -> set[str]:
             if line not in _ALL_TASK_SKIP_FIELDS:
                 return set()
-            s = set(_ALL_TASK_SKIP_FIELDS[line])
-            if line == "minutes":
-                s |= skip_fields_for_template(template)
-            return s
+            return set(_ALL_TASK_SKIP_FIELDS[line])
 
         skip = set(_get_line_skip(selected[0]))
         for line in selected[1:]:

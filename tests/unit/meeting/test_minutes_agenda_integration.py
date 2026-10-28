@@ -3,7 +3,6 @@ from domains.meeting.tasks.minutes.prompts import (
     MINUTES_AGENDA_GENERATION_PROMPT,
     MINUTES_AGENDA_SUPERVISOR_PROMPT,
     MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
-    MINUTES_AGENDA_RENDER_PROMPT,
 )
 from domains.meeting.meeting_core.prompts import (
     MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT,
@@ -509,7 +508,6 @@ def test_meeting_understanding_node_agenda_guidance():
             return MeetingUnderstanding(
                 meeting_brief="测试",
                 meeting_purpose="目的",
-                scene="通用",
             )
 
     nodes.meeting_understanding_agent = MockUnderstandingAgent()
@@ -550,7 +548,7 @@ async def test_agenda_track_b_prompt_routing():
 
     async def mock_structured(prompt, *args, **kwargs):
         from domains.meeting.models_generated import MeetingUnderstanding
-        return MeetingUnderstanding(meeting_brief="b", meeting_purpose="p", scene="s")
+        return MeetingUnderstanding(meeting_brief="b", meeting_purpose="p")
     mock_client.structured.side_effect = mock_structured
 
     mu_agent = MeetingUnderstandingAgent(mock_client)
@@ -567,7 +565,10 @@ async def test_agenda_track_b_prompt_routing():
         return Minutes(headline="测试标题", executive_summary=["段落1"])
     mock_client.structured.side_effect = mock_structured_draft
 
-    await agent.run("议题模式：agenda_enhanced\n视角模式：objective\n\n会议理解：{}")
+    await agent.run(
+        "议题模式：agenda_enhanced\n视角模式：objective\n\n会议理解：{}",
+        view="agenda_objective",
+    )
     called_prompt = mock_client.structured.call_args[0][0]
     assert called_prompt == MINUTES_AGENDA_GENERATION_PROMPT
 
@@ -587,7 +588,10 @@ async def test_agenda_track_b_prompt_routing():
         )
     mock_client.structured.side_effect = mock_structured_review
 
-    await supervisor.review("视角模式：objective\n纪要返工次数：0/2\n\n议题模式：agenda_enhanced\n草稿：{}")
+    await supervisor.review(
+        "视角模式：objective\n纪要返工次数：0/2\n\n议题模式：agenda_enhanced\n草稿：{}",
+        view="agenda_objective",
+    )
     called_prompt = mock_client.structured.call_args[0][0]
     expected_prompt = GlobalSupervisor.build_prompt(MINUTES_AGENDA_SUPERVISOR_PROMPT)
     assert called_prompt == expected_prompt
@@ -595,12 +599,19 @@ async def test_agenda_track_b_prompt_routing():
     # 4. 纪要渲染 Render 提示词路由
     from domains.meeting.tasks.minutes.steps.minutes_render import MinutesGenerationRender
     renderer = MinutesGenerationRender(mock_client)
-    # 4a. 无模板模式
-    rendered_prompt, _ = renderer._prompt_and_user("议题模式：agenda_enhanced\n视角模式：objective", "")
-    assert "（审定议题专有模式）" in rendered_prompt
-    assert "### 一. [审定议题一全称]" in rendered_prompt
+    # 4a. 无模板模式：不再有 LLM prompt，生产走 render_draft
+    rendered_prompt, _ = renderer._prompt_and_user(
+        "议题模式：agenda_enhanced\n视角模式：objective",
+        "",
+        view="agenda_objective",
+    )
+    assert rendered_prompt == ""
     # 4b. 模板模式
-    rendered_prompt_tpl, _ = renderer._prompt_and_user("议题模式：agenda_enhanced\n视角模式：objective", "# 通用纪要模板\n{{scalar:要点梳理}}")
+    rendered_prompt_tpl, _ = renderer._prompt_and_user(
+        "议题模式：agenda_enhanced\n视角模式：objective",
+        "# 通用纪要模板\n{{scalar:要点梳理}}",
+        view="agenda_objective",
+    )
     assert "严格遵循模板栏目规约与公文层级标准完成排版" in rendered_prompt_tpl
     assert "大项标题（### 一. 议题名称）" in rendered_prompt_tpl
 
@@ -625,7 +636,7 @@ async def test_langgraph_agenda_state_propagation():
         label = kwargs.get("label", "")
         called_labels.append(label)
         if "meeting_understanding" in label:
-            return MeetingUnderstanding(meeting_brief="测试", meeting_purpose="目的", scene="通用")
+            return MeetingUnderstanding(meeting_brief="测试", meeting_purpose="目的")
         elif "minutes/agent" in label:
             return Minutes(headline="测试标题", executive_summary=["段落1"])
         elif "minutes/supervisor" in label:
@@ -703,10 +714,10 @@ def test_minutes_prompt_matter_oriented_governance():
         MINUTES_AGENDA_SUPERVISOR_PROMPT,
     )
     from domains.meeting.meeting_core.prompts import (
-        MEETING_UNDERSTANDING_SYSTEM_PROMPT,
-        MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT,
         MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT,
+        build_understanding_prompt,
     )
+    from domains.meeting.meeting_core.understanding_profiles import TASK_PROFILES
 
     # 1. 核心诱因根治：验证公共基底彻底废除“主体+动作”句式公式，引入三层主体与就事论事
     assert "主体 + 核心动作/主张 + 量化指标/定调依据 + 最终结论/后续安排" not in _MINUTES_COMMON_BASE
@@ -719,11 +730,20 @@ def test_minutes_prompt_matter_oriented_governance():
         assert "拒绝多从句生硬拼接的长难句" not in p
         assert "剔除铺垫修辞" not in p
 
-    # 3. 理解层决议格式治理：验证老逻辑与新逻辑均要求 decisions 以事项为主干
-    assert "条目以被决定的业务事项为主干" in MEETING_UNDERSTANDING_SYSTEM_PROMPT
+    # 3. 理解层决议格式治理：验证动态 minutes 与议题 prompt 均要求 decisions 以事项为主干
+    minutes_understanding_prompt = build_understanding_prompt(
+        TASK_PROFILES["minutes"], task="minutes"
+    )
+    actions_understanding_prompt = build_understanding_prompt(
+        TASK_PROFILES["actions"], task="actions"
+    )
+    risks_understanding_prompt = build_understanding_prompt(
+        TASK_PROFILES["risks"], task="risks"
+    )
+    assert "条目以被决定的业务事项为主干" in minutes_understanding_prompt
     assert "以被决定的业务事项为主干" in MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT
-    assert "严禁输出长篇背景叙事" not in MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
-    assert "严禁主观脑补" not in MEETING_UNDERSTANDING_LIGHTWEIGHT_SYSTEM_PROMPT
+    assert "严禁输出长篇背景叙事" not in actions_understanding_prompt
+    assert "严禁主观脑补" not in risks_understanding_prompt
 
     # 4. 审核放行规则验证：确保 Supervisor 显式放行公文决议体与脱水表述
     assert "属于符合公文规范的表述优化，予以充分认可并放行通过" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
@@ -735,8 +755,7 @@ def test_agenda_minutes_quality_and_stability_prompts():
     from domains.meeting.tasks.minutes.prompts import (
         MINUTES_AGENDA_GENERATION_PROMPT,
         MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
-        MINUTES_AGENDA_RENDER_PROMPT,
-    )
+        )
 
     # 1. 验证生成提示词彻底移除字数枷锁（不再限制 40-60 字及 2-5 条）
     assert "单条约 40–60 字" not in MINUTES_AGENDA_GENERATION_PROMPT
@@ -756,13 +775,6 @@ def test_agenda_minutes_quality_and_stability_prompts():
     assert "列表项（- 要点名称: 具体陈述）" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
     assert "不添加任何前言导语" in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
 
-    # 4. 验证非模板渲染也同步对齐扁平子主题与纯净列表项
-    assert "**业务子主题**" in MINUTES_AGENDA_RENDER_PROMPT
-    assert "- 要点名称: 具体陈述" in MINUTES_AGENDA_RENDER_PROMPT
-    assert "**[业务子主题名称]**" in MINUTES_AGENDA_RENDER_PROMPT
-    assert "[要点名称]: [具体事实陈述]" in MINUTES_AGENDA_RENDER_PROMPT
-    # 示例骨架不得再出现四级标题，避免与「不使用四级标题与数字编号」规则冲突
-    assert "####" not in MINUTES_AGENDA_RENDER_PROMPT
 
 
 def test_orchestrator_line_shared_context_recency_injection():
@@ -887,7 +899,6 @@ def _make_minutes_mock_client(called_labels: list[str], *, headline: str):
             return MeetingUnderstanding(
                 meeting_brief="测试",
                 meeting_purpose="目的",
-                scene="通用",
             )
         if "minutes/agent" in label:
             return Minutes(headline=headline, executive_summary=["段落1"])

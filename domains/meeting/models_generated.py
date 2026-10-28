@@ -8,7 +8,6 @@ from core.schema.validation import (
     OutputValidationError,
     _action,
     _choice,
-    _choice_or_default,
     _exact_fields,
     _review_check,
     _string,
@@ -95,7 +94,6 @@ class MeetingUnderstanding(ModelMixin):
 
     meeting_brief: str
     meeting_purpose: str
-    scene: Literal["通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"]
     speakers: list[dict[str, Any]] = field(default_factory=list)
     session_segments: list[dict[str, Any]] = field(default_factory=list)
     topics: list[dict[str, Any]] = field(default_factory=list)
@@ -104,7 +102,6 @@ class MeetingUnderstanding(ModelMixin):
     risks: list[str] = field(default_factory=list)
     action_hints: list[dict[str, Any]] = field(default_factory=list)
     risk_hints: list[dict[str, Any]] = field(default_factory=list)
-    debates: list[dict[str, Any]] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
 
     @classmethod
@@ -112,7 +109,6 @@ class MeetingUnderstanding(ModelMixin):
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["meeting_brief"], "meeting_brief")
         _string(data["meeting_purpose"], "meeting_purpose")
-        data["scene"] = _choice_or_default(data["scene"], {"通用", "团队例会", "脑暴/讨论", "项目决策与评审", "专项讨论会", "研讨会", "采访/对话"}, "通用")
         if not isinstance(data["speakers"], list):
             raise OutputValidationError("speakers 必须是数组")
         if not isinstance(data["session_segments"], list):
@@ -126,8 +122,6 @@ class MeetingUnderstanding(ModelMixin):
             raise OutputValidationError("action_hints 必须是数组")
         if not isinstance(data["risk_hints"], list):
             raise OutputValidationError("risk_hints 必须是数组")
-        if not isinstance(data["debates"], list):
-            raise OutputValidationError("debates 必须是数组")
         _string_list(data["dependencies"], "dependencies")
         return cls(**data)
 

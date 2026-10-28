@@ -4,7 +4,6 @@ from core.execution.hard_execution import (
     enforce_minutes_draft,
     extract_labeled_json,
     parse_lang_mode,
-    parse_perspective_mode,
 )
 from infra.llm import LLMClient
 
@@ -17,7 +16,6 @@ from ..prompt_map import (
     is_agenda_view,
     minutes_prompt_set,
     prompt_label,
-    resolve_prompt_view,
 )
 from ..prompts import (
     AGENDA_AUX_PROMPT_BLOCK,
@@ -93,14 +91,17 @@ class MinutesGenerationAgent:
         self,
         shared_context: str,
         *,
+        view: str,
         lang: str | None = None,
         source_transcript: str = "",
         template_id: str = "",
     ) -> Minutes:
-        mode = parse_perspective_mode(shared_context)
-        view = resolve_prompt_view(shared_context, mode=mode)
+        view = (view or "").strip().lower()
+        if not view:
+            raise ValueError("minutes generation view is required")
         prompt_set = minutes_prompt_set(view)
         is_agenda = is_agenda_view(view)
+        mode = "objective" if is_agenda else view
         raw_system_prompt = prompt_set.generation
         label_mode = prompt_label(view)
 

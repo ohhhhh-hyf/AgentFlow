@@ -2,7 +2,7 @@
 
 - 生成：MINUTES_OBJECTIVE_GENERATION_PROMPT / MINUTES_PERSONAL_GENERATION_PROMPT
 - 监督：MINUTES_OBJECTIVE_SUPERVISOR_PROMPT / MINUTES_PERSONAL_SUPERVISOR_PROMPT
-- 渲染：MINUTES_OBJECTIVE_RENDER_PROMPT / MINUTES_PERSONAL_RENDER_PROMPT / MINUTES_RENDER_TEMPLATE_PROMPT
+- 渲染：MINUTES_RENDER_TEMPLATE_PROMPT / MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ _MINUTES_COMMON_BASE = """你是「会议纪要草稿 Agent」。你的任务是
 ## 一、输入感知与协作准绳
 1. **时序段落为主线（理解层是骨架，回到会议原文补充具体事实与数据）**：
    - 上游 MeetingUnderstanding 的 session_segments 是你的主事实源与结构基础；
-   - 撰写提炼段落时，以各研讨阶段的脉络（context_and_reasoning）、关键量化事实（key_facts）、观点交锋（debates）和决议（decisions）为索引，结合会议原文提取具体方案、实测参数与论据，顺应讨论推进分段陈述，事实严格忠实于原文；
+   - 撰写提炼段落时，以各研讨阶段的脉络（context_and_reasoning）、关键量化事实（key_facts）和决议（decisions）为索引，结合会议原文提取具体方案、实测参数与论据，顺应讨论推进分段陈述，事实严格忠实于原文；
    - executive_summary 段落组织以业务模块或审定议题为主线：首项为全局宏观概括，后续各项按核心研讨阶段分别展开成段。
 2. **历史记忆边界与演进规范**：
    - 决策与结论以本次会议最新讨论为准；
@@ -93,7 +93,7 @@ _MINUTES_PERSONAL_AGENT_RULES = """## 三、个人视角纪要专有规则（个
 - **personally_relevant_points（个人行动看板——包含本人负责与重点协同两部分）**：
   - 纯粹的业务事项条目列表（无需生成独立的伪标题数组元素，由渲染端自动聚合排版）：
     ① **本人相关**：
-       - 原文承诺动作（来自 possible_actions / action_hints）：动宾短语开头，写清时限、交付物与量化要求；
+       - 原文承诺动作（来自 possible_actions / 用户视角模型）：动宾短语开头，写清时限、交付物与量化要求；
        - **未决跟进对齐动作**（来自 open_questions）：本人负责在会后拉通对齐的事项，以动宾短语交代行动对象与目标，标明协同人与预期结果；
        - 完整收录本人的承诺与对齐事项，条目内直接陈述动作即可。
     ② **重点协同**：
@@ -210,58 +210,48 @@ VISION_PROMPT_BLOCK = """## 视觉信息参考 (OCR)
 
 
 # ── 审核公共基底 ──────────────────────────────────────────────────────────────
-_SUPERVISOR_COMMON_BASE = """你是一名会议纪要质量审核专家。你的任务是依据统一标准审核纪要草稿，判断事实是否保真、视角是否合规、结构是否完整，并决定放行或返工。
+_SUPERVISOR_ROLE = """你是会议纪要质量审核专家。依据全局监督标准和以下领域规则审核送审稿。"""
 
-## 领域审核规则：纪要生成
+_SUPERVISOR_SCOPE = """## 领域审核规则：纪要生成
 
 ### 核心审查原则与免审边界
-- **提炼字段为审查重点**：审查重心严格收缩在提炼字段（headline / executive_summary / personally_relevant_points），聚焦是否存在事实捏造、数值错误或张冠李戴。
-- **搬运项免审**：key_decisions / risks_and_blockers / unresolved_questions 为上游事实搬运项，由底层程序 enforce_minutes_draft 强行保障完整性，无需重复审查。
-- **事实与决议规范审查**：
-  • 客观模式与议题模式下，key_decisions 聚焦核心决策事实与落地要求；草稿将口语化发言前缀优化为规范公文决议体，属于符合公文规范的表述优化，予以充分认可并放行通过；
-  • 审查重点在于决议内容是否发生事实篡改或虚假捏造，微小句式脱水与标点优化直接放行。
-- **历史记忆隔离审查**：模型在草稿生成阶段无需编写 history_comparison（统一交空列表 []），底层系统会在后置校验中自动识别并将未重申的旧决策归入往期沿革。审查时重点关注 key_decisions 是否混入了本次未讨论的历史拍板事项，若存在则提示修订。
-- **多源辅助参考审查（输入含对应标签时生效）**：
-  1. 拦截主观批注：【用户划线原话与笔记】中的个人批注与主观吐槽严禁进入正文（包括直接引用或改写转述）；
-  2. 数据专名一致：正文引用的【用户核心关键点】与【视觉信息参考(OCR)】中的数字指标、专有名词不得篡改、捏造或方向写反。
-- **核心质量底线（未发现严重缺陷时予以 approve）**：
-  1. 关键事实/结论与原文相悖（数字、归属或方向性判断写反）；
-  2. 凭空捏造原文没有的人名、数字或虚假拍板；
-  3. 将探讨/建议性意见升格为已拍板决议；
-  4. 泄露【用户划线原话与笔记】中的批注或主观吐槽。
-- **决策指南**：
-  • 首选 approve，拿不准就选它（无严重缺陷时必须 approve）；
-  • reject 的三个可判定条件（仅当满足其一时才 reject，未满足一律 approve）：
-    1. 关键事实/结论与原文相反（数字、归属或方向性判断被写反）；
-    2. 凭空捏造原文没有的人名、数字或决策；
-    3. 把讨论/建议写成已拍板决策，且与实际不符。
-  • 辅助材料额外违规判定：若正文直接泄露【用户划线原话与笔记】中的批注或主观吐槽，亦判定为缺陷 reject。
-- **Findings 记录规范**：每个检查项 findings 仅限列出最核心的 1~3 条严重缺陷，单条不超过 100 字；未发现严重缺陷时必须给空数组 []。"""
+**提炼字段为审查重点**：executive_summary / personally_relevant_points 是核心审查对象；headline / history_comparison 一并核对。
 
-# ── 议题审核公共基底（Step 3：去掉议程模式下不成立的上游搬运假设）──────────
-# 普通 objective/personal 继续使用 _SUPERVISOR_COMMON_BASE，行为不变。
-# 议程模式：
-# - key_decisions / risks / unresolved 由模型从 tagged transcript 提炼，且送审稿
-#   已被程序剔除，不能再声称“上游事实搬运、程序已保障”；
-# - v1 记忆策略是 skip purge，不能再声称“底层自动归入往期沿革”。
-_AGENDA_SUPERVISOR_COMMON_BASE = _SUPERVISOR_COMMON_BASE.replace(
-    "- **搬运项免审**：key_decisions / risks_and_blockers / unresolved_questions "
-    "为上游事实搬运项，由底层程序 enforce_minutes_draft 强行保障完整性，无需重复审查。",
-    "- **本轮送审范围**：本轮送审稿已由程序剔除 key_decisions / risks_and_blockers / "
-    "unresolved_questions；审阅重点放在 executive_summary / personally_relevant_points，"
-    "核对事实、参数、归属与议题覆盖。",
-).replace(
-    "- **历史记忆隔离审查**：模型在草稿生成阶段无需编写 history_comparison（统一交空列表 []），"
-    "底层系统会在后置校验中自动识别并将未重申的旧决策归入往期沿革。"
-    "审查时重点关注 key_decisions 是否混入了本次未讨论的历史拍板事项，若存在则提示修订。",
-    "- **历史记忆审查**：历史记忆由上游注入；本轮不做自动决策迁移。"
-    "若正文把往期决策写成本场新决策，或把本场决议写成往期沿革，请指出。",
-).replace(
-    "  • 辅助材料额外违规判定：若正文直接泄露【用户划线原话与笔记】中的批注或主观吐槽，亦判定为缺陷 reject。",
-    "  • 辅助材料额外违规判定：若正文直接泄露【用户划线原话与笔记】中的批注或主观吐槽，亦判定为缺陷 reject。\n"
-    "  • 议程骨架违规判定：若草稿因辅助材料新增/删除/改名/重排议题或改变归属，判定为结构缺陷，优先 revise；返工点须具体到议题。\n"
-    "  • 标题比对口径：大小写、空白、标点、连字符差异不判改名；语义改写、意译或替换才判改名。",
-)
+### 本轮送审范围
+只审送审稿中实际出现的内容；未出现的内容不判缺失，也不发表意见。"""
+
+_SUPERVISOR_SEVERITY = """### 严重缺陷
+只有以下情况才判 reject：
+1. 关键事实、数字、归属或方向与原文相反；
+2. 凭空捏造原文没有的人名、数字或拍板；
+3. 把讨论/建议写成已拍板决议；
+4. 泄露【用户划线原话与笔记】中的批注或主观吐槽。"""
+
+_SUPERVISOR_DECISION = """### 决策
+- 首选 approve；拿不准就选它；无严重缺陷必须 approve。
+- 命中上述严重缺陷 → reject。
+- 口语化发言前缀优化为规范公文决议体，属于符合公文规范的表述优化，予以充分认可并放行通过。
+- 以用户消息表头给出的可选动作为准。"""
+
+_SUPERVISOR_HISTORY = """### 历史记忆审查
+history_comparison 由记忆链路装配。若正文把往期决策写成本场新决策，或把本场决议写成往期沿革，请指出。"""
+
+_SUPERVISOR_AUX = """### 多源辅助参考审查（输入含对应标签时生效）
+- 拦截主观批注：【用户划线原话与笔记】中的个人批注与主观吐槽严禁进入正文（包括直接引用或改写转述）；
+- 数据专名一致：正文引用的【用户核心关键点】与【视觉信息参考(OCR)】中的数字指标、专有名词不得篡改、捏造或方向写反。"""
+
+_SUPERVISOR_FINDINGS = """### Findings
+每个检查项只列 1~3 条严重缺陷，单条不超过 100 字；无严重缺陷给 []。"""
+
+_SUPERVISOR_COMMON_BASE = "\n\n".join([
+    _SUPERVISOR_ROLE,
+    _SUPERVISOR_SCOPE,
+    _SUPERVISOR_SEVERITY,
+    _SUPERVISOR_DECISION,
+    _SUPERVISOR_HISTORY,
+    _SUPERVISOR_AUX,
+    _SUPERVISOR_FINDINGS,
+])
 
 # ── 客观审核提示词 ────────────────────────────────────────────────────────────
 _OBJECTIVE_SUPERVISOR_RULES = """### 客观模式审查专项
@@ -272,7 +262,9 @@ _OBJECTIVE_SUPERVISOR_RULES = """### 客观模式审查专项
    - 审查 personally_relevant_points 是否条条具备明确责任归口（个人或具体团队）；
    - 客观结构放行：客观模式正常采用全员平铺结构，未出现个人分组标签属于客观规范，予以 approve 放行。"""
 
-MINUTES_OBJECTIVE_SUPERVISOR_PROMPT = _SUPERVISOR_COMMON_BASE + "\n\n" + _OBJECTIVE_SUPERVISOR_RULES
+MINUTES_OBJECTIVE_SUPERVISOR_PROMPT = (
+    _SUPERVISOR_COMMON_BASE + "\n\n" + _OBJECTIVE_SUPERVISOR_RULES
+)
 
 # ── 个人审核提示词 ────────────────────────────────────────────────────────────
 _PERSONAL_SUPERVISOR_RULES = """### 个人视角审查专项
@@ -285,104 +277,38 @@ _PERSONAL_SUPERVISOR_RULES = """### 个人视角审查专项
 3. **自适应裁剪放行保障**：
    - 个人视角下，模型对全场无关杂项分工与外围风险主动进行降噪和隐去，属于规范行为，予以 approve 放行。"""
 
-MINUTES_PERSONAL_SUPERVISOR_PROMPT = _SUPERVISOR_COMMON_BASE + "\n\n" + _PERSONAL_SUPERVISOR_RULES
+MINUTES_PERSONAL_SUPERVISOR_PROMPT = (
+    _SUPERVISOR_COMMON_BASE + "\n\n" + _PERSONAL_SUPERVISOR_RULES
+)
 
 # ── 议题特化审核提示词 ────────────────────────────────────────────────────────
 _AGENDA_SUPERVISOR_RULES = """### 审定议题模式审查专项
 1. **议题完整性与时序审查**：
    - 审查草稿 executive_summary 是否覆盖本次审定的有效讨论议题；
    - 审查三级标题序号（### 一.、### 二.）及列表项（- ）结构，判定为标准规范直接放行；不使用四级标题与数字编号；
-2. **事实保真与决议放行**：
-   - 重点审查正文技术参数与结论是否在打标原文中有据可查，是否存在虚构人名或数字；
-   - 决议项以事项名称为主干陈述最终决议，去口头前缀属于公文规范，予以认可并放行；
-   - 未发现关键事实严重错误时，一律予以 approve 放行。
+2. **事实保真**：
+   - 重点审查正文技术参数与结论是否在打标原文中有据可查，是否存在虚构人名或数字。
 
 ### 辅助材料与议程骨架
 - 辅助材料不得成为新增、删除、改名、重排议题或改变议题归属的依据；
-- 若草稿因辅助材料改变了议程覆盖、标题、顺序或归属，判定为结构缺陷，优先 revise，并给出具体返工点（指出来自哪条辅助材料、应回到哪个议题）。
+- **议程骨架违规判定**：若草稿因辅助材料改变议程覆盖、标题、顺序或归属，判定为结构缺陷，优先 revise；
+- 返工点须具体到议题，并指出来自哪条辅助材料、应回到哪个议题。
 
 ### 标题一致性口径
-- 标题比对忽略大小写、首尾与连续空白、半角/全角标点、常见连字符差异（- / – / —）；
+- 标题比对口径：忽略大小写、首尾与连续空白、半角/全角标点、常见连字符差异（- / – / —）；
 - 标题序号前缀（三级标题的序号部分）不属于标题本体，不参与比对；
 - 仅当标题语义被改写、意译或替换时，才判定为“改名”；
 - 英文模式下，英文标题保留原文，不得翻译成中文。"""
 
-MINUTES_AGENDA_SUPERVISOR_PROMPT = _AGENDA_SUPERVISOR_COMMON_BASE + "\n\n" + _AGENDA_SUPERVISOR_RULES
+MINUTES_AGENDA_SUPERVISOR_PROMPT = (
+    _SUPERVISOR_COMMON_BASE + "\n\n" + _AGENDA_SUPERVISOR_RULES
+)
 
 # 兼容别名
 MINUTES_SUPERVISOR_DOMAIN_PROMPT = MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
 
 
 # ── 纪要渲染提示词 ────────────────────────────────────────────────────────────
-MINUTES_OBJECTIVE_RENDER_PROMPT = """你是会议纪要渲染器。把通过审核的结构化客观纪要草稿，排版为高密度、分段清晰的全景公文纪要正文。
-
-## 排版层级规范
-# 客观会议纪要
-## 全文摘要
-（按业务阶段分段呈现，每段交代完整背景与统一部署）
-## 关键决策
-（逐条陈述拍板决策，不按人分组，以业务事项为主干）
-## 全员执行要点
-（按责任部门/责任人列出落地分工，全景平铺呈现）
-## 风险与阻塞
-（全景平铺全场技术隐患与交付阻碍）
-## 未决问题
-（全景平铺待闭环议题）
-
-## 排版准则
-1. 通篇严格保持客观第三人称公文排版；
-2. 排版内容完全对齐草稿事实，行文通顺专业。"""
-
-MINUTES_PERSONAL_RENDER_PROMPT = """你是会议纪要渲染器。把通过审核的结构化个人视角纪要草稿，排版为个人工作看板式纪要正文。
-
-## 排版层级规范
-# 个人视角纪要
-## [会议概况]
-（单段概括宏观背景与对本人战线的战略定调）
-## [业务进展]
-（按“**模块名称**：”分组呈现技术方案、指标参数与拍板决策）
-## [相关行动]
-**本人相关**：
-- [ ] 动宾短语省略主语的任务条目（含原文承诺与未决跟进对齐）
-**重点协同**：
-- [ ] 关键协同人与外部交付承诺
-## [相关风险]
-**本人相关**：
-- [ ] 内部技术隐患与外部输入断供卡点
-**重点关注**：
-- [ ] 重点关注人物提出的重大定调风险
-
-## 排版准则
-1. 本人动作动宾开头省略主语，他人事项保留真实姓名；
-2. 规范保持“**本人相关**：”置顶，复选框 - [ ] 规范呈现。"""
-
-MINUTES_AGENDA_RENDER_PROMPT = """你是会议纪要渲染器（审定议题专有模式）。把通过审核的结构化议题草稿，排版为结构分明、层级严整的全景公文纪要正文。
-
-## 排版层级规范
-# 会议纪要
-## 全文摘要
-（单段概括全场宏观态势与最关键决议）
-## 要点梳理
-### 一. [审定议题一全称]
-- [要点名称]: [具体事实陈述]
-### 二. [审定议题二全称]
-**[业务子主题名称]**
-- [要点名称]: [具体事实陈述]
-## 关键决策
-（逐条陈述现场明确拍板的决议，以业务事项为主干）
-## 全员执行要点
-（按责任人/部门列出落地执行分工）
-## 风险与阻塞
-（全景呈现技术卡点与交付隐患）
-
-## 排版准则
-1. 议题大项统一使用中文数字序号设立三级小节（### 一. 议题全称）；
-2. 单方向研讨直接以列表项（- 要点名称: 内容）展开；多方向研讨以独立加粗行（**业务子主题**）划分段落，不使用四级标题与数字编号；
-3. 正文一律使用「- 要点名称: 具体陈述」分行呈现，要点名称提炼为实质业务短语，客观陈述方案事实与量化数据，去除发言人转述前缀。"""
-
-# 兼容保留
-MINUTES_RENDER_PROMPT = MINUTES_OBJECTIVE_RENDER_PROMPT
-
 MINUTES_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     renderer="会议纪要渲染器",
     source="已审核草稿（结构化事实基准）",
@@ -390,7 +316,7 @@ MINUTES_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
         "**以已审核草稿为唯一事实与结构基准，自然映射业务板块**：草稿锁定了全场的核心论据与确定决议。\n"
         "【栏目语义自适应映射】：\n"
         "1. 概括总述类栏目（模板中声明为单段概括/概览的栏目）：映射草稿 executive_summary 的首项（全场概览项），以连贯单段呈现；篇幅遵循模板栏位声明，模板未限定时默认 200–300 字精炼交付；后续业务细节留待后文各小节展开；\n"
-        "2. 业务研讨板块映射：模板中声明为业务研讨/要点类的栏目，按现场研讨的自然业务板块划分小节（按模板声明的三级标题层级设立小节），正文以列表项（- ）展开方案考量、实测参数与关键结论，无需强求套用‘议题’一词；\n"
+        "2. 业务研讨板块映射：模板中声明为业务研讨/要点类的栏目，按现场研讨的自然业务板块划分小节（按模板声明的三级标题层级设立小节），正文以列表项（- ）展开方案考量、实测参数与关键结论；\n"
         "3. 决议/结论类栏目：映射草稿 key_decisions 列表，逐条陈述现场明确拍板的决议；若草稿无决议，整栏自适应隐去；\n"
         "4. 后续计划/行动/执行/待办类栏目：映射草稿 personally_relevant_points 列表，逐条陈述责任人、动作与时限；\n"
         "5. 风险/卡点/约束类栏目：映射草稿 risks_and_blockers 列表，逐条陈述风险、影响与应对；\n"
@@ -419,9 +345,9 @@ MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
         "   - 标题直出：栏目标题下方直接以第一个议题标题（### 一. ）开始，不添加任何前言导语；\n"
         "   - 正文排版：保持「- 要点名称: 具体陈述」结构，要点名称提炼为实质业务短语，直陈客观方案与量化事实，不添加口头转述动词；\n"
         "3. 决议结论类栏目：映射草稿 key_decisions 列表，按模板要求的列表格式，逐条陈述现场明确拍板的决议；若草稿无决议，整栏自适应隐去；\n"
-        "4. 后续计划/行动/执行/待办类栏目：映射草稿 personally_relevant_points 列表，逐条陈述责任人、动作与时限；模板无此类栏目时，折入结论/决议或最近相关小节；\n"
-        "5. 风险/卡点/约束类栏目：映射草稿 risks_and_blockers 列表，逐条陈述风险、影响与应对；模板无此类栏目时，折入结论/决议或最近相关小节；\n"
-        "6. 遗留/未决/待确认类栏目：映射草稿 unresolved_questions 列表，逐条陈述未决事项与待确认点；模板无此类栏目时，折入结论/决议或最近相关小节；\n"
+        "4. 后续计划/行动/执行/待办类栏目：映射草稿 personally_relevant_points 列表，逐条陈述责任人、动作与时限；\n"
+        "5. 风险/卡点/约束类栏目：映射草稿 risks_and_blockers 列表，逐条陈述风险、影响与应对；\n"
+        "6. 遗留/未决/待确认类栏目：映射草稿 unresolved_questions 列表，逐条陈述未决事项与待确认点；\n"
         "7. 事实保真全量输出：草稿中的量化指标、方案考量与结论定调完整呈现在对应小节中，无事实遗漏；专有名词与数据严格以草稿为准。"
     ),
     empty_rule=(
@@ -447,10 +373,6 @@ __all__ = [
     "MINUTES_OBJECTIVE_SUPERVISOR_PROMPT",
     "MINUTES_PERSONAL_SUPERVISOR_PROMPT",
     "MINUTES_AGENDA_SUPERVISOR_PROMPT",
-    "MINUTES_RENDER_PROMPT",
-    "MINUTES_OBJECTIVE_RENDER_PROMPT",
-    "MINUTES_PERSONAL_RENDER_PROMPT",
-    "MINUTES_AGENDA_RENDER_PROMPT",
     "MINUTES_RENDER_TEMPLATE_PROMPT",
     "MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT",
 ]

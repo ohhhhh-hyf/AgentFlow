@@ -153,19 +153,47 @@ def _accepts_temperature(func) -> bool:
     return cached
 
 
+_VIEW_SUPPORT: dict = {}
+
+
+def _accepts_view(func) -> bool:
+    """``func`` 是否接受 ``view=`` 关键字。"""
+    key = getattr(func, "__func__", func)
+    cached = _VIEW_SUPPORT.get(key)
+    if cached is None:
+        try:
+            params = inspect.signature(func).parameters
+        except (TypeError, ValueError):
+            cached = False
+        else:
+            cached = "view" in params or any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+        _VIEW_SUPPORT[key] = cached
+    return cached
+
+
+def _render_view(state: dict, line_name: str) -> str | None:
+    """取本线已裁决的 view；无该状态时返回 None。"""
+    return (state.get("line_views") or {}).get(line_name)
+
+
 async def _render_run(
     render,
     context: str,
     template: str,
     cap: int | None,
     temperature: float | None = None,
+    view: str | None = None,
 ):
-    """调用渲染步；支持 ``max_tokens`` 与 ``temperature`` 就带上（按签名预判）。"""
+    """调用渲染步；支持 ``max_tokens`` / ``temperature`` / ``view`` 就带上（按签名预判）。"""
     kwargs: dict[str, Any] = {}
     if cap and _accepts_max_tokens(render.run):
         kwargs["max_tokens"] = cap
     if temperature is not None and _accepts_temperature(render.run):
         kwargs["temperature"] = temperature
+    if view and _accepts_view(render.run):
+        kwargs["view"] = view
     return await render.run(context, template, **kwargs)
 
 # ── 渲染修订指令（从 produce_line 抽出，独立便于调整；函数内 format 插值）──
@@ -279,6 +307,7 @@ async def produce_line(
     title = engine._line_title(state, line_name)
     degraded = bool(line(state, line_name).get("degraded"))
     template = line_template(state, line_name)
+    view = _render_view(state, line_name)
     streamed = False
     context = ""
     try:
@@ -333,7 +362,9 @@ async def produce_line(
                 fill_mode = "draft"
             elif policy.llm_render == "never" and hasattr(render, "run"):
                 context = engine._render_context(state, line_name)
-                full_text = await render.run(context, template)
+                full_text = await _render_run(
+                    render, context, template, None, view=view
+                )
                 fill_mode = "run"
             else:
                 draft = line(state, line_name).get("draft") or {}
@@ -406,11 +437,20 @@ async def produce_line(
                         await asyncio.sleep(retry_delay)
 
                     if use_block:
-                        full_text = await _render_run(render, context, template, cap)
+                        full_text = await _render_run(
+                            render, context, template, cap, view=view
+                        )
                         fill_mode = "freeform"
                     else:
                         parts: list[str] = []
-                        async for chunk in render.stream(context, template):
+                        stream_kwargs = (
+                            {"view": view}
+                            if view and _accepts_view(render.stream)
+                            else {}
+                        )
+                        async for chunk in render.stream(
+                            context, template, **stream_kwargs
+                        ):
                             parts.append(chunk)
                             await queue.put(
                                 {
@@ -485,6 +525,7 @@ async def produce_line(
                                     f"【当前正文】\n{full_text}",
                                     template,
                                     cap,
+                                    view=view,
                                 )
                             except Exception:  # noqa: BLE001
                                 compressed = ""
@@ -584,7 +625,7 @@ async def produce_line(
                 for _round in range(2 if compress_hi else 1):
                     try:
                         repaired = await _render_run(
-                            render, repair_context, template, cap
+                            render, repair_context, template, cap, view=view
                         )
                     except Exception:  # noqa: BLE001
                         logger.warning(

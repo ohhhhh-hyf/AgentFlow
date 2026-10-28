@@ -554,7 +554,6 @@ def test_orchestrator_shared_context_supplies_transcript_for_actions_and_risks()
         "transcript": "【讨论实录】张三：我承诺周五前完成接口改造。李四：网关并发突破 10000 时存在熔断风险。王总：大家必须在周日前完成上线验收。",
         "meeting_understanding": {
             "meeting_purpose": "周例会",
-            "scene": "通用",
             "speakers": [{"name": "张三"}, {"name": "李四"}, {"name": "王总"}],
             "session_segments": [{"segment_title": "架构改造"}],
             "decisions": ["王总明确：必须在周日前完成上线验收", "同意架构改造方案"],

@@ -510,7 +510,7 @@ _UNDERSTANDING_FACT_KEYS = (
 
 
 def _understanding_has_fact(understanding: dict[str, Any] | None) -> bool:
-    """议题模式短路后 understanding 是带默认键的空结构（含 scene="通用"），
+    """议题模式短路后 understanding 是带默认键的空结构，
     不能简单用 ``not understanding`` 判断；只认真正承载事实的字段。"""
     if not isinstance(understanding, dict):
         return False

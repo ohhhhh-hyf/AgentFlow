@@ -17,7 +17,6 @@ from domains.meeting.orchestrator import _Nodes
 _EMPTY_UNDERSTANDING = {
     "meeting_brief": "",
     "meeting_purpose": "",
-    "scene": "通用",
     "speakers": [],
     "session_segments": [],
     "topics": [],

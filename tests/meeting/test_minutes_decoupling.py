@@ -30,8 +30,6 @@ from domains.meeting.tasks.minutes.prompts import (
     MINUTES_PERSONAL_GENERATION_PROMPT,
     MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
     MINUTES_PERSONAL_SUPERVISOR_PROMPT,
-    MINUTES_OBJECTIVE_RENDER_PROMPT,
-    MINUTES_PERSONAL_RENDER_PROMPT,
 )
 
 
@@ -142,12 +140,13 @@ def test_parse_perspective_mode_routing():
 # ── 4. 审核端双轨提示词独立性测试 ───────────────────────────────────────────────
 
 def test_minutes_supervisor_prompts_decoupling():
-    """验证 Supervisor 提示词保留历史免审与判定条件，客观与个人专项规则互不干扰。"""
+    """验证 Supervisor 使用统一送审范围，客观与个人专项规则互不干扰。"""
     for sup in (MINUTES_OBJECTIVE_SUPERVISOR_PROMPT, MINUTES_PERSONAL_SUPERVISOR_PROMPT):
-        assert "搬运项免审" in sup
-        assert "enforce_minutes_draft" in sup
-        assert "reject 的三个可判定条件" in sup
+        assert "本轮送审范围" in sup
+        assert "只审送审稿中实际出现的内容" in sup
+        assert "严重缺陷" in sup
         assert "拿不准就选它" in sup
+        assert "key_decisions" not in sup
         assert "与上游不一致" not in sup
 
     # 客观专属审查

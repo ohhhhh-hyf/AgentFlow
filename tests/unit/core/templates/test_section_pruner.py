@@ -144,8 +144,8 @@ def test_progress_table_rows() -> None:
           "应拆成" not in text and "五行" not in text, "")
     from core.templates.body_rules import BODY_FORMAT_RULES
 
-    check("共用形态规则的状态集同步四态",
-          "⏸未开始" in BODY_FORMAT_RULES, "")
+    check("共用形态规则的状态标记口径保留（无 emoji）",
+          "状态标记（已完成 / 进行中 / 未开始 / 阻塞）仅在模板要求时出现一次" in BODY_FORMAT_RULES, "")
 
 def test_knowledge_memo_groups() -> None:
     """知识笔记 [核心结论]：固定三子组 + 缺省写法（治"待澄清"空条与说明句）。

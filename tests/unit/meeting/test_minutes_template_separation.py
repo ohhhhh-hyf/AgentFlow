@@ -36,7 +36,6 @@ def _normal_state() -> dict:
         "meeting_understanding": {
             "meeting_brief": "周会",
             "meeting_purpose": "同步进展",
-            "scene": "团队例会",
             "session_segments": [],
             "topics": [],
             "decisions": [],
@@ -108,7 +107,6 @@ def _budget_state() -> dict:
         "meeting_understanding": {
             "meeting_brief": "评审会",
             "meeting_purpose": "评审",
-            "scene": "项目决策与评审",
             "session_segments": [],
             "topics": [],
             "decisions": [],
@@ -139,8 +137,8 @@ def test_minutes_generation_context_budget_has_no_template_columns() -> None:
     assert "本模板" not in ctx
 
 
-def test_render_template_prompts_map_extra_fields_inline() -> None:
-    """渲染 prompt 内联说明 actions/risks/unresolved 的去向，不单独列折叠段。"""
+def test_render_template_prompts_map_extra_fields_without_fold() -> None:
+    """渲染 prompt 只说明 actions/risks/unresolved 的栏目语义，不强制折叠。"""
     for prompt in (
         MINUTES_RENDER_TEMPLATE_PROMPT,
         MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
@@ -149,7 +147,7 @@ def test_render_template_prompts_map_extra_fields_inline() -> None:
         assert "personally_relevant_points" in prompt
         assert "risks_and_blockers" in prompt
         assert "unresolved_questions" in prompt
-        assert prompt.count("模板无此类栏目时，折入结论/决议或最近相关小节") == 3
+        assert "模板无此类栏目时，折入结论/决议或最近相关小节" not in prompt
         assert "无对应栏目时的折叠规则" not in prompt
 
 
@@ -164,7 +162,9 @@ def test_minutes_agent_label_includes_template_id() -> None:
 
     client = FakeClient()
     agent = MinutesGenerationAgent(client)
-    asyncio.run(agent.run("视角模式：objective", template_id="abc123"))
+    asyncio.run(
+        agent.run("视角模式：objective", view="objective", template_id="abc123")
+    )
 
     assert client.label == "minutes/agent/objective/abc123"
 

@@ -11,42 +11,14 @@ from collections.abc import Iterable
 from typing import ClassVar
 
 from core.schema.contracts import (
-    EnumField, Field, GenerationContract, ObjListField, StrField, StrListField,
+    Field, GenerationContract, ObjListField, StrField, StrListField,
 )
 
-
-# ── 会议场景枚举（公共底座，下游共享）───────────────────────────
-SCENE_CHOICES = [
-    "通用",
-    "团队例会",
-    "脑暴/讨论",
-    "项目决策与评审",
-    "专项讨论会",
-    "研讨会",
-    "采访/对话",
-]
-
-# ── 行动线索类型枚举（公共底座，待办线消费）─────────────────────
-ACTION_HINT_KINDS = [
-    "commitment",
-    "assignment",
-    "directive",
-    "rectification",
-    "followup",
-]
-
-# ── 风险信号类型枚举（公共底座，风险线消费）─────────────────────
-RISK_SIGNAL_TYPES = [
-    "time",
-    "resource",
-    "staffing",
-    "quality",
-    "dependency",
-    "external",
-    "scope",
-    "other",
-]
-
+from .understanding_profiles import (
+    FULL_PROFILE,
+    UnderstandingProfile,
+    resolve_profile,
+)
 
 # ── 基础与可选字段定义 ──────────────────────────────────────────
 
@@ -68,26 +40,24 @@ SESSION_SEGMENTS_LIGHT_FIELD = ObjListField(
     desc="顺应会议推进时序的议题标的分类列表（仅提取议题标题供下游模块成组分类，不展开大段叙事）",
 )
 
-DEBATES_FIELD = ObjListField(
-    "debates",
-    [
-        StrField("speaker", "发言人/阵营"),
-        StrField("stance", "核心主张与观点立场"),
-        StrField("argument", "支撑论据或反驳理由"),
-        StrField("evidence_quote", "会议原文最具代表性的一句发言原句"),
-    ],
-    desc="观点交锋与论辩列表（学术研讨/方案比选/争议焦点时记录）",
+MEETING_BRIEF_FIELD = StrField("meeting_brief", "80~200字概括整场会议主线全貌与核心态势")
+MEETING_PURPOSE_FIELD = StrField("meeting_purpose", "一句话概括会议目的")
+SPEAKERS_FIELD = ObjListField("speakers", [
+    StrField("name", "统一显示称呼：姓名优先，其次原文角色，再次原始编号；不推断、不编造"),
+    StrField("role", "角色（发言人/主持人/记者/听众/嘉宾/主讲人…，照原文；判断不出为null）"),
+    StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
+])
+
+BASE_FIELD_NAMES: tuple[str, ...] = (
+    "meeting_brief",
+    "meeting_purpose",
+    "speakers",
 )
 
 CORE_BASE_FIELDS: list[Field] = [
-    StrField("meeting_brief", "80~200字概括整场会议主线全貌与核心态势"),
-    StrField("meeting_purpose", "一句话概括会议目的"),
-    EnumField("scene", SCENE_CHOICES, normalize="通用"),
-    ObjListField("speakers", [
-        StrField("name", "统一显示称呼：姓名优先，其次原文角色，再次原始编号；不推断、不编造"),
-        StrField("role", "角色（发言人/主持人/记者/听众/嘉宾/主讲人…，照原文；判断不出为null）"),
-        StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
-    ]),
+    MEETING_BRIEF_FIELD,
+    MEETING_PURPOSE_FIELD,
+    SPEAKERS_FIELD,
     SESSION_SEGMENTS_FIELD,
 ]
 
@@ -118,10 +88,33 @@ RISK_HINTS_FIELD = ObjListField("risk_hints", [
 
 DEPENDENCIES_FIELD = StrListField("dependencies", "原文明确的未确认前置/依赖（如「等XX确认」「取决于XX」「XX到位后才能YY」）")
 
+FIELD_DEFS: dict[str, Field] = {
+    "meeting_brief": MEETING_BRIEF_FIELD,
+    "meeting_purpose": MEETING_PURPOSE_FIELD,
+    "speakers": SPEAKERS_FIELD,
+    "session_segments_full": SESSION_SEGMENTS_FIELD,
+    "session_segments_light": SESSION_SEGMENTS_LIGHT_FIELD,
+    "decisions": DECISIONS_FIELD,
+    "open_questions": OPEN_QUESTIONS_FIELD,
+    "risks": RISKS_FIELD,
+    "action_hints": ACTION_HINTS_FIELD,
+    "risk_hints": RISK_HINTS_FIELD,
+    "dependencies": DEPENDENCIES_FIELD,
+}
+
+
+def fields_for_profile(profile: UnderstandingProfile) -> list[Field]:
+    """按任务 profile 生成理解输出字段列表。"""
+    fields = [FIELD_DEFS[name] for name in BASE_FIELD_NAMES]
+    if profile.segments != "none":
+        fields.append(FIELD_DEFS[f"session_segments_{profile.segments}"])
+    fields.extend(FIELD_DEFS[name] for name in profile.fields)
+    return fields
+
+
 ALL_CORE_FIELD_NAMES: frozenset[str] = frozenset({
     "meeting_brief",
     "meeting_purpose",
-    "scene",
     "speakers",
     "session_segments",
     "decisions",
@@ -129,7 +122,6 @@ ALL_CORE_FIELD_NAMES: frozenset[str] = frozenset({
     "risks",
     "action_hints",
     "risk_hints",
-    "debates",
     "dependencies",
 })
 
@@ -144,7 +136,6 @@ class MeetingUnderstandingGenerationContract(GenerationContract):
         RISKS_FIELD,
         ACTION_HINTS_FIELD,
         RISK_HINTS_FIELD,
-        DEBATES_FIELD,
         DEPENDENCIES_FIELD,
     ]
 
@@ -164,132 +155,11 @@ def build_core_contract_for_tasks(
 
     返回：(output_contract_str, omitted_fields)
     omitted_fields 为当前未被抽取的字段集，将作为 allow_missing 传给 structured 调用。
+
+    ``template_text`` 保留参数兼容；模板不再参与理解层字段裁剪。
     """
-    selected = [str(t).strip() for t in (active_tasks or []) if str(t).strip()]
-    if not selected:
-        return (
-            MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT,
-            frozenset(),
-        )
-
-    selected_set = set(selected)
-
-    need_decisions = bool(
-        memory_on
-        or any(
-            t in selected_set
-            for t in (
-                "minutes",
-                "minutes_styles",
-                "minutes_trace",
-                "consensus_decision",
-                "mindmap",
-                "actions",
-            )
-        )
-    )
-    need_risks = bool(
-        memory_on
-        or any(
-            t in selected_set
-            for t in (
-                "minutes",
-                "minutes_styles",
-                "risks",
-                "consensus_decision",
-                "minutes_trace",
-            )
-        )
-    )
-    need_open_questions = bool(
-        memory_on
-        or any(
-            t in selected_set
-            for t in (
-                "minutes",
-                "minutes_styles",
-                "risks",
-                "consensus_decision",
-            )
-        )
-    )
-    need_action_hints = bool(memory_on or ("actions" in selected_set))
-    need_risk_hints = bool(memory_on or ("risks" in selected_set))
-    need_dependencies = bool(memory_on)
-
-    # 针对 minutes 单线且给定模板时的按需裁剪：若模板完全不包含风险/未决词汇，则跳过
-    if selected == ["minutes"] and template_text.strip() and not memory_on:
-        from ..understanding_skip import skip_fields_for_template
-
-        tpl_skips = skip_fields_for_template(template_text)
-        if "risks" in tpl_skips:
-            need_risks = False
-        if "open_questions" in tpl_skips:
-            need_open_questions = False
-
-    need_debates = bool(
-        memory_on
-        or any(
-            t in selected_set
-            for t in (
-                "consensus_decision",
-                "minutes",
-                "minutes_styles",
-            )
-        )
-    )
-
-    need_segments = bool(
-        memory_on
-        or any(
-            t in selected_set
-            for t in (
-                "minutes",
-                "minutes_styles",
-                "minutes_trace",
-                "consensus_decision",
-                "mindmap",
-                "actions",
-                "risks",
-            )
-        )
-    )
-
-    is_actions_risks_only = bool(
-        selected_set
-        and selected_set.issubset({"actions", "risks"})
-        and not memory_on
-    )
-
-    chosen_fields: list[Field] = [
-        StrField("meeting_brief", "80~200字概括整场会议主线全貌与核心态势"),
-        StrField("meeting_purpose", "一句话概括会议目的"),
-        EnumField("scene", SCENE_CHOICES, normalize="通用"),
-        ObjListField("speakers", [
-            StrField("name", "统一显示称呼：姓名优先，其次原文角色，再次原始编号；不推断、不编造"),
-            StrField("role", "角色（发言人/主持人/记者/听众/嘉宾/主讲人…，照原文；判断不出为null）"),
-            StrField("org", "机构/单位/媒体名（照原文；没有为null）"),
-        ]),
-    ]
-    if need_segments:
-        if is_actions_risks_only:
-            chosen_fields.append(SESSION_SEGMENTS_LIGHT_FIELD)
-        else:
-            chosen_fields.append(SESSION_SEGMENTS_FIELD)
-    if need_decisions:
-        chosen_fields.append(DECISIONS_FIELD)
-    if need_open_questions:
-        chosen_fields.append(OPEN_QUESTIONS_FIELD)
-    if need_risks:
-        chosen_fields.append(RISKS_FIELD)
-    if need_action_hints:
-        chosen_fields.append(ACTION_HINTS_FIELD)
-    if need_risk_hints:
-        chosen_fields.append(RISK_HINTS_FIELD)
-    if need_debates:
-        chosen_fields.append(DEBATES_FIELD)
-    if need_dependencies:
-        chosen_fields.append(DEPENDENCIES_FIELD)
+    profile = resolve_profile(active_tasks, memory_on=memory_on) or FULL_PROFILE
+    chosen_fields = fields_for_profile(profile)
 
     class DynamicMeetingUnderstandingGenerationContract(GenerationContract):
         fields: ClassVar[list[Field]] = chosen_fields
@@ -309,13 +179,13 @@ def is_actions_risks_only_tasks(active_tasks: Iterable[str] | None, memory_on: b
 
 
 __all__ = [
-    "SCENE_CHOICES",
-    "ACTION_HINT_KINDS",
-    "RISK_SIGNAL_TYPES",
     "ALL_CORE_FIELD_NAMES",
+    "BASE_FIELD_NAMES",
+    "FIELD_DEFS",
     "MeetingUnderstandingGenerationContract",
     "MEETING_UNDERSTANDING_GENERATION_OUTPUT_CONTRACT",
     "SESSION_SEGMENTS_LIGHT_FIELD",
     "build_core_contract_for_tasks",
+    "fields_for_profile",
     "is_actions_risks_only_tasks",
 ]
