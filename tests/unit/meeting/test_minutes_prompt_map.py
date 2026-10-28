@@ -145,6 +145,18 @@ def test_render_template_prompt_only_agenda_differs() -> None:
     )
 
 
+def test_render_prompts_keep_overview_anchor_and_column_heading_rule() -> None:
+    """渲染首条必须锁住 [0] 概览锚点，并禁止用会议标题替换栏目标题。"""
+    for prompt in (
+        MINUTES_RENDER_TEMPLATE_PROMPT,
+        MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
+    ):
+        assert "（[0]，全场概览项）" in prompt
+        assert "栏目标题必须与模板方括号内文字完全一致" in prompt
+        assert "`## [讨论概述]` → `## 讨论概述`" in prompt
+        assert "不得用会议标题或草稿 headline 替换" in prompt
+
+
 def test_agenda_contract_clean() -> None:
     contract = MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT
     assert "个人" not in contract
