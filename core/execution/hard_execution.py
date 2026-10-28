@@ -1238,6 +1238,56 @@ def _merge_first_column_paragraphs(text: str, template: str) -> tuple[str, str |
     )
 
 
+_BRACKET_HEADING_RE = re.compile(
+    r"^(\s*)(#{1,6}[ \t]+)\[([^\[\]\n]+)\][ \t]*$"
+)
+
+
+def _template_column_titles(template: str) -> set[str]:
+    """模板中声明为栏目标题的文字（去方括号、去空白），供标题归一化比对。"""
+    from core.templates.router import split_template_meta
+
+    body, _ = split_template_meta(template or "")
+    titles: set[str] = set()
+    for line in (body or "").splitlines():
+        m = re.match(r"^#{1,6}\s+\[([^\[\]\n]+)\]\s*$", line.strip())
+        if m:
+            title = re.sub(r"\s+", "", m.group(1))
+            if title:
+                titles.add(title)
+    return titles
+
+
+def strip_bracketed_column_headings(text: str, template: str) -> tuple[str, int]:
+    """把 ``## [栏名]`` 归一化为 ``## 栏名``（仅限命中模板栏名的标题行）。
+
+    2026-10-28 回归：渲染模型偶尔把模板标题连方括号一起输出，门禁按
+    「残留占位符」判失败并触发整篇 repair（每次多 20s+）。标题方括号是
+    模板结构而非业务内容，可在门禁前确定性剥离，零 LLM 调用。
+    只处理独立标题行，且 inner 必须命中模板栏名；正文里的 ``[待确认]``、
+    ``[Q1]``、``- [ ]`` 等合法标签不受影响。
+    """
+    if not text or not template:
+        return text, 0
+    titles = _template_column_titles(template)
+    if not titles:
+        return text, 0
+    changed = 0
+    out: list[str] = []
+    for line in text.splitlines():
+        m = _BRACKET_HEADING_RE.match(line)
+        if m:
+            inner = m.group(3).strip()
+            if re.sub(r"\s+", "", inner) in titles:
+                out.append(f"{m.group(1)}{m.group(2)}{inner}")
+                changed += 1
+                continue
+        out.append(line)
+    if not changed:
+        return text, 0
+    return "\n".join(out), changed
+
+
 def enforce_render_output(
     template: str,
     output: str,
@@ -1270,6 +1320,14 @@ def enforce_render_output(
     text2, cnotes = clean_template_render_text(text)
     text = text2
     notes.extend(cnotes)
+
+    # 标题方括号归一化：`## [栏名]` → `## 栏名`（仅占位符模板、仅命中模板栏名的标题行）。
+    # 必须放在合并/拆段/门禁之前：否则标题带方括号会被判残留占位符并触发整篇 repair。
+    if detect_template_kind(template) == "placeholder":
+        text2, hcount = strip_bracketed_column_headings(text, template)
+        if hcount:
+            text = text2
+            notes.append(f"已去除栏目标题方括号 {hcount} 处")
 
     # 总述栏一段化：模型把「一段写完」的首栏写成多段时，确定性合并（零 LLM 调用）
     text2, mnote = _merge_first_column_paragraphs(text, template)

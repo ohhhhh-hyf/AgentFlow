@@ -152,7 +152,10 @@ def test_render_prompts_keep_overview_anchor_and_column_heading_rule() -> None:
         MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
     ):
         assert "（[0]，全场概览项）" in prompt
-        assert "栏目标题必须与模板方括号内文字完全一致" in prompt
+        assert (
+            "栏目标题只写模板方括号内的文字" in prompt
+            or "栏目标题必须与模板方括号内文字完全一致" in prompt
+        )
         assert "`## [讨论概述]` → `## 讨论概述`" in prompt
         assert "不得用会议标题或草稿 headline 替换" in prompt
 
