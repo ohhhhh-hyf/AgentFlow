@@ -33,15 +33,12 @@ SEGMENT_GUIDANCE: dict[str, str] = {
     "full": (
         "- session_segments：顺应会议讨论推进时序划分自然研讨阶段，每个阶段包含：\n"
         "  - segment_title：该阶段议题/标的名称；\n"
-        "  - context_and_reasoning：因果背景、争论焦点与定调依据"
-        "（清晰陈述讨论经过、方案演进与决策动因）；\n"
-        "  - key_facts：核心量化指标、关键事实论据与落地执行节点"
-        "（去重提炼，同一事实多次提及只保留最全的一条）。"
+        "  - context_and_reasoning：因果背景、争论焦点与定调依据；\n"
+        "  - key_facts：核心量化指标、关键事实论据与落地执行节点（去重提炼，同一事实多次提及只保留最全的一条）。"
     ),
     "light": (
         "- session_segments：顺应会议讨论推进时序划分 3~6 个自然阶段，"
-        "只提取 segment_title 作为宏观分类标题；"
-        "不展开背景叙事，不输出关键事实细节。"
+        "只提取 segment_title 作为宏观分类标题；不展开背景叙事，不输出关键事实细节。"
     ),
 }
 
