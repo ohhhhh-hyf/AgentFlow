@@ -22,11 +22,6 @@ TASK_PROFILES: dict[str, UnderstandingProfile] = {
         segments="full",
         fields=("decisions", "open_questions", "risks"),
     ),
-    "actions": UnderstandingProfile(
-        segments="light",
-        fields=("decisions", "action_hints"),
-        intro="本次任务服务于待办执行与分工提炼。",
-    ),
     "risks": UnderstandingProfile(
         segments="light",
         fields=("open_questions", "risks", "risk_hints"),
@@ -37,6 +32,9 @@ TASK_PROFILES: dict[str, UnderstandingProfile] = {
         fields=("decisions", "risks", "open_questions"),
     ),
 }
+
+# actions-only 直接走待办 Agent，不参与会议理解 profile。
+NO_UNDERSTANDING_TASKS = frozenset({"actions"})
 
 FULL_PROFILE = UnderstandingProfile(
     segments="full",
@@ -90,9 +88,13 @@ def resolve_profile(
     if is_agenda:
         return None
 
-    tasks = _task_list(active_tasks)
-    if not tasks:
+    raw_tasks = _task_list(active_tasks)
+    if not raw_tasks:
         return FULL_PROFILE
+
+    tasks = [t for t in raw_tasks if t not in NO_UNDERSTANDING_TASKS]
+    if not tasks:
+        return None
 
     if len(tasks) == 1:
         return TASK_PROFILES.get(tasks[0], FULL_PROFILE)
@@ -102,6 +104,7 @@ def resolve_profile(
 
 __all__ = [
     "FULL_PROFILE",
+    "NO_UNDERSTANDING_TASKS",
     "TASK_PROFILES",
     "UnderstandingProfile",
     "resolve_profile",

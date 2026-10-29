@@ -75,7 +75,6 @@ FIELD_GUIDANCE: dict[str, str] = {
 
 
 TASK_INTRO: dict[str, str] = {
-    "actions": "本次任务服务于待办执行与分工提炼。",
     "risks": "本次任务服务于风险治理与隐患挖掘。",
 }
 

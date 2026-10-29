@@ -242,7 +242,7 @@ class DomainNodes:
                 if isinstance(alias, str) and len(alias.strip()) >= 2:
                     priority_needles.append(alias.strip())
         if isinstance(draft, dict):
-            for key in ("personally_relevant_points", "my_actions", "my_tasks"):
+            for key in ("personally_relevant_points", "my_tasks"):
                 val = draft.get(key)
                 if val:
                     priority_needles.extend(collect_needles(val))

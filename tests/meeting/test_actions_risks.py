@@ -18,7 +18,7 @@ def test_action_items_text_render():
             "category": "网关压测流控",
             "task": "完成 SDK 适配补丁并进行 2000 QPS 压测",
             "owner": "张伟",
-            "timing_anchor": "周五 18:00 前",
+            "deadline": "周五 18:00 前",
             "acceptance_criteria": "压测报告与 API 文档",
             "dependency": "基础架构组签发临时 Token",
         },
@@ -26,7 +26,7 @@ def test_action_items_text_render():
             "category": "网关压测流控",
             "task": "申请预发布集群机器配额",
             "owner": "待认领",
-            "timing_anchor": None,
+            "deadline": None,
             "acceptance_criteria": None,
             "dependency": None,
         },
@@ -463,13 +463,12 @@ def test_action_items_assigned_actions_compatibility() -> None:
         ],
     }
 
-    # 1. ActionItems validate 校验器能够自动映射兼容
+    # 1. ActionItems 只保留客观两数组
     inst = ActionItems.validate(payload_assigned)
-    assert len(inst.my_actions) == 1
-    assert inst.my_actions[0]["task"] == "完成新旧契约解耦与单测编写"
+    assert len(inst.assigned_actions) == 1
+    assert inst.assigned_actions[0]["task"] == "完成新旧契约解耦与单测编写"
     assert len(inst.unassigned_actions) == 1
-    assert hasattr(inst, "assigned_actions")
-    assert inst.assigned_actions[0]["owner"] == "核心团队"
+    assert not hasattr(inst, "my_actions")
 
     # 2. 渲染器能够双键兼容读取并正确渲染清单
     state = {
@@ -489,63 +488,35 @@ def test_action_items_assigned_actions_compatibility() -> None:
     parsed = LLMClient._parse_and_validate(
         raw_json,
         ActionItems,
-        allow_missing=frozenset({"my_actions", "delegated_actions"}),
+        allow_missing=frozenset(),
     )
     assert len(parsed.assigned_actions) == 1
-    assert len(parsed.my_actions) == 1
     assert parsed.assigned_actions[0]["task"] == "完成新旧契约解耦与单测编写"
-    assert parsed.my_actions[0]["task"] == "完成新旧契约解耦与单测编写"
+    assert not hasattr(parsed, "my_actions")
 
 
-def test_understanding_contract_lightweight_for_actions_and_risks():
-    """验证 actions 和 risks 单独或组合激活时，契约自动走轻量极简段落，且 actions 包含 decisions。"""
-    from domains.meeting.meeting_core.contracts import (
-        build_core_contract_for_tasks,
-        is_actions_risks_only_tasks,
-    )
+def test_actions_has_no_understanding_profile() -> None:
+    from domains.meeting.meeting_core.understanding_profiles import TASK_PROFILES
+    from domains.meeting.meeting_core.contracts import build_core_contract_for_tasks
 
-    # 1. actions 单线：启用轻量段落，不含 context_and_reasoning，包含 decisions
-    contract_str, omitted = build_core_contract_for_tasks(["actions"])
-    assert "segment_title" in contract_str
-    assert "context_and_reasoning" not in contract_str
-    assert "key_facts" not in contract_str
-    assert "decisions" in contract_str
-    assert "decisions" not in omitted
-    assert is_actions_risks_only_tasks(["actions"]) is True
+    assert "actions" not in TASK_PROFILES
 
-    # 2. risks 单线：启用轻量段落，不含 context_and_reasoning
-    contract_str_r, omitted_r = build_core_contract_for_tasks(["risks"])
-    assert "segment_title" in contract_str_r
-    assert "context_and_reasoning" not in contract_str_r
-    assert "key_facts" not in contract_str_r
-    assert is_actions_risks_only_tasks(["risks"]) is True
+    # risks 单独或与 actions 组合时，仍只按 risks 的轻量 profile 生成契约
+    contract_r, _ = build_core_contract_for_tasks(["risks"])
+    contract_ar, _ = build_core_contract_for_tasks(["actions", "risks"])
+    for contract in (contract_r, contract_ar):
+        assert "segment_title" in contract
+        assert "context_and_reasoning" not in contract
+        assert "key_facts" not in contract
 
-    # 3. actions + risks 组合：依然启用轻量段落
-    contract_str_ar, omitted_ar = build_core_contract_for_tasks(["actions", "risks"])
-    assert "segment_title" in contract_str_ar
-    assert "context_and_reasoning" not in contract_str_ar
-    assert is_actions_risks_only_tasks(["actions", "risks"]) is True
-
-    # 4. 混入 minutes 或 minutes_trace：严格使用全量段落（包含 context_and_reasoning 和 key_facts）
-    contract_str_m, _ = build_core_contract_for_tasks(["minutes", "actions"])
-    assert "context_and_reasoning" in contract_str_m
-    assert "key_facts" in contract_str_m
-    assert is_actions_risks_only_tasks(["minutes", "actions"]) is False
-
-    contract_str_t, _ = build_core_contract_for_tasks(["minutes_trace", "risks"])
-    assert "context_and_reasoning" in contract_str_t
-    assert "key_facts" in contract_str_t
-    assert is_actions_risks_only_tasks(["minutes_trace", "risks"]) is False
-
-    # 5. 开启跨会记忆：强制全量段落
-    contract_str_mem, _ = build_core_contract_for_tasks(["actions"], memory_on=True)
-    assert "context_and_reasoning" in contract_str_mem
-    assert "key_facts" in contract_str_mem
-    assert is_actions_risks_only_tasks(["actions"], memory_on=True) is False
+    # 混入 minutes 时仍使用 full segments
+    contract_m, _ = build_core_contract_for_tasks(["minutes", "actions"])
+    assert "context_and_reasoning" in contract_m
+    assert "key_facts" in contract_m
 
 
 def test_orchestrator_shared_context_supplies_transcript_for_actions_and_risks():
-    """验证编排层为 actions 和 risks 注入会议原文与顺藤摸瓜指引，且 actions 包注入 decisions。"""
+    """验证 actions 只读会议原文；risks 仍保留原有原文 + 顺藤摸瓜指引。"""
     from domains.meeting.orchestrator import MeetingAgentSystem
 
     orch = object.__new__(MeetingAgentSystem)
@@ -563,13 +534,12 @@ def test_orchestrator_shared_context_supplies_transcript_for_actions_and_risks()
         "lines": {},
     }
 
-    # 1. 验证 actions 上下文含原文与指引
+    # 1. actions 只给原文，不再给会议理解 / 视角 / 命中内容
     ctx_actions = orch._line_shared_context(state, "actions")
-    assert "【讨论实录】张三：我承诺周五前完成接口改造" in ctx_actions
-    assert "深度结合【会议原文】全面穷尽挖掘" in ctx_actions
-    pack_actions = orch._meeting_pack(state, "actions")
-    assert "decisions" in pack_actions
-    assert "王总明确：必须在周日前完成上线验收" in pack_actions["directive_decisions"][0]
+    assert ctx_actions == "会议原文：\n" + state["transcript"]
+    assert "会议理解" not in ctx_actions
+    assert "action_hints" not in ctx_actions
+    assert "用户画像" not in ctx_actions
 
     # 2. 验证 risks 上下文含原文与指引
     ctx_risks = orch._line_shared_context(state, "risks")

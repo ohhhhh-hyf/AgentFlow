@@ -151,8 +151,7 @@ QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
 # ── 空结构常量生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 _EMPTY_ACTION_ITEMS = {
-    "my_actions": [],
-    "delegated_actions": [],
+    "assigned_actions": [],
     "unassigned_actions": [],
 }
 
@@ -742,6 +741,8 @@ class _Nodes(DomainNodes):
         view = self._minutes_view(state, line_name)
         if line_name == "minutes" and view == VIEW_PERSONAL:
             return self._personal_draft_context(state)
+        if line_name == "actions":
+            return f"会议原文：\n{state.get('transcript') or ''}"
 
         pack = self._meeting_pack(state, line_name)
         if line_name == "agenda_minutes":
@@ -900,6 +901,24 @@ class _Nodes(DomainNodes):
                 )
         if state.get("lang") == "en":
             blocks.append("输出语种要求：英文（English）")
+        if line_name == "actions":
+            source_state = dict(state)
+            source_state.pop("meeting_understanding", None)
+            blocks.append(
+                self._supervisor_source_pack(
+                    source_state, line_name, include_profile=False
+                )
+            )
+            blocks.append(
+                f"{_line_draft_title(line_name)}：\n"
+                f"{_json(compact_draft_for_review(sub['draft']))}"
+            )
+            revision = self._revision_instruction(state, line_name).replace(
+                f"视角模式：{self._mode_label(state)}",
+                "视角模式：objective",
+                1,
+            )
+            return f"{revision}\n\n" + "\n\n".join(blocks)
         if view in {VIEW_AGENDA_OBJECTIVE, VIEW_PERSONAL}:
             source_pack = self._supervisor_source_pack(
                 state, line_name, include_profile=False
@@ -989,6 +1008,20 @@ class _Nodes(DomainNodes):
             return build_render_context(
                 mode="personal",
                 objective=False,
+                blocks=blocks,
+                draft=sub.get("draft"),
+                review=sub.get("review") or {},
+                line_cn=_line_cn(line_name),
+                extra="",
+                dumps=_json,
+            )
+        if line_name == "actions":
+            blocks: list[tuple[str, object, str]] = []
+            if state.get("lang") == "en":
+                blocks.append(("输出语种要求", "英文（English）", "raw"))
+            return build_render_context(
+                mode="objective",
+                objective=True,
                 blocks=blocks,
                 draft=sub.get("draft"),
                 review=sub.get("review") or {},
@@ -1243,16 +1276,21 @@ class _Nodes(DomainNodes):
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
     def _build_core(self, builder, line_names=None) -> list[str]:
-        """核心层：会议理解（所有线都需要）+ 视角建模（按线按需）。
+        """核心层：会议理解（按线按需）+ 视角建模（按线按需）。
 
-        minutes_trace 是 deterministic 溯源线，不消费视角 → 跳过视角建模
-        （省一次 LLM 调用 + 省大输入 token）。
+        actions-only 直接进入待办 Agent，不构建会议理解 / 视角建模。
+        minutes_trace 是 deterministic 溯源线，不消费视角。
         """
+        selected = [name for name in (line_names or []) if name]
+        if selected == ["actions"]:
+            builder.add_node("actions_entry", self._make_actions_entry_node())
+            builder.add_edge(START, "actions_entry")
+            return ["actions_entry"]
+
         builder.add_node(
             "meeting_understanding",
             self._make_meeting_understanding_node(line_names),
         )
-        selected = [name for name in (line_names or []) if name]
         # 场景识别必须在会议理解之前：单线议题纪要会短路理解层，
         # 但模板必须在短路前写入 state["templates"]["minutes"]。
         if "minutes" in selected or not selected:
@@ -1281,6 +1319,14 @@ class _Nodes(DomainNodes):
             builder.add_edge(cores[-1], "minutes_view")
             cores = ["minutes_view"]
         return cores
+
+    def _make_actions_entry_node(self):
+        """actions-only 的零成本入口：没有会议理解 / 视角建模时的图起点。"""
+
+        async def node(state: dict) -> dict:
+            return {}
+
+        return node
 
     def _make_template_classify_node(self):
         """场景识别节点：开关关闭 / 显式模板 / 个人档时原样透传。"""

@@ -87,22 +87,15 @@ class ActionItemsRender:
 
     @staticmethod
     def extract_actions(state: MeetingState) -> list[dict]:
-        """从 state 中提取最终待办列表（降级兜底用，不调 LLM，比对在册名单校验责任人）。
-
-        客观视角：全员已分配待办 + 未分配待办；
-        个人视角：仅用户本人待办。
-        """
+        """从 state 中提取最终客观待办列表（降级兜底用，不调 LLM）。"""
         actions = (
             (state.get("lines") or {})
             .get("actions", {})
             .get("draft")
             or {}
         )
-        assigned = list(actions.get("assigned_actions") or actions.get("my_actions") or [])
-        if state.get("objective_perspective"):
-            items = assigned + list(actions.get("unassigned_actions") or [])
-        else:
-            items = assigned
+        assigned = list(actions.get("assigned_actions") or [])
+        items = assigned + list(actions.get("unassigned_actions") or [])
 
         roster: set[str] = set()
         mu = state.get("meeting_understanding") or {}
@@ -112,10 +105,6 @@ class ActionItemsRender:
                     roster.add(p.strip())
                 elif isinstance(p, dict) and p.get("name"):
                     roster.add(str(p["name"]).strip())
-        user_name = (state.get("user") or {}).get("name")
-        if user_name and str(user_name).strip():
-            roster.add(str(user_name).strip())
-
         return validate_action_roster(items, roster)
 
     @staticmethod
@@ -173,9 +162,9 @@ class ActionItemsRender:
                     task = task_raw
 
                 owner = str(item.get("owner") or "").strip()
-                timing = str(item.get("timing_anchor") or item.get("deadline") or "").strip()
+                timing = str(item.get("deadline") or "").strip()
                 collab = str(item.get("collaborators") or "").strip()
-                acceptance = str(item.get("acceptance_criteria") or item.get("deliverable") or "").strip()
+                acceptance = str(item.get("acceptance_criteria") or "").strip()
                 dependency = str(item.get("dependency") or "").strip()
 
                 if owner and owner.lower() not in _invalid:
@@ -203,11 +192,10 @@ class ActionItemsRender:
         actions = (
             (state.get("lines") or {}).get("actions", {}).get("draft") or {}
         )
-        assigned_items = list(actions.get("assigned_actions") or actions.get("my_actions") or [])
-        delegated_items = list(actions.get("delegated_actions") or [])
+        assigned_items = list(actions.get("assigned_actions") or [])
         unassigned_items = list(actions.get("unassigned_actions") or [])
 
-        all_items = assigned_items + delegated_items + unassigned_items
+        all_items = assigned_items + unassigned_items
         return ActionItemsRender.render_items(all_items)
 
     @staticmethod

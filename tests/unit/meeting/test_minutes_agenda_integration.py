@@ -733,15 +733,11 @@ def test_minutes_prompt_matter_oriented_governance():
     minutes_understanding_prompt = build_understanding_prompt(
         TASK_PROFILES["minutes"], task="minutes"
     )
-    actions_understanding_prompt = build_understanding_prompt(
-        TASK_PROFILES["actions"], task="actions"
-    )
     risks_understanding_prompt = build_understanding_prompt(
         TASK_PROFILES["risks"], task="risks"
     )
     assert "条目以被决定的业务事项为主干" in minutes_understanding_prompt
     assert "以被决定的业务事项为主干" in MEETING_UNDERSTANDING_AGENDA_SYSTEM_PROMPT
-    assert "严禁输出长篇背景叙事" not in actions_understanding_prompt
     assert "严禁主观脑补" not in risks_understanding_prompt
 
     # 4. 审核放行规则验证：确保 Supervisor 显式放行公文决议体与脱水表述

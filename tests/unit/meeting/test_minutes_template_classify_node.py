@@ -88,7 +88,10 @@ def test_graph_skips_classify_without_minutes() -> None:
         builder = _BuilderStub()
         _Nodes()._build_core(builder, lines)
         assert "template_classify" not in builder.nodes, lines
-        assert (START, "meeting_understanding") in builder.edges
+        if lines == ["actions"]:
+            assert "meeting_understanding" not in builder.nodes, lines
+        else:
+            assert (START, "meeting_understanding") in builder.edges
 
 
 def test_graph_includes_classify_for_all_lines() -> None:

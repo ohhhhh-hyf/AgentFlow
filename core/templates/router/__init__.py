@@ -54,7 +54,7 @@ LINE_SCHEMA_HINTS: dict[str, str] = {
         "unresolved_questions, personally_relevant_points"
     ),
     "actions": (
-        "my_actions / unassigned_actions；每项含 task, owner, deadline, priority, status"
+        "assigned_actions / unassigned_actions；每项含 category, task, owner, deadline"
     ),
     "risk": "risks 列表（描述、等级、相关方、缓解建议等）",
     "mindmap": "outline（Markdown 树状大纲：#/##/### 与 - 短分支；禁止表格）",

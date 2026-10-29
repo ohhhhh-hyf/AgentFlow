@@ -28,12 +28,10 @@ def _prompt(task: str) -> str:
     return build_understanding_prompt(profile, task=task)
 
 
-def test_task_profiles_match_four_task_matrix() -> None:
+def test_task_profiles_match_three_task_matrix() -> None:
+    assert "actions" not in TASK_PROFILES
     assert TASK_PROFILES["minutes"].segments == "full"
     assert TASK_PROFILES["minutes"].fields == ("decisions", "open_questions", "risks")
-
-    assert TASK_PROFILES["actions"].segments == "light"
-    assert TASK_PROFILES["actions"].fields == ("decisions", "action_hints")
 
     assert TASK_PROFILES["risks"].segments == "light"
     assert TASK_PROFILES["risks"].fields == ("open_questions", "risks", "risk_hints")
@@ -69,18 +67,10 @@ def test_memory_prompt_contains_all_fields() -> None:
         assert name in prompt
 
 
-def test_multi_task_is_union_fallback() -> None:
+def test_multi_task_ignores_actions_for_understanding() -> None:
     profile = resolve_profile(["actions", "risks"])
 
-    assert profile is not None
-    assert profile.segments == "light"
-    assert set(profile.fields) == {
-        "decisions",
-        "action_hints",
-        "open_questions",
-        "risks",
-        "risk_hints",
-    }
+    assert profile == TASK_PROFILES["risks"]
 
 
 def test_minutes_contract_and_prompt_exclude_hints_and_dependencies() -> None:
@@ -99,18 +89,9 @@ def test_minutes_contract_and_prompt_exclude_hints_and_dependencies() -> None:
     assert "context_and_reasoning" in prompt
 
 
-def test_actions_contract_and_prompt_only_use_action_hints() -> None:
-    contract = _contract_fields("actions")
-    prompt = _prompt("actions")
-
-    assert '"action_hints"' in contract
-    assert "action_hints" in prompt
-    for name in ("risk_hints", "open_questions", "risks", "dependencies"):
-        assert f'"{name}"' not in contract
-        assert name not in prompt
-
-    assert "context_and_reasoning" not in contract
-    assert "context_and_reasoning" not in prompt
+def test_actions_has_no_understanding_profile() -> None:
+    assert "actions" not in TASK_PROFILES
+    assert resolve_profile(["actions"]) is None
 
 
 def test_risks_contract_and_prompt_only_use_risk_hints() -> None:
@@ -215,7 +196,7 @@ def test_agent_uses_dynamic_prompt_and_contract() -> None:
             self.contract = contract
             return MeetingUnderstanding(meeting_brief="b", meeting_purpose="p")
 
-    for task in ("minutes", "actions", "risks", "mindmap"):
+    for task in ("minutes", "risks", "mindmap"):
         client = FakeClient()
         agent = MeetingUnderstandingAgent(client)  # type: ignore[arg-type]
         asyncio.run(agent.run("会议原文", active_tasks=[task]))

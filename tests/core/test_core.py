@@ -451,32 +451,27 @@ def test_action_items_render() -> None:
         "lines": {
             "actions": {
                 "draft": {
-                    "my_actions": [
+                    "assigned_actions": [
                         {
                             "category": "音视频SDK推流适配",
                             "task": "完成音视频推流协议适配与压测",
                             "owner": "张伟",
                             "deadline": "周五前",
-                            "deliverable": "压测报告及文档",
+                            "acceptance_criteria": "压测报告及文档",
                             "dependency": "需后端先提供鉴权Token",
-                            "priority": "high",
                             "evidence": "张伟周五前把推流适配好",
                         },
                         {
                             "category": "音视频SDK推流适配",
                             "task": "与基础架构团队联调鉴权网关",
                             "owner": "张伟",
-                            "priority": "medium",
                             "evidence": "张伟再跟架构联调一下",
                         },
-                    ],
-                    "delegated_actions": [
                         {
                             "category": "数据看表口径梳理",
                             "task": "梳理数据看表口径",
                             "owner": "李莉",
                             "deadline": "09-28",
-                            "priority": "medium",
                             "evidence": "李莉把看表口径理一下",
                         },
                     ],
@@ -484,7 +479,7 @@ def test_action_items_render() -> None:
                         {
                             "category": "预发布环境压测机申请",
                             "task": "申请预发布压测机器",
-                            "deliverable": "机器分配就绪",
+                            "acceptance_criteria": "机器分配就绪",
                             "evidence": "尽快去运维申请压测机",
                         },
                     ],

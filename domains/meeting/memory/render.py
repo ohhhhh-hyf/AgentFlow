@@ -2400,7 +2400,7 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
     if not (isinstance(raw_actions, list) and raw_actions):
         combined = []
         if isinstance(data, dict):
-            for k in ("my_actions", "delegated_actions", "unassigned_actions"):
+            for k in ("assigned_actions", "unassigned_actions"):
                 val = data.get(k)
                 if isinstance(val, list):
                     combined.extend(val)

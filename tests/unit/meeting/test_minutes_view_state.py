@@ -121,7 +121,9 @@ def test_build_core_skips_minutes_view_without_minutes() -> None:
     builder = _BuilderStub()
     cores = _Nodes()._build_core(builder, ["actions"])
 
-    assert cores == ["perspective_modeling"]
+    assert cores == ["actions_entry"]
+    assert "meeting_understanding" not in builder.nodes
+    assert "perspective_modeling" not in builder.nodes
     assert "minutes_view" not in builder.nodes
 
 

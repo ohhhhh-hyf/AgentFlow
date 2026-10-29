@@ -169,15 +169,6 @@ def build_core_contract_for_tasks(
     omitted = ALL_CORE_FIELD_NAMES - active_names
     return contract_str, omitted
 
-
-def is_actions_risks_only_tasks(active_tasks: Iterable[str] | None, memory_on: bool = False) -> bool:
-    """判定当前激活的任务是否仅属于 actions / risks 且未开启跨会记忆。"""
-    if memory_on or not active_tasks:
-        return False
-    selected = {str(t).strip() for t in active_tasks if str(t).strip()}
-    return bool(selected and selected.issubset({"actions", "risks"}))
-
-
 __all__ = [
     "ALL_CORE_FIELD_NAMES",
     "BASE_FIELD_NAMES",
@@ -187,5 +178,4 @@ __all__ = [
     "SESSION_SEGMENTS_LIGHT_FIELD",
     "build_core_contract_for_tasks",
     "fields_for_profile",
-    "is_actions_risks_only_tasks",
 ]
