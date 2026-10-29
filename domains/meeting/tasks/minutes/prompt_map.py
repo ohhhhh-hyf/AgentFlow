@@ -2,7 +2,7 @@
 
 - 生成 / 审核：``minutes_prompt_set`` 接收编排层已裁决的 view，返回对应 prompt；
 - 渲染：``render_template_prompt`` 按 view 选择模板渲染 prompt。
-  当前 objective / personal / role_template 共用同一份渲染 prompt。
+  personal 使用独立渲染 prompt；objective / role_template 共用通用渲染 prompt。
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from .prompts import (
     MINUTES_OBJECTIVE_GENERATION_PROMPT,
     MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
     MINUTES_PERSONAL_GENERATION_PROMPT,
+    MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT,
     MINUTES_PERSONAL_SUPERVISOR_PROMPT,
     MINUTES_RENDER_TEMPLATE_PROMPT,
 )
@@ -69,9 +70,12 @@ _PROMPTS: dict[str, MinutesPromptSet] = {
 
 
 def render_template_prompt(view: str) -> str:
-    """渲染 prompt 只分 agenda / 非 agenda；view 已由编排层裁决。"""
-    if is_agenda_view((view or "").strip().lower()):
+    """渲染 prompt 按 agenda / personal / 其它三路分派；view 已由编排层裁决。"""
+    normalized = (view or "").strip().lower()
+    if is_agenda_view(normalized):
         return MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+    if normalized == VIEW_PERSONAL:
+        return MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT
     return MINUTES_RENDER_TEMPLATE_PROMPT
 
 

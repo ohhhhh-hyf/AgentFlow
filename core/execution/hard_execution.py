@@ -441,8 +441,9 @@ def enforce_minutes_draft(
     """纪要草稿硬对齐：搬运字段措辞以会议理解为准。
 
     客观：三项全量拷贝。职业模板：按草稿下采（只删不改），对不上则回退全量。
-    **真人：同样下采，但选空就是空**（不回退全量，见 ``subset_upstream_items``）。
-    真人模式下，允许结合视角模型中的 data_gaps 作为 risks_and_blockers 的合法来源，保护外部卡点。
+    **真人：key_decisions 以理解 decisions 为准；risks / unresolved 以草稿为准**，
+    不再用上游全局 risks / open_questions 清洗个人草稿。
+    真人第一版不做 memory purge（草稿上下文不再包含原文）。
     议题增强模式下，以草稿自身提炼为准，跳过上游搬运覆盖。
     返回字典严格闭环保证 7 个契约键完整无缺。
     """
@@ -470,6 +471,31 @@ def enforce_minutes_draft(
             )
         return res
 
+    mode_key = (mode or "objective").strip().lower()
+    if mode_key == "personal":
+        upstream = dict(understanding or {})
+        headline = str(data.get("headline") or "").strip()
+        if not headline:
+            brief = str(upstream.get("meeting_brief") or "").strip()
+            data["headline"] = brief or (
+                "Meeting Minutes" if str(lang or "").strip().lower() == "en" else "会议纪要"
+            )
+        # 只有理解层确实产出了 decisions，才用它约束草稿；理解整体为空时保留草稿标题/决策。
+        if any(upstream.values()):
+            data["key_decisions"] = subset_upstream_items(
+                upstream.get("decisions"),
+                data.get("key_decisions"),
+                fallback_full=False,
+                preserve_groups=False,
+            )
+        res = _ensure_all_minutes_keys(data)
+        if memory_texts:
+            logger.info(
+                "[memory:purge] line=minutes mode=personal policy=skip_no_transcript decisions=%d",
+                len(res.get("key_decisions") or []),
+            )
+        return res
+
     out = enforce_upstream_carry(
         data,
         understanding,
@@ -489,7 +515,6 @@ def enforce_minutes_draft(
             if migrated:
                 res["history_comparison"] = list(res.get("history_comparison") or []) + migrated
         return res
-    mode_key = (mode or "objective").strip().lower()
     if mode_key not in _SUBSET_MODES:
         res = _ensure_all_minutes_keys(out)
         if memory_texts and transcript and "key_decisions" in res:
@@ -501,16 +526,6 @@ def enforce_minutes_draft(
                 res["history_comparison"] = list(res.get("history_comparison") or []) + migrated
         return res
     upstream = dict(understanding or {})
-    # 个人模式安全守卫：允许 perspective 中的 data_gaps 作为合法卡点源，避免被清洗
-    if mode_key == "personal" and isinstance(perspective, dict):
-        gaps = [str(g).strip() for g in (perspective.get("data_gaps") or []) if str(g).strip()]
-        if gaps:
-            existing_risks = list(upstream.get("risks") or [])
-            for gap in gaps:
-                if gap not in existing_risks:
-                    existing_risks.append(gap)
-            upstream["risks"] = existing_risks
-
     for dst, src in MINUTES_CARRY_MAP.items():
         out[dst] = subset_upstream_items(
             upstream.get(src),

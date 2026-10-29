@@ -473,7 +473,7 @@ async def test_supervisor_english_prompt_keeps_common_rules(context, view):
     prompt = mock_client.structured.call_args[0][0]
     assert "## 领域审核规则：纪要生成" in prompt
     assert "### 核心审查原则与免审边界" in prompt
-    assert "提炼字段为审查重点" in prompt
+    assert "只审送审稿中实际出现的内容" in prompt
 
 
 def test_minutes_render_prompt_and_fallback_draft():
@@ -646,7 +646,9 @@ The engineering team aligned on the Nov 15th cloud migration milestone.
     events = []
     async for event in system.run_streaming(
         transcript=transcript,
-        user={"name": "Alex"},
+        # 英文全链路测试锁定 objective 路径；personal 单线走新的 PersonalPerspective 链路，
+        # 其草稿上下文/渲染在阶段 3 单独验收。
+        user={"name": "Alex", "perspective": "objective"},
         templates={"minutes": template},
         lines=["minutes"],
         lang="en",

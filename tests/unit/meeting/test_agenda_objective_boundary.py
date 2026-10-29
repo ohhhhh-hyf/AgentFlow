@@ -322,14 +322,18 @@ def test_agenda_agent_context_has_no_personal_blocks() -> None:
     assert "会议原文" in context
 
 
-def test_normal_personal_context_keeps_personal_blocks() -> None:
+def test_normal_personal_context_is_4_plus_9_only() -> None:
+    """Step 6：个人单线草稿上下文只给 4+9，不再注入画像/命中/雷达。"""
     nodes = _Nodes()
     context = nodes._line_shared_context(_normal_personal_state(), "minutes")
-    assert "视角模式：personal" in context
-    assert "用户画像" in context
-    assert "用户视角模型" in context
-    assert "【本用户命中】" in context
-    assert "【重点关注雷达】" in context
+    assert context.startswith("会议理解：")
+    assert "meeting_brief" in context
+    assert "session_segments" in context
+    assert "meeting_purpose" not in context
+    assert "用户视角模型：" in context
+    assert "用户画像" not in context
+    assert "【本用户命中】" not in context
+    assert "【重点关注雷达】" not in context
 
 
 def test_agenda_supervisor_context_has_no_personal_blocks() -> None:
@@ -420,14 +424,18 @@ def test_agenda_supervisor_checklist_after_marker() -> None:
     assert "15. 议题：议题15（汇报人：张三）" in context
 
 
-def test_normal_supervisor_context_unchanged() -> None:
-    """普通 minutes 的 supervisor context 不带议程清单，个人块保持原样。"""
+def test_normal_supervisor_context_has_no_personal_hit_radar() -> None:
+    """Step 8：个人审核上下文保留送审稿 + 原文摘录，去掉命中/雷达/旧视角。"""
     nodes = _Nodes()
     context = nodes._supervisor_context(_normal_personal_state(), "minutes")
     assert "【现场审定的有效议题清单】" not in context
     assert "议题模式：agenda_enhanced" not in context
-    assert "【本用户命中】" in context
-    assert "【重点关注雷达】" in context
+    assert "纪要草稿：" in context
+    assert "原文（最高事实来源）：" in context
+    assert "【本用户命中】" not in context
+    assert "【重点关注雷达】" not in context
+    assert "用户画像" not in context
+    assert "用户视角模型" not in context
 
 
 def test_supervisor_source_pack_include_profile_flag() -> None:

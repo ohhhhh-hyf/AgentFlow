@@ -8,6 +8,7 @@ from domains.meeting.tasks.minutes.prompts import (
     MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
     MINUTES_PERSONAL_SUPERVISOR_PROMPT,
     MINUTES_SUPERVISOR_DOMAIN_PROMPT,
+    build_minutes_supervisor_prompt,
 )
 
 _ALL_PROMPTS = (
@@ -58,9 +59,10 @@ def test_common_base_drops_old_carry_wording() -> None:
 def test_common_base_has_no_duplicate_rule_blocks() -> None:
     assert _SUPERVISOR_COMMON_BASE.count("### 严重缺陷") == 1
     assert _SUPERVISOR_COMMON_BASE.count("只有以下情况才判 reject") == 1
-    assert _SUPERVISOR_COMMON_BASE.count("### 决策") == 1
-    assert _SUPERVISOR_COMMON_BASE.count("### 历史记忆审查") == 1
-    assert _SUPERVISOR_COMMON_BASE.count("### 多源辅助参考审查") == 1
+    # 决策 / 历史 / 辅助材料已移出静态基底，改为运行时动态拼接
+    assert _SUPERVISOR_COMMON_BASE.count("### 决策") == 0
+    assert _SUPERVISOR_COMMON_BASE.count("### 历史记忆审查") == 0
+    assert _SUPERVISOR_COMMON_BASE.count("### 多源辅助参考审查") == 0
     assert _SUPERVISOR_COMMON_BASE.count("### Findings") == 1
 
 
@@ -120,3 +122,51 @@ def test_supervisor_prompt_length_budget() -> None:
     # 软预算：防止 prompt 再次膨胀；数值留有余量，不锁死文案。
     assert len(_SUPERVISOR_COMMON_BASE) <= 1000
     assert len(MINUTES_AGENDA_SUPERVISOR_PROMPT) <= 1600
+
+def test_builder_omits_aux_history_when_absent() -> None:
+    prompt = build_minutes_supervisor_prompt("personal")
+    assert "### 多源辅助参考审查" not in prompt
+    assert "### 历史记忆审查" not in prompt
+    assert prompt.rstrip().endswith("- 以用户消息表头给出的可选动作为准。")
+
+
+def test_builder_includes_only_present_aux_rules() -> None:
+    notes = build_minutes_supervisor_prompt("objective", aux_labels=["notes"])
+    assert "【用户划线原话与笔记】" in notes
+    assert "【用户核心关键点】" not in notes
+    assert "【视觉信息参考(OCR)】" not in notes
+
+    both = build_minutes_supervisor_prompt(
+        "objective", aux_labels=["keypoints", "vision"]
+    )
+    assert "【用户核心关键点】" in both
+    assert "【视觉信息参考(OCR)】" in both
+    assert "【用户划线原话与笔记】" not in both
+
+
+def test_builder_appends_history_and_decision_last() -> None:
+    prompt = build_minutes_supervisor_prompt(
+        "personal",
+        has_history=True,
+        allowed_actions="返工次数已用完，本轮只能选择 approve 或 reject。",
+    )
+    assert "### 历史记忆审查" in prompt
+    assert "本轮只能选择 approve 或 reject" in prompt
+    assert prompt.rindex("### 决策") > prompt.rindex("### 历史记忆审查")
+
+
+def test_builder_detects_aux_history_and_allowed_actions_from_context() -> None:
+    context = (
+        "视角模式：personal\n"
+        "纪要返工次数：1/1\n"
+        "返工次数已用完，本轮只能选择 approve 或 reject。\n\n"
+        "【用户划线原话与笔记】\n- 备注：先别上线\n"
+        "【项目推进背景】\n- 上期已确认排期\n"
+        '纪要草稿：\n{"history_comparison": ["上期：v1"]}'
+    )
+    prompt = build_minutes_supervisor_prompt("personal", context=context)
+    assert "### 多源辅助参考审查" in prompt
+    assert "【用户划线原话与笔记】" in prompt
+    assert "### 历史记忆审查" in prompt
+    assert "本轮只能选择 approve 或 reject" in prompt
+

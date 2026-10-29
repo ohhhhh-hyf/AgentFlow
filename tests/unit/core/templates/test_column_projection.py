@@ -1207,123 +1207,6 @@ def test_understanding_user_channel() -> None:
     check("无称呼表时不注入空块（用户消息仍以会议原文开头）",
           "本用户称呼" not in stub.user and stub.user.startswith("会议原文："), stub.user[:60])
 
-def test_perspective_skip_for_personal() -> None:
-    """P1-C：真人命中非空时跳过视角建模（省一轮核心调用），改用程序合成。
-
-    回归背景：视角建模那轮看不到原文（输入只有理解 JSON + 画像），"他是谁"由理解层的
-    称呼表 + 命中表决定；有命中时它的产出字段（attention_points / responsibilities /
-    possible_actions / evidence）程序都能算，再跑一轮只是复述。唯一保留 LLM 的是
-    "真人 + 完全没命中 + 挂 role_template"。
-    """
-    import asyncio
-
-    from domains.meeting.orchestrator import _Nodes
-    from domains.shared.perspective import PerspectiveModeling
-
-    class _Spy:
-        def __init__(self, behave: str = "raise") -> None:
-            self.calls = 0
-            self.behave = behave
-
-        async def run(self, input_context, user_json):
-            self.calls += 1
-            if self.behave == "raise":
-                raise AssertionError("这一路不该调用视角建模 LLM")
-
-            class _Out:
-                @staticmethod
-                def model_dump() -> dict:
-                    return {"confidence": "high", "name": "赵衡", "inferred_role": "后端工程师"}
-
-            return _Out()
-
-    class _Host(_Nodes):
-        """只借 _Nodes 的方法；不跑父类 __init__（不建 LLM 客户端）。"""
-
-        def __init__(self, agent) -> None:
-            self.perspective_modeling_agent = agent
-
-        def _understanding(self, state):
-            return state.get("meeting_understanding") or {}
-
-    user = {"name": "赵衡", "name_aliases": ["小赵", "赵工"], "role": "后端工程师"}
-    understanding = {
-        "speakers": [{"name": "赵衡"}],
-        "action_hints": [{"text": "接口联调周五前给测试", "owner": "赵衡", "timing": "周五前"}],
-        "decisions": [],
-        "risks": [],
-        "open_questions": [],
-        "topics": [],
-    }
-    empty_understanding = {"speakers": [], "action_hints": [], "decisions": [], "risks": [],
-                           "open_questions": [], "topics": []}
-
-    spy = _Spy()
-    out = asyncio.run(
-        _Host(spy)._make_perspective_node(["minutes"])(
-            {"user": user, "meeting_understanding": understanding, "objective_perspective": False}
-        )
-    )
-    check("命中非空（单线）：没有调用视角建模 LLM", spy.calls == 0, f"calls={spy.calls}")
-    PerspectiveModeling.validate(out["perspective_profile"])  # 合成必须过 schema（全字段必填）
-    check("命中非空：合成模型过 schema，且要点/依据来自命中",
-          out["perspective_profile"]["name"] == "赵衡"
-          and "接口联调周五前给测试" in out["perspective_profile"]["attention_points"]
-          and bool(out["perspective_profile"]["evidence"]),
-          str(out["perspective_profile"])[:120])
-    check("命中表写进 state（供草稿/审核）",
-          (out.get("user_hits") or {}).get("confidence") == "high"
-          and "本用户命中" in (out.get("user_hits_block") or ""),
-          str(out.get("user_hits_block"))[:70])
-
-    spy2 = _Spy("ok")
-    asyncio.run(
-        _Host(spy2)._make_perspective_node(["minutes"])(
-            {
-                "user": dict(user, role_template="developer"),
-                "meeting_understanding": empty_understanding,
-                "objective_perspective": False,
-            }
-        )
-    )
-    check("未命中 + 有职业底：仍然跑建模（唯一保留）", spy2.calls == 1, f"calls={spy2.calls}")
-
-    spy3 = _Spy("ok")
-    asyncio.run(
-        _Host(spy3)._make_perspective_node(["minutes", "actions"])(
-            {"user": user, "meeting_understanding": understanding, "objective_perspective": False}
-        )
-    )
-    check("多线请求：不跳（保待办/风险线的视角模型）", spy3.calls == 1, f"calls={spy3.calls}")
-
-    # 保守口径（2026-09-21 定）：画像里有可扫关注域（挂职业底 / 自写 focus_areas 等）→ 一律走建模。
-    # 理由：命中表只按姓名查，"没点名但落在他关注域"的条目只有建模能捞；只有极简画像才允许跳过。
-    spy5 = _Spy("ok")
-    asyncio.run(
-        _Host(spy5)._make_perspective_node(["minutes"])(
-            {
-                "user": dict(user, focus_areas=["接口契约与依赖", "排期节点"]),
-                "meeting_understanding": understanding,
-                "objective_perspective": False,
-            }
-        )
-    )
-    check("自写关注域 + 命中非空：仍走建模（保守口径）", spy5.calls == 1, f"calls={spy5.calls}")
-
-    spy4 = _Spy("ok")
-    out4 = asyncio.run(
-        _Host(spy4)._make_perspective_node(["minutes"])(
-            {
-                "user": {k: v for k, v in user.items()},
-                "meeting_understanding": empty_understanding,
-                "objective_perspective": False,
-            }
-        )
-    )
-    check("未命中 + 无职业底：跳过并合成「本场未点到」（不跑 LLM）",
-          spy4.calls == 0 and "未点到" in out4["perspective_profile"]["personal_summary"],
-          f"calls={spy4.calls} {out4['perspective_profile']['personal_summary']}")
-
 def test_personal_no_full_fallback() -> None:
     """P1-10 真人不再"裁空回退全量" + P2-F 命中表进审核上下文与三条检查。
 
@@ -1542,23 +1425,16 @@ def test_render_context_personal_injection() -> None:
 
 
 def test_render_view_directive() -> None:
-    """装配那一轮的「本视角纪律」：模板路径正文是通用填充器逐栏写的，纪律必须随栏下发。
-
-    回归背景（2026-09-21 用户第二轮实测「还是整体输出」）：上一版把聚焦规则写进
-    旧的无模板 LLM 渲染提示词，但**带模板时那条路根本不执行**——逐栏填充的 system 只有
-    「你只写本栏正文」，正文只按模板栏名（全文摘要 / 分段速览）走，于是真人模式照样写成
-    整场纪要（实测 8172 字、超本篇参考上限 48%，与客观版看不出区别）。这里锁住：
-    纪律进每一栏的用户消息、经领域钩子只在真人纪要线生效、客观与其它线一字不变。
-    """
+    """逐栏填充器仍支持本视角纪律；会议个人钩子已不再注入纪律。"""
     import asyncio
 
     from domains.meeting.orchestrator import _Nodes
-    from domains.shared.perspective import PERSONAL_VIEW_DIRECTIVE, VIEW_DIRECTIVE_TITLE
     from core.templates.router import fill_placeholder_template
     from core.templates.router._placeholder import _column_fill_user
 
     template = "# 通用纪要\n\n# [全文摘要]\n[一段话概括]\n\n# [要点梳理]\n[分点列具体事实]\n"
-    mark = f"【{VIEW_DIRECTIVE_TITLE}】"
+    mark = "【本视角纪律】"
+    directive = f"{mark}\n- 只写本人相关内容\n- 本人动作省主语"
 
     class _Stub:
         """只记 (system, user)，不调 LLM。"""
@@ -1581,7 +1457,7 @@ def test_render_view_directive() -> None:
     stub = _Stub()
     asyncio.run(
         fill_placeholder_template(
-            stub, "来源", template, source_han=9000, directives=PERSONAL_VIEW_DIRECTIVE
+            stub, "来源", template, source_han=9000, directives=directive
         )
     )
     check("逐栏填充：每一栏的用户消息都带本视角纪律",
@@ -1592,9 +1468,9 @@ def test_render_view_directive() -> None:
 
     host = _Host()
     personal = {"user": {"name": "申家坤"}}
-    check("钩子：真人纪要线（minutes / minutes_styles）→ 有纪律",
-          mark in host._render_directives(personal, "minutes")
-          and mark in host._render_directives(personal, "minutes_styles"), "")
+    check("钩子：个人纪要线不再注入本视角纪律",
+          host._render_directives(personal, "minutes") == ""
+          and host._render_directives(personal, "minutes_styles") == "", "")
     check("钩子：客观、非纪要线、职业模板 → 都不注入",
           host._render_directives({**personal, "objective_perspective": True}, "minutes") == ""
           and host._render_directives(personal, "actions") == ""
@@ -1603,30 +1479,9 @@ def test_render_view_directive() -> None:
           ) == "",
           "")
 
-    from domains.shared.perspective import PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-    personal_custom = {
-        "user": {"name": "申家坤"},
-        "templates": {"minutes": "# [本场概况与本人定调]\n[说明]\n"},
-    }
-    check(
-        "钩子：真人模式 + 专属个人模板 → 注入 PERSONAL_TEMPLATE_VIEW_DIRECTIVE",
-        host._render_directives(personal_custom, "minutes") == PERSONAL_TEMPLATE_VIEW_DIRECTIVE,
-        host._render_directives(personal_custom, "minutes")[:60],
-    )
-    check(
-        "钩子：真人模式 + 通用模板 → 注入通用纪律 PERSONAL_VIEW_DIRECTIVE",
-        host._render_directives(personal, "minutes") == PERSONAL_VIEW_DIRECTIVE,
-        "",
-    )
-    check(
-        "钩子：客观模式 + 专属个人模板 → 绝不注入（客观纪要 100% 零影响）",
-        host._render_directives({**personal_custom, "objective_perspective": True}, "minutes") == "",
-        "",
-    )
-
     user = _column_fill_user(
         "来源", template, index=1, total=2, hint="一段话概括", title="全文摘要",
-        others=["要点梳理"], directives=PERSONAL_VIEW_DIRECTIVE,
+        others=["要点梳理"], directives=directive,
     )
     check("纪律排在【本栏说明】之后、【内容来源】之前",
           user.index("【本栏说明】") < user.index(mark) < user.index("【内容来源】"), "")
@@ -1634,26 +1489,6 @@ def test_render_view_directive() -> None:
           mark not in _column_fill_user(
               "来源", template, index=1, total=2, hint="一段话概括", title="全文摘要",
               others=["要点梳理"], directives="",
-          ),
-          "")
-    check("纪律自带优先级：模板写「客观、非人格化」时人称与取舍以纪律为准",
-          "人称与取舍以本纪律为准" in PERSONAL_VIEW_DIRECTIVE
-          and "栏名、结构与事实口径照模板不变" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("纪律含六条硬口径（相关=点名 / 聚焦 / 不漏全局 / 人名口径 / 命中表为准 / 不留空栏）",
-          all(
-              clause in PERSONAL_VIEW_DIRECTIVE
-              for clause in (
-                  "相关＝点名，不是「属于他的关注领域」",
-                  "以本人为叙事主线",
-                  "别人主讲、且与他无关的板块压成一句带过",
-                  "关键数字仍**不得漏**",
-                  "本人动作省主语",
-                  "他人动作写真名",
-                  "同一句与相邻两句不混用",
-                  "以它为准",
-                  "不要留空栏",
-                  "已按人裁剪",
-              )
           ),
           "")
 

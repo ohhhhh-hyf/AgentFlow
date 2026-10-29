@@ -19,9 +19,9 @@ from langgraph.graph import START
 
 from infra.llm import LLMClient
 from domains.shared.perspective import (
+    PERSONAL_DRAFT_UNDERSTANDING_FIELDS,
+    PERSONAL_PERSPECTIVE_FIELDS,
     PREFERENCE_LINES,
-    PERSONAL_TEMPLATE_VIEW_DIRECTIVE,
-    PERSONAL_VIEW_DIRECTIVE,
     PerspectiveModelingAgent,
     address_aliases,
     build_preference_block,
@@ -40,6 +40,7 @@ from .domain_config import (
 from .views import (
     AgendaPersonalUnsupported,
     VIEW_AGENDA_OBJECTIVE,
+    VIEW_PERSONAL,
     resolve_minutes_view,
 )
 from core.runner.profiles import resolve_profile_mode
@@ -704,11 +705,44 @@ class _Nodes(DomainNodes):
             )
             return VIEW_AGENDA_OBJECTIVE
 
+    def _personal_draft_context(self, state: dict) -> str:
+        """个人单线草稿上下文：4 个全局字段 + 9 个本人投影字段 + 可选辅助材料。
+
+        标签保持 ``会议理解：`` / ``用户视角模型：``，供 MinutesGenerationAgent
+        的 extract_labeled_json 直接解析；不注入画像、偏好、命中、雷达、原文、预算。
+        """
+        understanding = self._understanding(state) or {}
+        understanding_4 = {
+            key: understanding[key]
+            for key in PERSONAL_DRAFT_UNDERSTANDING_FIELDS
+            if key in understanding
+        }
+        perspective = state.get("personal_perspective") or {}
+        if not isinstance(perspective, dict):
+            perspective = {}
+        perspective_9 = {
+            key: perspective[key]
+            for key in PERSONAL_PERSPECTIVE_FIELDS
+            if key in perspective
+        }
+        parts = [
+            f"会议理解：\n{_json(understanding_4)}",
+            f"用户视角模型：\n{_json(perspective_9)}",
+        ]
+        aux = str((state.get("line_extra") or {}).get("minutes_auxiliary") or "").strip()
+        if aux:
+            parts.append(f"【辅助材料】\n{aux}")
+        return "\n\n".join(parts)
+
     def _line_shared_context(self, state: dict, line_name: str) -> str:
         """按任务线裁剪后的 Agent 上下文。
 
         仍保留「会议理解」标签，兼容 minutes 的硬执行对齐。
         """
+        view = self._minutes_view(state, line_name)
+        if line_name == "minutes" and view == VIEW_PERSONAL:
+            return self._personal_draft_context(state)
+
         pack = self._meeting_pack(state, line_name)
         if line_name == "agenda_minutes":
             agenda_text = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
@@ -723,7 +757,6 @@ class _Nodes(DomainNodes):
             parts = [f"会议理解：\n{_json(pack)}"]
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")
             return "\n\n".join(parts)
-        view = self._minutes_view(state, line_name)
         view_mode = "objective" if view == VIEW_AGENDA_OBJECTIVE else view
         if line_name == "minutes":
             if state.get("has_valid_agenda"):
@@ -867,7 +900,7 @@ class _Nodes(DomainNodes):
                 )
         if state.get("lang") == "en":
             blocks.append("输出语种要求：英文（English）")
-        if view == VIEW_AGENDA_OBJECTIVE:
+        if view in {VIEW_AGENDA_OBJECTIVE, VIEW_PERSONAL}:
             source_pack = self._supervisor_source_pack(
                 state, line_name, include_profile=False
             )
@@ -887,22 +920,23 @@ class _Nodes(DomainNodes):
                 blocks.append(aux_block)
         # 命中表（程序判定，带依据）：真人/职业模板下是"谁的事"的唯一硬依据
         hits = str(state.get("user_hits_block") or "").strip()
-        if hits and view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
+        if hits and view not in {"objective", VIEW_AGENDA_OBJECTIVE, VIEW_PERSONAL}:
             blocks.append(hits)
         radar = str(state.get("user_radar_block") or "").strip()
         if (
             not radar
-            and view not in {"objective", VIEW_AGENDA_OBJECTIVE}
+            and view not in {"objective", VIEW_AGENDA_OBJECTIVE, VIEW_PERSONAL}
             and line_name in PREFERENCE_LINES
         ):
             radar = render_radar_block(state.get("user") or {})
-        if radar and view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
+        if radar and view not in {"objective", VIEW_AGENDA_OBJECTIVE, VIEW_PERSONAL}:
             blocks.append(radar)
-        budget = self._length_budget_line(
-            state, line_name, include_columns=False
-        )
-        if budget:
-            blocks.append(budget)
+        if view != VIEW_PERSONAL:
+            budget = self._length_budget_line(
+                state, line_name, include_columns=False
+            )
+            if budget:
+                blocks.append(budget)
         blocks.append(
             f"{_line_draft_title(line_name)}：\n"
             f"{_json(compact_draft_for_review(sub['draft'], drop_keys=_SUPERVISOR_CARRY_DROP if line_name == 'minutes' else None))}"
@@ -947,8 +981,22 @@ class _Nodes(DomainNodes):
 
         sub = _line(state, line_name)
         extra = (state.get("line_extra") or {}).get(line_name) or ""
-        pack = self._meeting_pack(state, line_name)
         view = self._minutes_view(state, line_name)
+        if line_name == "minutes" and view == VIEW_PERSONAL:
+            blocks: list[tuple[str, object, str]] = []
+            if state.get("lang") == "en":
+                blocks.append(("输出语种要求", "英文（English）", "raw"))
+            return build_render_context(
+                mode="personal",
+                objective=False,
+                blocks=blocks,
+                draft=sub.get("draft"),
+                review=sub.get("review") or {},
+                line_cn=_line_cn(line_name),
+                extra="",
+                dumps=_json,
+            )
+        pack = self._meeting_pack(state, line_name)
         view_mode = "objective" if view == VIEW_AGENDA_OBJECTIVE else view
         if line_name in PREFERENCE_LINES and view != VIEW_AGENDA_OBJECTIVE:
             pack = self._person_pack(pack, state)
@@ -1047,25 +1095,6 @@ class _Nodes(DomainNodes):
             len(text),
         )
         return text
-
-    def _render_directives(self, state: dict, line_name: str) -> str:
-        """装配那一轮的「本栏写作纪律」：真人模式按本人聚焦，客观/职业模板不注入。
-
-        为什么必须从这里下发：带模板时正文由 ``tools.templates.router`` 通用填充器逐栏写，
-        system 里只有「你只写本栏正文」；旧的无模板 LLM 渲染路径已删除，不能再依赖它。
-        不下发取舍纪律，模型就只剩模板栏名（全文摘要 / 分段速览）可依，个人模式照样写成整场纪要
-        （实测 8172 字、超本篇参考上限 48%，与客观版看不出区别）。
-
-        职业模板不发：那份画像没有真人姓名，「你」无从指代，关注域已由【用户视角模型】块承担。
-        """
-        if self._minutes_view(state, line_name) == VIEW_AGENDA_OBJECTIVE:
-            return ""
-        if self._mode_label(state) != "personal" or line_name not in PREFERENCE_LINES:
-            return ""
-        template = str((state.get("templates") or {}).get(line_name) or "")
-        if any(marker in template for marker in ("会议概况", "业务进展", "相关行动", "相关风险", "本场概况与承接目标", "本场概况与本人定调", "会议全貌与本人定调", "全局局势与承接目标", "重点关注与业务进展", "行动项与协同依赖", "待确认事项与潜在风险", "待确认事项与风险", "待确认与风险", "待确认事项与风险卡点", "待确认与风险卡点")):
-            return PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-        return PERSONAL_VIEW_DIRECTIVE
 
     def _person_pack(self, pack: dict, state: dict) -> dict:
         """真人纪要线的素材裁剪：理解包里的"别人为主语"条目去掉（客观/职业模板不动）。
@@ -1211,35 +1240,6 @@ class _Nodes(DomainNodes):
             return node
         return super()._make_fallback_node(line_name)
 
-    def _post_render_hook(self, state: dict, line_name: str) -> None:
-        super()._post_render_hook(state, line_name)
-        if (
-            line_name in PREFERENCE_LINES
-            and self._minutes_view(state, line_name) == "personal"
-        ):
-            try:
-                line_data = _line(state, line_name)
-                rendered = line_data.get("rendered")
-                if rendered and isinstance(rendered, str):
-                    from domains.shared.perspective.hits import normalize_personal_sections
-                    from domains.shared.perspective.preferences import address_aliases, extract_supervisors
-
-                    user = state.get("user") or {}
-                    name = str(user.get("name") or "").strip()
-                    aliases = address_aliases(user)
-                    addresses = [a for a in (name, *aliases) if a]
-                    supervisors = extract_supervisors(user)
-                    normalized = normalize_personal_sections(
-                        rendered,
-                        addresses=addresses,
-                        self_name=name,
-                        supervisors=supervisors,
-                    )
-                    if normalized != rendered:
-                        line_data["rendered"] = normalized
-            except Exception:
-                logger.warning("normalize_personal_sections failed line=%s", line_name, exc_info=True)
-
     # ── 领域钩子：core 节点 ───────────────────────────────────
 
     def _build_core(self, builder, line_names=None) -> list[str]:
@@ -1317,8 +1317,13 @@ class _Nodes(DomainNodes):
 
         async def node(state: dict) -> dict:
             from domains.shared.perspective import (
+                EMPTY_PERSONAL_PERSPECTIVE,
                 EMPTY_PERSPECTIVE_MODELING,
+                PERSONAL_PERSPECTIVE_PROMPT_VERSION,
+                PERSONAL_PROFILE_FIELDS,
+                PERSONAL_UNDERSTANDING_FIELDS,
                 build_hit_table,
+                build_personal_evidence_pack,
                 render_hit_block,
                 render_radar_block,
                 skip_reason,
@@ -1346,6 +1351,73 @@ class _Nodes(DomainNodes):
                         "user_action_groups_block": "",
                         "user_radar_block": "",
                     }
+
+            selected = [name for name in (line_names or []) if name]
+            if (
+                view == VIEW_PERSONAL
+                and selected == ["minutes"]
+                and not state.get("has_valid_agenda")
+                and not state.get("objective_perspective")
+            ):
+                understanding_all = self._understanding(state) or {}
+                understanding_7 = {
+                    key: understanding_all[key]
+                    for key in PERSONAL_UNDERSTANDING_FIELDS
+                    if key in understanding_all
+                }
+                user_all = state.get("user") or {}
+                profile_6 = {
+                    key: user_all[key]
+                    for key in PERSONAL_PROFILE_FIELDS
+                    if key in user_all
+                }
+                evidence, evidence_stats = build_personal_evidence_pack(
+                    state.get("transcript") or "", user_all
+                )
+                logger.info(
+                    "[perspective:personal:start] understanding_fields=%d profile_fields=%d "
+                    "evidence_chars=%d track=%s fallback=%s capped=%s prompt_version=%s",
+                    len(understanding_7),
+                    len(profile_6),
+                    len(evidence),
+                    evidence_stats.get("track"),
+                    evidence_stats.get("fallback"),
+                    evidence_stats.get("capped"),
+                    PERSONAL_PERSPECTIVE_PROMPT_VERSION,
+                )
+                try:
+                    result = await self.perspective_modeling_agent.run_personal(
+                        understanding_7,
+                        evidence,
+                        profile_6,
+                    )
+                    profile = result.model_dump() if hasattr(result, "model_dump") else result
+                    if not isinstance(profile, dict):
+                        raise TypeError("personal perspective result is not a dict")
+                except Exception:  # noqa: BLE001 - 降级为空模型，不把请求打成 500
+                    logger.warning(
+                        "personal perspective failed, degrade line=%s",
+                        "minutes",
+                        exc_info=True,
+                    )
+                    return {
+                        "personal_perspective": EMPTY_PERSONAL_PERSPECTIVE,
+                        "quality_degraded": True,
+                    }
+                logger.info(
+                    "[perspective:personal:done] confidence=%s focus_points=%d "
+                    "possible_actions=%d collaborations=%d concerns=%d data_gaps=%d "
+                    "focus_risks=%d open_questions=%d",
+                    profile.get("confidence"),
+                    len(profile.get("focus_points") or []),
+                    len(profile.get("possible_actions") or []),
+                    len(profile.get("collaborations") or []),
+                    len(profile.get("concerns") or []),
+                    len(profile.get("data_gaps") or []),
+                    len(profile.get("focus_risks") or []),
+                    len(profile.get("open_questions") or []),
+                )
+                return {"personal_perspective": profile}
 
             user = state.get("user") or {}
             name = str(user.get("name") or "").strip()

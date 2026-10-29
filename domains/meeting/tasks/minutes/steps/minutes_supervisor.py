@@ -7,11 +7,11 @@ from ....models import MinutesSupervisorReview
 from ..contracts import MINUTES_SUPERVISOR_OUTPUT_CONTRACT
 from ..prompt_map import (
     is_agenda_view,
-    minutes_prompt_set,
     prompt_label,
 )
 from ..prompts import (
     MINUTES_SUPERVISOR_DOMAIN_PROMPT,
+    build_minutes_supervisor_prompt,
     localize_agenda_headings_for_en,
 )
 
@@ -40,8 +40,7 @@ class MinutesGenerationSupervisor(StructuredDomainSupervisor):
         view = (view or "").strip().lower()
         if not view:
             raise ValueError("minutes supervisor view is required")
-        prompt_set = minutes_prompt_set(view)
-        raw_domain_prompt = prompt_set.supervisor
+        raw_domain_prompt = build_minutes_supervisor_prompt(view, context=context)
         label_mode = prompt_label(view)
 
         lang_val = lang or parse_lang_mode(context)

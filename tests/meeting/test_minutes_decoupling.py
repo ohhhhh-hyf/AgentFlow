@@ -183,22 +183,21 @@ def test_minutes_supervisor_prompts_decoupling():
         assert "只审送审稿中实际出现的内容" in sup
         assert "严重缺陷" in sup
         assert "拿不准就选它" in sup
-        assert "key_decisions" not in sup
         assert "与上游不一致" not in sup
 
     # 客观专属审查
     assert "全员平铺结构" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
-    assert "客观模式审查专项" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
+    assert "客观模式审查范围" in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
 
     # 个人专属审查
     assert "动宾短语开头、省略主语" in MINUTES_PERSONAL_SUPERVISOR_PROMPT
-    assert "自适应裁剪放行保障" in MINUTES_PERSONAL_SUPERVISOR_PROMPT
+    assert "自适应裁剪属于规范" in MINUTES_PERSONAL_SUPERVISOR_PROMPT
 
 
 # ── 5. 强执行层字典闭环与 data_gaps 合流测试 ────────────────────────────────────
 
 def test_hard_execution_enforce_minutes_draft_completeness_and_gaps():
-    """验证 enforce_minutes_draft 保证 7 契约键完整，并在个人模式合流 data_gaps。"""
+    """验证 enforce_minutes_draft 保证 7 契约键完整；个人 risks/unresolved 草稿为准。"""
     upstream = {
         "decisions": ["全员方案A拍板"],
         "risks": ["内部服务超时风险"],
@@ -216,14 +215,16 @@ def test_hard_execution_enforce_minutes_draft_completeness_and_gaps():
         "data_gaps": ["外部数据断供卡点：测试物料未到位"],
     }
 
-    # 5.1 个人模式下 data_gaps 成功保留，不被粗暴清洗
+    # 5.1 个人模式下 risks 以草稿为准，不再被上游全局 risks 覆盖；data_gaps 已在草稿中
     enforced_pers = enforce_minutes_draft(
         raw_draft,
         upstream,
         mode="personal",
         perspective=perspective,
     )
-    assert "外部数据断供卡点：测试物料未到位" in enforced_pers["risks_and_blockers"]
+    assert enforced_pers["risks_and_blockers"] == raw_draft["risks_and_blockers"]
+    assert enforced_pers["unresolved_questions"] == []
+    assert "内部服务超时风险" not in enforced_pers["risks_and_blockers"]
     assert "history_comparison" in enforced_pers  # 契约键自动补齐
 
     # 5.2 客观模式下 risks 严格与 upstream 保持一致

@@ -142,48 +142,6 @@ def test_injection_scope() -> None:
     )
 
 
-def test_view_directive() -> None:
-    """本视角纪律：装配那一轮（逐栏填充）的取舍口径，独立于渲染提示词。"""
-    from domains.shared.perspective.preferences import (
-        PERSONAL_VIEW_DIRECTIVE,
-        SELF_GROUP_NAME,
-        SELF_GROUP_ROW,
-        VIEW_DIRECTIVE_TITLE,
-    )
-
-    check("块头是独立标题（正文里能一眼认出是哪条纪律）",
-          PERSONAL_VIEW_DIRECTIVE.startswith(f"【{VIEW_DIRECTIVE_TITLE}】"), "")
-    check("纪律管取舍不管结构：栏名与事实口径仍照模板",
-          "栏名、结构与事实口径照模板不变" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("模板要求「客观、非人格化」时，人称与取舍以纪律为准（否则真人模式被模板按住）",
-          "人称与取舍以本纪律为准" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("整栏与他无关时自适应隐去（防注水裁剪）",
-          "自适应隐去" in PERSONAL_VIEW_DIRECTIVE or "不要留空栏" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("纪律含硬口径：末尾三栏按人分组（形状照抄 + 自己的在前不写姓名、他人的按姓名分组）",
-          SELF_GROUP_ROW in PERSONAL_VIEW_DIRECTIVE
-          and "组名行独占一行" in PERSONAL_VIEW_DIRECTIVE
-          and "他人的按其姓名分组" in PERSONAL_VIEW_DIRECTIVE
-          and "不写自己的姓名" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("纪律：点明末尾三栏（结论与决定 / 行动项与分工 / 待确认与风险）都按人分组",
-          "末尾三栏（结论与决定 / 行动项与分工 / 待确认与风险）都按「人」分组"
-          in PERSONAL_VIEW_DIRECTIVE,
-          "")
-    check("纪律：无归属的全局项不加姓名（不点名具体栏、也不冠本人组名）",
-          "**有明确归属才分组**：看不出归属的全局项平铺在最前、不加任何姓名"
-          in PERSONAL_VIEW_DIRECTIVE
-          and f"也不冠「{SELF_GROUP_NAME}」" in PERSONAL_VIEW_DIRECTIVE,
-          "")
-    check("组名口径：本人那一组统一叫「与我相关」（不是「我的事项」——结论/风险不是事项）",
-          SELF_GROUP_ROW == "**与我相关**：" and SELF_GROUP_NAME == "与我相关", SELF_GROUP_ROW)
-    check("纪律含可照抄的形状微样（组名行 + 块内条目）",
-          "形状照抄" in PERSONAL_VIEW_DIRECTIVE
-          and "（本人条目，不写自己的姓名）" in PERSONAL_VIEW_DIRECTIVE
-          and "（该人的条目，不重复姓名）" in PERSONAL_VIEW_DIRECTIVE, "")
-    check("纪律不含任何人物事实（纯写作纪律，不引入可被抄进正文的名字/数字）",
-          "申家坤" not in PERSONAL_VIEW_DIRECTIVE
-          and "赵衡" not in PERSONAL_VIEW_DIRECTIVE, "")
-
-
 def test_action_groups_block() -> None:
     """分栏分组骨架：把"要出现哪些组名行"变成可照抄的清单（模型只复制、不重排）。"""
     from domains.shared.perspective import render_action_groups_block
@@ -534,7 +492,7 @@ def test_tolerant_field_forms() -> None:
 def test_personal_grouping_and_normalization() -> None:
     """测试真人视角建模的分组保留、上级感知与确定性格式化。"""
     from domains.shared.perspective.preferences import extract_supervisors
-    from domains.shared.perspective.hits import normalize_personal_sections, render_action_groups_block
+    from domains.shared.perspective.hits import render_action_groups_block
     from core.execution.gate import subset_upstream_items
 
     # 1. extract_supervisors
@@ -571,63 +529,6 @@ def test_personal_grouping_and_normalization() -> None:
     check("草稿下采（真人）：保留组名行且按上游原文对齐",
           res == ["**与我相关**：", "长文本回去改配置，明天给结论。", "**徐玥**：", "周五前完成接口联调。"],
           str(res))
-
-    # 4. normalize_personal_sections 规范化
-    raw_doc = (
-        "# 要点梳理\n\n"
-        "## 议题讨论\n- 讨论了长文本评测。\n\n"
-        "## 行动项与分工\n"
-        "- 申家坤：长文本回去改配置，明天给结论。\n"
-        "- 徐玥：关注评测指标。\n"
-        "- 张三：准备联调数据。\n\n"
-        "## 待确认与风险\n"
-        "- **与我相关**：\n"
-        "  - 显存不够可能导致 OOM\n"
-        "- **徐玥**：\n"
-        "  - 排期依赖外部团队\n"
-    )
-    norm = normalize_personal_sections(
-        raw_doc,
-        addresses=["申家坤", "家坤"],
-        self_name="申家坤",
-        supervisors=["徐玥"],
-    )
-    check("规范化：非目标节不受影响", "## 议题讨论\n- 讨论了长文本评测。" in norm, norm)
-    check("规范化：本人组置顶且条目不带冗余姓名",
-          "## 行动项与分工\n**与我相关**：\n- 长文本回去改配置，明天给结论。" in norm, norm)
-    check("规范化：上级紧随本人之后",
-          "**与我相关**：\n- 长文本回去改配置，明天给结论。\n\n**徐玥**：\n- 关注评测指标。" in norm, norm)
-    check("规范化：多余子条符号修复为干净组名结构",
-          "## 待确认与风险\n**与我相关**：\n- 显存不够可能导致 OOM\n\n**徐玥**：\n- 排期依赖外部团队" in norm, norm)
-
-
-def test_personal_template_view_directive() -> None:
-    """专属个人模板纪律：契合个人工作台原生契约，无通用模板对抗指令。"""
-    from domains.shared.perspective import (
-        PERSONAL_TEMPLATE_VIEW_DIRECTIVE,
-        VIEW_DIRECTIVE_TITLE,
-    )
-
-    check("专属纪律：块头也是独立标题",
-          PERSONAL_TEMPLATE_VIEW_DIRECTIVE.startswith(f"【{VIEW_DIRECTIVE_TITLE}】"), "")
-    check("专属纪律：以本人为叙事主线",
-          "以本人为叙事主线" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
-    check("专属纪律：人名口径包含本人省主语与他人写真名",
-          "本人动作省主语" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-          and "他人动作写真名" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
-    check("专属纪律：分栏组名包含本人相关和重点关注",
-          "本人相关" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-          and "重点关注" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
-    check("专属纪律：无通用模板栏名对抗修正（没有「全文摘要」「分段速览」等对抗词）",
-          "全文摘要" not in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-          and "分段速览" not in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
-    check("专属纪律：严格禁止使用任何 emoji 表情符号与机械占位符（去AI味）",
-          "严禁使用任何 emoji 表情符号" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-          and "去AI味" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
-    check("专属纪律：业务进展模块化大盘包含业务进展",
-          "业务进展模块化大盘" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-          and "业务进展" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
-
 
 def test_personal_template_config_and_task_routing() -> None:
     """测试个人模板配置与 tasks 路由：profile=user 直接走 personal_minutes，客观纪要 100% 隔离走 general_minutes。"""
@@ -832,12 +733,7 @@ def test_personal_perspective_modeling_pruning_and_projection() -> None:
     check("建模层产出：承接目标事实块升级", "核心承接目标与事项" in summary and "按既定节点推进交付" in summary, summary)
     check("建模层产出：彻底消灭内部机器日志腔", "本场与申家坤直接相关" not in summary, summary)
 
-    # 2. 指令层范式验证
-    from domains.shared.perspective import PERSONAL_TEMPLATE_VIEW_DIRECTIVE
-    check("指令层：注入高管任务简报规范与去我化约束",
-          "高管任务简报文风" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE and "去“我”化" in PERSONAL_TEMPLATE_VIEW_DIRECTIVE, "")
-
-    # 3. 栏目靶向瘦身验证（Targeted Column Context Pruning）
+    # 2. 栏目靶向瘦身验证（Targeted Column Context Pruning）
     context = (
         "视角模式：personal\n"
         "objective_perspective：False\n\n"
@@ -1015,8 +911,6 @@ def test_personal_perspective_dual_track() -> None:
         is_anonymous_speaker,
         DialogueBlock,
     )
-    from domains.shared.perspective.hits import normalize_personal_sections
-
     user = {
         "name": "赵衡",
         "name_aliases": ["小赵", "赵工"],
@@ -1127,27 +1021,12 @@ def test_personal_perspective_dual_track() -> None:
     check("Channel Track B: 包含代号指引与正文解密规则", "Track B 模式" in channel_track_b and "我是赵衡" in channel_track_b, channel_track_b)
     check("Channel Track B: 严禁凭空推断发言人1", "严禁凭空将所有发言人1机械推断为赵衡" in channel_track_b, channel_track_b)
 
-    # 验证 normalize_personal_sections 对匿名代号与本人代词的清洗
-    dirty_doc = (
-        "## 行动项与分工\n"
-        "**与我相关**：\n"
-        "- 发言人2：完成支付网关改造，周五18:00前完成封板。\n"
-        "- 你：提交接口联调文档。\n"
-        "- **徐玥**：\n"
-        "- 发言人3：提供沙箱测试用例。\n"
-    )
-    norm_doc = normalize_personal_sections(dirty_doc, addresses=["赵衡", "小赵", "赵工"], self_name="赵衡", supervisors=["徐玥"])
-    check("公文化清洗：抹去发言人2与你前缀", "- 完成支付网关改造" in norm_doc and "发言人2：" not in norm_doc and "- 提交接口联调文档" in norm_doc, norm_doc)
-
-
 def main() -> int:
     test_empty_cases()
     test_whitelist_mapping()
     test_personality_is_style_only()
     test_limits()
     test_injection_scope()
-    test_view_directive()
-    test_personal_template_view_directive()
     test_personal_template_config_and_task_routing()
     test_action_groups_block()
     test_user_channel_block()

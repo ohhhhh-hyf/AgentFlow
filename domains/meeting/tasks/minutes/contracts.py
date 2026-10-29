@@ -73,9 +73,9 @@ class PersonalMinutesGenerationContract(GenerationContract):
         StrField("headline", "个人视角纪要标题（8–18字，突出本人战线或核心主题）"),
         StrListField(
             "executive_summary",
-            "本人主线与业务进展：首项为 personal_summary 对应的个人定调概览；"
-            "后续各项以 focus_points 为主线，用会议理解的 session_segments / decisions 补事实；"
-            "不写整场流水账，不逐发言人复述",
+            "本人主线与业务进展：首项为 personal_summary + meeting_brief 的个人定调概览；"
+            "后续各项以会议理解 session_segments 为主线，focus_points 补充本人关注，"
+            "decisions 只作全局背景；不写整场流水账，不逐发言人复述",
         ),
         StrListField(
             "key_decisions",

@@ -28,7 +28,7 @@ from domains.meeting.tasks.minutes.prompts import (
     MINUTES_OBJECTIVE_GENERATION_PROMPT,
     NOTES_PROMPT_BLOCK,
     VISION_PROMPT_BLOCK,
-    _SUPERVISOR_COMMON_BASE,
+    build_minutes_supervisor_prompt,
 )
 from domains.meeting.tasks.minutes.steps.minutes_agent import MinutesGenerationAgent
 
@@ -297,10 +297,14 @@ async def test_tc07_english_adaptation_with_all_sources():
 
 def test_tc08_supervisor_prompt_and_rules():
     """TC-08: Supervisor 审查准则验证 (批注拦截、数据专名一致)。"""
-    assert "多源辅助参考审查（输入含对应标签时生效）" in _SUPERVISOR_COMMON_BASE
-    assert "拦截主观批注：【用户划线原话与笔记】中的个人批注与主观吐槽严禁进入正文" in _SUPERVISOR_COMMON_BASE
-    assert "数据专名一致：正文引用的【用户核心关键点】与【视觉信息参考(OCR)】" in _SUPERVISOR_COMMON_BASE
-    assert "泄露【用户划线原话与笔记】中的批注或主观吐槽" in _SUPERVISOR_COMMON_BASE
+    prompt = build_minutes_supervisor_prompt(
+        "objective", aux_labels=["notes", "keypoints", "vision"]
+    )
+    assert "多源辅助参考审查（输入含对应标签时生效）" in prompt
+    assert "拦截主观批注：【用户划线原话与笔记】中的个人批注与主观吐槽严禁进入正文" in prompt
+    assert "正文引用的【用户核心关键点】中的数字指标、专有名词" in prompt
+    assert "正文引用的【视觉信息参考(OCR)】中的数字指标、专有名词" in prompt
+    assert "泄露按严重缺陷处理" in prompt
 
 
 def test_tc06_prepare_line_extra_minutes_auxiliary():

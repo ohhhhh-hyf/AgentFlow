@@ -50,6 +50,8 @@ class MeetingState(TypedDict, total=False):
     # 核心 Agent 输出（公共事实底座）
     meeting_understanding: dict
     perspective_profile: dict
+    # 个人单线 minutes 专用视角模型（confidence + 8 个内容字段）；不写旧 perspective_profile
+    personal_perspective: dict
     # 本用户命中表（程序判定：谁被点名、哪些待办是他的、依据在哪；视角节点写入）
     user_hits: dict
     # 命中块的渲染文本（拼进纪要上下文，避免多处重拼）

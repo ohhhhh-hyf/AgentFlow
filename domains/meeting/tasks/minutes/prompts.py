@@ -2,9 +2,11 @@
 
 - 生成：MINUTES_OBJECTIVE_GENERATION_PROMPT / MINUTES_PERSONAL_GENERATION_PROMPT
 - 监督：MINUTES_OBJECTIVE_SUPERVISOR_PROMPT / MINUTES_PERSONAL_SUPERVISOR_PROMPT
-- 渲染：MINUTES_RENDER_TEMPLATE_PROMPT / MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
+- 渲染：MINUTES_RENDER_TEMPLATE_PROMPT / MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT / MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
 """
 from __future__ import annotations
+
+import re
 
 from core.templates.template_prompt import build_template_render_prompt
 
@@ -46,80 +48,48 @@ MINUTES_OBJECTIVE_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」。
 
 
 # ── 个人模式生成提示词（独立 Prompt）──────────────
-MINUTES_PERSONAL_GENERATION_PROMPT = """你是「个人视角纪要草稿 Agent」。你的输入只有两部分：
-【会议理解】：全场客观事实底座；
-【本人视角模型】：本次会议与本人相关的投影。
+MINUTES_PERSONAL_GENERATION_PROMPT = """你是「个人视角纪要草稿 Agent」。输入只有【会议理解·全局事实】（4 字段）与【本人视角模型·本人投影】（9 字段）；输出 7 字段 JSON，不直接排版 Markdown。
 
-不提供会议原文。不得凭常识、职业经验或想象补事实。只输出结构化 JSON，不输出解释。
+输出字段：headline、executive_summary、key_decisions、personally_relevant_points、risks_and_blockers、unresolved_questions、history_comparison。
 
-## 一、输入语义与权威
-1. 会议理解负责：meeting_brief / meeting_purpose / speakers / session_segments /
-   decisions / open_questions / risks，是全场事实底座。
-2. 本人视角模型负责：personal_summary / focus_points / possible_actions /
-   collaborations / concerns / data_gaps / focus_risks / open_questions，
-   是本人相关性、本人行动、协同、风险与会后跟进的唯一来源。
-3. confidence 只作可靠性信号：low 时只写有明确依据的内容，宁可输出空数组。
-4. 输入不包含用户画像、偏好、命中块、雷达块或会议原文；不得引用这些内容。
+## 一、字段价值分层
+1. 全局字段：meeting_brief 提供会议背景；session_segments 提供业务事实；decisions 提供全局拍板；speakers 提供真实姓名。
+2. 本人字段：personal_summary / focus_points / possible_actions / collaborations / concerns / data_gaps / focus_risks / open_questions 是本人相关性的唯一来源。
+3. history_comparison 由程序装配，统一输出 [].
 
-## 二、输出字段
-必须同时输出：
-headline、executive_summary、key_decisions、personally_relevant_points、
-risks_and_blockers、unresolved_questions、history_comparison。
+## 二、事实来源与输入
+1. 会议理解负责全局背景、真实姓名、业务事实与全局拍板。
+2. 本人视角模型负责本人相关性、本人行动、协同、风险与会后跟进。
+3. 只使用输入中明确提供的内容；研讨与拍板严格区分；有据才写；confidence=low 时只写有明确依据的内容，宁可空数组。
 
-## 三、个人视角纪要专有规则（个人工作看板）
+## 三、分章节主体表达规范（个人视角）
+1. 以本人为叙事主线，客观中立第三人称；本人动作动宾短语开头、省略主语；他人动作保留真实姓名。
+2. 会议概况以 personal_summary 为主，补 meeting_brief 的全局背景；业务进展以 session_segments 为主线组织 2–5 段，用 focus_points 补充本人关注重点，不写整场流水账。
+3. 行动看板先 **本人相关**：再 **重点协同**：；风险看板先 **本人相关**：再 **重点关注**：；同一事实只写一次，长句拆短，不机械堆砌发言动词。
 
-### 1. 主线与人名口径
-- 以本人视角模型为主线，呈现本人工作重心、协同输入与风险；
-- 本人动作采用动宾短语开头，省略主语，自然承接；
-- 他人事项保留真实姓名；姓名以会议理解 speakers 或本人视角模型中的写法为准，不编造。
+## 四、各字段提炼规则
+- headline：8–18字，围绕 personal_summary / focus_points 提炼本人战线或主题；不得空泛。
+- executive_summary：
+  - [0] 个人定调概览：personal_summary + meeting_brief 的全局背景，200–350 字，不逐项展开；
+  - [1:] 业务进展：以 session_segments 为主线 2–5 段，用 focus_points 补充本人关注重点，用 decisions 补全局拍板事实；同类合并，不逐人罗列；不写与本人无关的整场流水。
+- key_decisions：以会议理解 decisions 为准，提炼全局拍板决议；优先保留与 focus_points 相关或影响全局者；不得把讨论/建议写成拍板；无则 []。
+- personally_relevant_points：
+  - 只使用 possible_actions / collaborations；
+  - 先输出组名行 **本人相关**：，下接 possible_actions；每条动宾短语开头、省略主语，写清交付物与时限；
+  - 再输出组名行 **重点协同**：，下接 collaborations；每条以「姓名：」开头，写清对方承诺、输入与节点；
+  - 两组都无 → []；不得从会议理解/常识补行动，不得把未决重复塞进行动栏。
+- risks_and_blockers：
+  - 只使用 concerns / data_gaps / focus_risks；
+  - 先 **本人相关**：，下接 concerns + data_gaps；写清风险现象、影响面、外部断供与化解举措；
+  - 再 **重点关注**：，下接 focus_risks；写清重点人物/标的的风险、定调隐患与波及面；
+  - 无则 []；不得从会议理解/常识补风险。
+- unresolved_questions：只使用本人视角模型的 open_questions；写清待确认事项、协同对象与预期结果；无则 []。
+- history_comparison：[]。
 
-### 2. 各字段规则
-- **headline（个人视角纪要标题）**：
-  - 8–18 字，围绕 personal_summary / focus_points 提炼本人战线或核心主题；
-  - 不得只写“会议纪要”“个人纪要”这类空泛标题。
-
-- **executive_summary（本人主线与业务进展）**：
-  - 首项（个人定调概览）：以 personal_summary 为主，补一句会议理解中的全局背景；
-    约 200–350 字，不逐项展开；
-  - 后续分项：以 focus_points 为主线组织 2–5 段；
-    用会议理解的 session_segments / decisions 补事实；
-    只写与本人相关或影响全局的关键内容，不写整场流水账，不逐发言人复述。
-
-- **key_decisions（全场决策决议）**：
-  - 以会议理解 decisions 为准，提炼全局拍板决议；
-  - 优先保留与 focus_points 相关、或影响全局的关键决议；
-  - 不得把讨论、建议写成已拍板决议；无则 [].
-
-- **personally_relevant_points（个人行动看板）**：
-  - 只使用本人视角模型的 possible_actions / collaborations；
-  - 先输出组名行 **本人相关**：，下接 possible_actions 条目；
-    每条以动宾短语开头、省略主语，写清交付物与时限；
-  - 再输出组名行 **重点协同**：，下接 collaborations 条目；
-    每条以「姓名：」开头，写清对方承诺、输入内容与节点；
-  - 两组都没有 → []；
-  - 不得从会议理解、原文或常识补行动，不得把未决事项重复塞进行动栏。
-
-- **risks_and_blockers（个人风险看板）**：
-  - 只使用本人视角模型的 concerns / data_gaps / focus_risks；
-  - 先输出组名行 **本人相关**：，下接 concerns 与 data_gaps 条目；
-    写清风险现象、影响面、外部断供环节与化解举措；
-  - 再输出组名行 **重点关注**：，下接 focus_risks 条目；
-    写清重点关注人物/标的的风险、定调隐患与波及面；
-  - 无卡点无风险 → []；不得把会议理解里的全场风险整段搬进来。
-
-- **unresolved_questions（未决看板）**：
-  - 只使用本人视角模型的 open_questions；
-  - 每条写清待确认事项、协同对象与预期结果；无则 [].
-
-- **history_comparison（历史对照）**：
-  - 固定输出 [].
-
-## 四、硬约束
-1. 不写输入中没有的人名、数字、承诺、决议；
-2. 不把讨论/建议写成拍板；
-3. 本人视角模型字段为空时，对应内容留空，不得补全；
-4. 不引用用户画像、偏好、命中块、雷达块、会议原文；
-5. 不输出模板栏目，不解释，只输出 JSON。"""
+## 五、输出完整性
+1. 7 字段必须全部输出；无内容写 []，不得省略键。
+2. 不得把 key_decisions / risks_and_blockers / unresolved_questions 并入 executive_summary 或 personally_relevant_points。
+3. 不得用“未提及/待补充”等套话填充；无事实留空。"""
 
 
 
@@ -164,8 +134,6 @@ MINUTES_AGENDA_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」（审
 
 ### 6. history_comparison
 - 统一输出空列表 []。
-
----
 
 ## 二、真实性底线
 所有人名、决策与议题归属以打标转写为准；研讨探讨与拍板定调严格区分边界；辅助材料仅补充事实、参数与原话，有据才写，忠实于原始事实。
@@ -217,90 +185,51 @@ VISION_PROMPT_BLOCK = """## 视觉信息参考 (OCR)
 2. 不脱离研讨发散：仅提取与会议实际讨论明确相关的视觉信息，严禁脱离研讨主线自行引入无关文字。"""
 
 
-# ── 审核公共基底 ──────────────────────────────────────────────────────────────
-_SUPERVISOR_ROLE = """你是会议纪要质量审核专家。依据全局监督标准和以下领域规则审核送审稿。"""
+# ── 审核静态基底与动态规则 ────────────────────────────────────────────────────
+_MINUTES_SUPERVISOR_BASE = """你是会议纪要质量审核专家。依据全局监督标准和以下领域规则审核送审稿。
 
-_SUPERVISOR_SCOPE = """## 领域审核规则：纪要生成
-
-### 核心审查原则与免审边界
-**提炼字段为审查重点**：executive_summary / personally_relevant_points 是核心审查对象；headline / history_comparison 一并核对。
+## 领域审核规则：纪要生成
 
 ### 本轮送审范围
-只审送审稿中实际出现的内容；未出现的内容不判缺失，也不发表意见。"""
+只审送审稿中实际出现的内容；未出现的内容不判缺失，也不发表意见。
 
-_SUPERVISOR_SEVERITY = """### 严重缺陷
+### 严重缺陷
 只有以下情况才判 reject：
 1. 关键事实、数字、归属或方向与原文相反；
 2. 凭空捏造原文没有的人名、数字或拍板；
-3. 把讨论/建议写成已拍板决议；
-4. 泄露【用户划线原话与笔记】中的批注或主观吐槽。"""
+3. 把讨论/建议写成已拍板决议。
 
-_SUPERVISOR_DECISION = """### 决策
-- 首选 approve；拿不准就选它；无严重缺陷必须 approve。
-- 命中上述严重缺陷 → reject。
-- 口语化发言前缀优化为规范公文决议体，属于符合公文规范的表述优化，予以充分认可并放行通过。
-- 以用户消息表头给出的可选动作为准。"""
-
-_SUPERVISOR_HISTORY = """### 历史记忆审查
-history_comparison 由记忆链路装配。若正文把往期决策写成本场新决策，或把本场决议写成往期沿革，请指出。"""
-
-_SUPERVISOR_AUX = """### 多源辅助参考审查（输入含对应标签时生效）
-- 拦截主观批注：【用户划线原话与笔记】中的个人批注与主观吐槽严禁进入正文（包括直接引用或改写转述）；
-- 数据专名一致：正文引用的【用户核心关键点】与【视觉信息参考(OCR)】中的数字指标、专有名词不得篡改、捏造或方向写反。"""
-
-_SUPERVISOR_FINDINGS = """### Findings
+### Findings
 每个检查项只列 1~3 条严重缺陷，单条不超过 100 字；无严重缺陷给 []。"""
 
-_SUPERVISOR_COMMON_BASE = "\n\n".join([
-    _SUPERVISOR_ROLE,
-    _SUPERVISOR_SCOPE,
-    _SUPERVISOR_SEVERITY,
-    _SUPERVISOR_DECISION,
-    _SUPERVISOR_HISTORY,
-    _SUPERVISOR_AUX,
-    _SUPERVISOR_FINDINGS,
-])
+# 兼容旧导入名；内容仅为静态基底，不再包含模式/辅助/历史/决策块。
+_SUPERVISOR_COMMON_BASE = _MINUTES_SUPERVISOR_BASE
 
-# ── 客观审核提示词 ────────────────────────────────────────────────────────────
-_OBJECTIVE_SUPERVISOR_RULES = """### 客观模式审查专项
-1. **行文与立场规范**：
-   - 确保通篇使用第三人称公文语态，保持客观中立；
-   - 正文研讨就事论事，决策决议事项明确，全面平铺各方论点与部署。
-2. **全员覆盖度审查**：
-   - 审查 personally_relevant_points 是否条条具备明确责任归口（个人或具体团队）；
-   - 客观结构放行：客观模式正常采用全员平铺结构，未出现个人分组标签属于客观规范，予以 approve 放行。"""
 
-MINUTES_OBJECTIVE_SUPERVISOR_PROMPT = (
-    _SUPERVISOR_COMMON_BASE + "\n\n" + _OBJECTIVE_SUPERVISOR_RULES
-)
+# ── 模式审查范围（动态追加）────────────────────────────────────────────────────
+_OBJECTIVE_SUPERVISOR_SCOPE = """### 客观模式审查范围
+- executive_summary / personally_relevant_points 为核心审查对象；headline / history_comparison 一并核对。
+- 通篇第三人称、客观中立；正文就事论事，决策明确，全面平铺各方论点与部署。
+- personally_relevant_points 条条具备明确责任归口；全员平铺结构属于客观规范，予以放行。"""
 
-# ── 个人审核提示词 ────────────────────────────────────────────────────────────
-_PERSONAL_SUPERVISOR_RULES = """### 个人视角审查专项
-1. **人称与主语规范**：
-   - 本人动作是否符合【动宾短语开头、省略主语】的标准规范；
-   - 他人动作是否清晰标注真实姓名，避免产生误读。
-2. **个人看板与承诺审查**：
-   - 行动栏与风险栏是否优先突出本人相关事项并交代清责任主体；
-   - 【本用户命中】里的承诺待办与专属输入卡点是否完整体现；
-3. **自适应裁剪放行保障**：
-   - 个人视角下，模型对全场无关杂项分工与外围风险主动进行降噪和隐去，属于规范行为，予以 approve 放行。"""
+_PERSONAL_SUPERVISOR_SCOPE = """### 个人视角审查范围
+- key_decisions 以会议理解 decisions 为准；不得把讨论/建议写成拍板，不得混入未决事项。
+- personally_relevant_points 只能来自 possible_actions（本人相关）与 collaborations（重点协同）；两组不得混写，不得从 decisions 或常识补行动。
+- risks_and_blockers 只能来自 concerns + data_gaps（本人相关）与 focus_risks（重点关注）；不得把全局 risks 搬入，不得漏掉来源中的风险。
+- unresolved_questions 只能来自本人视角模型 open_questions；不得从全局 open_questions 补。
+- executive_summary 以 personal_summary + meeting_brief + focus_points + session_segments 为依据；不得写成全场纪要。
+- 本人动作动宾短语开头、省略主语；他人动作保留真实姓名；
+- 个人视角下对无关杂项的自适应裁剪属于规范，予以 approve 放行。"""
 
-MINUTES_PERSONAL_SUPERVISOR_PROMPT = (
-    _SUPERVISOR_COMMON_BASE + "\n\n" + _PERSONAL_SUPERVISOR_RULES
-)
-
-# ── 议题特化审核提示词 ────────────────────────────────────────────────────────
-_AGENDA_SUPERVISOR_RULES = """### 审定议题模式审查专项
-1. **议题完整性与时序审查**：
-   - 审查草稿 executive_summary 是否覆盖本次审定的有效讨论议题；
-   - 审查三级标题序号（### 一.、### 二.）及列表项（- ）结构，判定为标准规范直接放行；不使用四级标题与数字编号；
-2. **事实保真**：
-   - 重点审查正文技术参数与结论是否在打标原文中有据可查，是否存在虚构人名或数字。
+_AGENDA_SUPERVISOR_SCOPE = """### 审定议题模式审查范围
+- executive_summary 必须覆盖本轮有效议题；重点审查议题完整性、三级标题与列表结构、事实保真。
+- 审查三级标题序号（### 一.、### 二.）及列表项（- ）结构，判定为标准规范直接放行；不使用四级标题与数字编号。
+- 重点审查正文技术参数与结论是否在打标原文中有据可查，是否存在虚构人名或数字。
 
 ### 辅助材料与议程骨架
 - 辅助材料不得成为新增、删除、改名、重排议题或改变议题归属的依据；
 - **议程骨架违规判定**：若草稿因辅助材料改变议程覆盖、标题、顺序或归属，判定为结构缺陷，优先 revise；
-- 返工点须具体到议题，并指出来自哪条辅助材料、应回到哪个议题。
+- 返工点须具体到议题，并指出来源辅助材料、应回到哪个议题。
 
 ### 标题一致性口径
 - 标题比对口径：忽略大小写、首尾与连续空白、半角/全角标点、常见连字符差异（- / – / —）；
@@ -308,9 +237,114 @@ _AGENDA_SUPERVISOR_RULES = """### 审定议题模式审查专项
 - 仅当标题语义被改写、意译或替换时，才判定为“改名”；
 - 英文模式下，英文标题保留原文，不得翻译成中文。"""
 
-MINUTES_AGENDA_SUPERVISOR_PROMPT = (
-    _SUPERVISOR_COMMON_BASE + "\n\n" + _AGENDA_SUPERVISOR_RULES
-)
+
+# ── 动态规则（按输入拼接）──────────────────────────────────────────────────────
+_SUPERVISOR_HISTORY = """### 历史记忆审查
+history_comparison 由记忆链路装配。若正文把往期决策写成本场新决策，或把本场决议写成往期沿革，请指出。"""
+
+_SUPERVISOR_AUX_NOTES = "- 拦截主观批注：【用户划线原话与笔记】中的个人批注与主观吐槽严禁进入正文（包括直接引用或改写转述）；泄露按严重缺陷处理。"
+_SUPERVISOR_AUX_KEYPOINTS = "- 数据专名一致：正文引用的【用户核心关键点】中的数字指标、专有名词不得篡改、捏造或方向写反。"
+_SUPERVISOR_AUX_VISION = "- 数据专名一致：正文引用的【视觉信息参考(OCR)】中的数字指标、专有名词不得篡改、捏造或方向写反。"
+
+_SUPERVISOR_ALLOWED_DEFAULT = "以用户消息表头给出的可选动作为准。"
+
+
+def _supervisor_mode(view: str) -> str:
+    mode = (view or "").strip().lower()
+    if mode == "agenda_objective":
+        return "agenda"
+    if mode == "personal":
+        return "personal"
+    return "objective"
+
+
+def _detect_aux_labels(context: str) -> list[str]:
+    text = context or ""
+    labels: list[str] = []
+    if "【用户划线原话与笔记】" in text:
+        labels.append("notes")
+    if "【用户核心关键点】" in text:
+        labels.append("keypoints")
+    if "【视觉信息参考(OCR)】" in text:
+        labels.append("vision")
+    return labels
+
+
+def _detect_history(context: str) -> bool:
+    text = context or ""
+    for marker in ("【项目推进背景】", "【延续事项】", "【历史决策】", "【风险演变】", "【已闭环】", "历史记忆"):
+        if marker in text:
+            return True
+    match = re.search(r'"history_comparison"\s*:\s*(\[[^\]]*\])', text)
+    return bool(match and match.group(1).strip() != "[]")
+
+
+def _detect_allowed_actions(context: str) -> str:
+    for raw in (context or "").splitlines()[:8]:
+        line = raw.strip()
+        if line.startswith("本轮可以选择") or line.startswith("返工次数已用完"):
+            return line
+    return _SUPERVISOR_ALLOWED_DEFAULT
+
+
+def _build_aux_block(labels: list[str]) -> str:
+    rules: list[str] = []
+    if "notes" in labels:
+        rules.append(_SUPERVISOR_AUX_NOTES)
+    if "keypoints" in labels:
+        rules.append(_SUPERVISOR_AUX_KEYPOINTS)
+    if "vision" in labels:
+        rules.append(_SUPERVISOR_AUX_VISION)
+    if not rules:
+        return ""
+    return "### 多源辅助参考审查（输入含对应标签时生效）\n" + "\n".join(rules)
+
+
+def _build_decision_block(allowed_actions: str) -> str:
+    allowed = (allowed_actions or "").strip() or _SUPERVISOR_ALLOWED_DEFAULT
+    return f"""### 决策
+- 首选 approve；拿不准就选它；无严重缺陷必须 approve。
+- 命中上述严重缺陷 → reject。
+- 口语化发言前缀优化为规范公文决议体，属于符合公文规范的表述优化，予以充分认可并放行通过。
+- {allowed}"""
+
+
+def build_minutes_supervisor_prompt(
+    view: str,
+    *,
+    context: str = "",
+    aux_labels: list[str] | None = None,
+    has_history: bool | None = None,
+    allowed_actions: str | None = None,
+) -> str:
+    """按模式/辅助材料/记忆/可选动作拼审核 Prompt；决策块始终最后。"""
+    mode = _supervisor_mode(view)
+    scope = {
+        "objective": _OBJECTIVE_SUPERVISOR_SCOPE,
+        "personal": _PERSONAL_SUPERVISOR_SCOPE,
+        "agenda": _AGENDA_SUPERVISOR_SCOPE,
+    }[mode]
+    parts = [_MINUTES_SUPERVISOR_BASE, scope]
+
+    labels = aux_labels if aux_labels is not None else _detect_aux_labels(context)
+    aux_block = _build_aux_block(labels)
+    if aux_block:
+        parts.append(aux_block)
+
+    if has_history is None:
+        has_history = _detect_history(context)
+    if has_history:
+        parts.append(_SUPERVISOR_HISTORY)
+
+    if allowed_actions is None:
+        allowed_actions = _detect_allowed_actions(context)
+    parts.append(_build_decision_block(allowed_actions))
+    return "\n\n".join(parts)
+
+
+MINUTES_OBJECTIVE_SUPERVISOR_PROMPT = build_minutes_supervisor_prompt("objective")
+MINUTES_PERSONAL_SUPERVISOR_PROMPT = build_minutes_supervisor_prompt("personal")
+MINUTES_AGENDA_SUPERVISOR_PROMPT = build_minutes_supervisor_prompt("agenda_objective")
 
 # 兼容别名
 MINUTES_SUPERVISOR_DOMAIN_PROMPT = MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
@@ -323,24 +357,42 @@ MINUTES_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     source_rule=(
         "**以已审核草稿为唯一事实与结构基准，按模板栏目语义映射**：\n"
         "【栏目语义自适应映射】：\n"
-        "1. 概括总述类栏目（模板中声明为单段概括/概览的栏目）：映射草稿 executive_summary 的首项（[0]，全场概览项），"
-        "以连贯单段呈现，篇幅遵循模板栏位声明，模板未限定时默认 200–300 字精炼交付；不得把后续段落塞进本栏；"
-        "栏目标题只写模板方括号内的文字：（如 `## [讨论概述]` → `## 讨论概述`），不得用会议标题或草稿 headline 替换；\n"
+        "1. 概括总述类栏目（模板中声明为单段概括/概览的栏目）：映射草稿 executive_summary 的首项（[0]，全场概览项），以连贯单段呈现，严禁分多段输出，篇幅遵循模板栏位声明，模板未限定时默认 200–300 字精炼交付；不得把后续段落塞进本栏；栏目标题只写模板方括号内的文字（如 `## [讨论概述]` → `## 讨论概述`），不得用会议标题或草稿 headline 替换；\n"
         "2. 决议/结论类栏目：映射草稿 key_decisions 列表，逐条陈述现场明确拍板的决议；若草稿无决议，按模板空值规则处理；\n"
         "3. 后续计划/行动/执行/待办类栏目：映射草稿 personally_relevant_points 列表，逐条陈述责任人、动作与时限；\n"
         "4. 风险/卡点/约束类栏目：映射草稿 risks_and_blockers 列表，逐条陈述风险、影响与应对；\n"
         "5. 遗留/未决/待确认类栏目：映射草稿 unresolved_questions 列表，逐条陈述未决事项与待确认点；\n"
         "6. 通用业务类栏目（模板中声明为业务研讨/要点类的栏目及进展/方案类栏目）：按 executive_summary[1:] 成节，按模板声明的三级标题层级设立小节；\n"
-        "7. 个人视角看板呈现：若为个人视角纪要，本人牵头推进事项采用动宾短语开头直接陈述动作并置顶；外部协作人事项明确标注真实姓名；全场无关外围杂项平滑隐去，保持看板聚焦；\n"
-        "8. 引述从属规范：引述原话作为列表条目或段落内部的论据支撑依附存在，保持论据与结论紧密锚定；\n"
-        "9. 无法判断栏目语义：按模板空值规则处理，不强行塞入不相关内容，不自创模板外栏目。"
+        "7. 无法判断栏目语义：按模板空值规则处理，不强行塞入不相关内容，不自创模板外栏目。"
     ),
     empty_rule=(
-        "某栏在草稿中对该栏主题无依据且模板允许省略时直接保持空内容自适应隐去；"
-        "模板没约定时优先自适应隐去，确需占位时按模板指定词填写，不使用外部常识补全。"
+        "某栏在草稿中对该栏主题无依据且模板允许省略时直接保持空内容自适应隐去；模板没约定时优先自适应隐去，确需占位时按模板指定词填写，不使用外部常识补全。"
     ),
     extra_rules=[
         "模板若含写作要求（进度须与草稿事实一致、风险须标等级与责任人等），按该要求客观准确填写",
+    ],
+)
+
+MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
+    renderer="个人视角会议纪要渲染器",
+    source="已审核个人视角草稿",
+    source_rule=(
+        "**唯一事实与结构基准是已审核个人视角草稿；用户消息中的用户画像、会议理解、命中块、雷达块和会议原文只作背景，不得据此新增草稿外事实。**\n"
+        "1. 会议概况：只写 executive_summary[0]，单段连贯概括；不把 executive_summary[1:]、key_decisions 或行动事项塞入本栏。\n"
+        "2. 要点梳理：按 executive_summary[1:] 的顺序成节展开；模板声明三级标题时按模板层级设立小节，未声明时以自然段承接；保留草稿已有的主题加粗引导，不另造标题；不按时间或发言人顺序写流水账，不重复会议概况。\n"
+        "3. 相关行动：只写 personally_relevant_points；保留 **本人相关**： 与 **重点协同**： 两组，本人相关置顶；本人动作动宾短语开头、省略主语，他人动作保留真实姓名；组名行独占一行、不加 `- `，组内一条一行；无内容的组不出现。\n"
+        "4. 相关风险：先写 risks_and_blockers 的 **本人相关**： 与 **重点关注**： 两组，再把 unresolved_questions 逐条写成 **待确认**： 组；组序为 本人相关 → 重点关注 → 待确认；不得把已拍板结论写进待确认，也不得把待确认重复写进风险组。\n"
+        "5. 关键决策：只写 key_decisions，逐条平铺；每条写事项与定调/指标；不按人分组，不写讨论过程、建议或未决事项。\n"
+        "6. headline 不进入任何正文栏目，也不得替换模板栏目标题；history_comparison 由程序追加，不在正文渲染。\n"
+        "7. 栏目标题必须与模板方括号内文字完全一致；无内容且模板允许省略时整栏连同标题隐去，不输出「未提及」「待补充」等说明。"
+    ),
+    empty_rule=(
+        "某栏无内容且模板允许省略时整栏连同标题隐去；相关行动、相关风险内某组无内容时整组隐去，不保留空组名；不使用草稿外常识补全。"
+    ),
+    extra_rules=[
+        "个人视角文风：客观陈述，不使用第一人称「我」；本人动作省主语，他人动作写真名；",
+        "同一事实只出现一次；关键决策、待确认、风险、行动之间不互相搬运；",
+        "不输出规则解释、字数说明、模板外前言，不使用 emoji。",
     ],
 )
 
@@ -350,22 +402,17 @@ MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     source_rule=(
         "**以已审核草稿为事实基准，严格遵循模板栏目规约与公文层级标准完成排版**：\n"
         "【栏目语义自适应映射】：\n"
-        "1. 概括总述类栏目：映射草稿 executive_summary 的首项（[0]，全场概览项），以连贯单段呈现；不得把议题正文塞入本栏；"
-        "栏目标题必须与模板方括号内文字完全一致（如 `## [讨论概述]` → `## 讨论概述`），不得用会议标题或草稿 headline 替换；\n"
-        "2. 模板中的议题研讨类栏目：映射 executive_summary[1:]，按数组顺序与议题语义成节；"
-        "完整保留大项标题（### 一. 议题名称）、"
-        "加粗子主题（**业务子主题**）与列表项（- 要点名称: 具体陈述）；"
-        "标题直出，不添加任何前言导语；\n"
+        "1. 概括总述类栏目：映射草稿 executive_summary 的首项（[0]，全场概览项），以连贯单段呈现；不得把议题正文塞入本栏；栏目标题必须与模板方括号内文字完全一致（如 `## [讨论概述]` → `## 讨论概述`），不得用会议标题或草稿 headline 替换；\n"
+        "2. 模板中的议题研讨类栏目：映射 executive_summary[1:]，按数组顺序与议题语义成节；完整保留大项标题（### 一. 议题名称）、加粗子主题（**业务子主题**）与列表项（- 要点名称: 具体陈述）；标题直出，不添加任何前言导语；\n"
         "3. 决议结论类栏目：映射草稿 key_decisions 列表，按模板要求的列表格式，逐条陈述现场明确拍板的决议；若草稿无决议，按模板空值规则处理；\n"
         "4. 后续计划/行动/执行/待办类栏目：映射草稿 personally_relevant_points 列表，逐条陈述责任人、动作与时限；\n"
         "5. 风险/卡点/约束类栏目：映射草稿 risks_and_blockers 列表，逐条陈述风险、影响与应对；\n"
         "6. 遗留/未决/待确认类栏目：映射草稿 unresolved_questions 列表，逐条陈述未决事项与待确认点；\n"
-        "7. 若模板没有总述/概况栏：executive_summary[0] 作为议题正文开篇总述，\n"
+        "7. 若模板没有总述/概况栏：executive_summary[0] 作为议题正文开篇总述；\n"
         "8. 不强行塞入不相关内容，不自创模板外栏目。"
     ),
     empty_rule=(
-        "某栏在草稿中对该栏主题无依据且模板允许省略时直接保持空内容自适应隐去；"
-        "模板没约定时优先自适应隐去，确需占位时按模板指定词填写，不使用外部常识补全。"
+        "某栏在草稿中对该栏主题无依据且模板允许省略时直接保持空内容自适应隐去；模板没约定时优先自适应隐去，确需占位时按模板指定词填写，不使用外部常识补全。"
     ),
     extra_rules=[
         "模板若含写作要求，按该要求客观准确填写",
@@ -387,5 +434,6 @@ __all__ = [
     "MINUTES_PERSONAL_SUPERVISOR_PROMPT",
     "MINUTES_AGENDA_SUPERVISOR_PROMPT",
     "MINUTES_RENDER_TEMPLATE_PROMPT",
+    "MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT",
     "MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT",
 ]

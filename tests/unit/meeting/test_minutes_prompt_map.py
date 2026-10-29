@@ -24,6 +24,8 @@ from domains.meeting.tasks.minutes.prompts import (
     MINUTES_OBJECTIVE_GENERATION_PROMPT,
     MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
     MINUTES_PERSONAL_GENERATION_PROMPT,
+    MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT,
+    build_minutes_supervisor_prompt,
     MINUTES_PERSONAL_SUPERVISOR_PROMPT,
     MINUTES_RENDER_TEMPLATE_PROMPT,
 )
@@ -75,6 +77,8 @@ def test_minutes_prompt_no_content_examples() -> None:
     assert "模板中声明为单段概括/概览的栏目" in MINUTES_RENDER_TEMPLATE_PROMPT
     assert "模板中声明为业务研讨/要点类的栏目" in MINUTES_RENDER_TEMPLATE_PROMPT
     assert "按模板声明的三级标题层级设立小节" in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "个人视角看板呈现" not in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "本人牵头推进" not in MINUTES_RENDER_TEMPLATE_PROMPT
 
     # 3. 议题模板渲染不列具体栏目名/措辞示例
     assert "【要点梳理】" not in MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
@@ -132,17 +136,36 @@ def test_prompt_sets_by_view() -> None:
     assert fallback.generation is MINUTES_OBJECTIVE_GENERATION_PROMPT
 
 
-def test_render_template_prompt_only_agenda_differs() -> None:
-    """渲染只分 agenda / 非 agenda；personal、role_template 共用普通 prompt。"""
-    for view in ("", "objective", "personal", "role_template"):
+def test_render_template_prompt_routes_by_view() -> None:
+    """渲染按 agenda / personal / 其它三路分派；personal 不再共用普通 prompt。"""
+    for view in ("", "objective", "role_template"):
         assert is_agenda_view(view) is False
         assert render_template_prompt(view) is MINUTES_RENDER_TEMPLATE_PROMPT
+
+    assert is_agenda_view(VIEW_PERSONAL) is False
+    assert render_template_prompt(VIEW_PERSONAL) is MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT
 
     assert is_agenda_view(VIEW_AGENDA_OBJECTIVE) is True
     assert (
         render_template_prompt(VIEW_AGENDA_OBJECTIVE)
         is MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
     )
+
+
+def test_personal_render_prompt_maps_five_columns() -> None:
+    """个人渲染 prompt 必须显式锁死五栏映射与分组边界。"""
+    prompt = MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT
+    assert "executive_summary[0]" in prompt
+    assert "executive_summary[1:]" in prompt
+    assert "personally_relevant_points" in prompt
+    assert "risks_and_blockers" in prompt
+    assert "unresolved_questions" in prompt
+    assert "**待确认**：" in prompt
+    assert "key_decisions" in prompt
+    assert "history_comparison" in prompt
+    assert "本人相关" in prompt and "重点协同" in prompt and "重点关注" in prompt
+    decisions_rule = prompt.split("5. 关键决策：", 1)[1].split("6. ", 1)[0]
+    assert "不按人分组" in decisions_rule
 
 
 def test_render_prompts_keep_overview_anchor_and_column_heading_rule() -> None:
@@ -216,10 +239,12 @@ def test_supervisor_prompts_share_scope_without_carry_claims() -> None:
         assert "历史记忆隔离审查" not in prompt
         assert "本轮送审范围" in prompt
         assert "只审送审稿中实际出现的内容" in prompt
-        assert "历史记忆审查" in prompt
-        assert "key_decisions" not in prompt
         # 既有放行规则必须保留
         assert "属于符合公文规范的表述优化，予以充分认可并放行通过" in prompt
+    # 个人模式必须明确审查三个来源字段；客观/议题不点名旧的搬运字段。
+    assert "key_decisions" in MINUTES_PERSONAL_SUPERVISOR_PROMPT
+    assert "key_decisions" not in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
+    assert "key_decisions" not in MINUTES_AGENDA_SUPERVISOR_PROMPT
 
 
 # ── 议题辅助材料 prompt 规约 ──────────────────────────────────────────────────
@@ -272,7 +297,7 @@ def test_normal_prompt_unchanged() -> None:
         assert "辅助材料使用规约" not in prompt
     assert "## 三、分章节主体表达规范（就事论事原则）" in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert (
-        "## 三、个人视角纪要专有规则（个人工作看板）"
+        "## 三、分章节主体表达规范（个人视角）"
         in MINUTES_PERSONAL_GENERATION_PROMPT
     )
 
@@ -311,3 +336,10 @@ def test_agenda_draft_without_headings_still_completes() -> None:
     assert result.executive_summary == ["一段没有 ### 标题的正文。"]
     # 确实走的是议程契约
     assert captured["contract"] == MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT
+
+def test_personal_supervisor_prompt_dynamic_history() -> None:
+    prompt = build_minutes_supervisor_prompt("personal", has_history=True)
+    assert "历史记忆审查" in prompt
+    assert "个人视角审查范围" in prompt
+    assert prompt.rindex("### 决策") > prompt.rindex("### 历史记忆审查")
+
