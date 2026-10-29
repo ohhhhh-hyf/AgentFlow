@@ -64,6 +64,50 @@ class MinutesSupervisorContract(SupervisorContract):
 
 
 MINUTES_GENERATION_OUTPUT_CONTRACT = MinutesGenerationContract.to_output_contract()
+
+
+class PersonalMinutesGenerationContract(GenerationContract):
+    """个人视角纪要草稿输出契约（只消费会议理解 + 本人视角模型）。"""
+
+    fields = [
+        StrField("headline", "个人视角纪要标题（8–18字，突出本人战线或核心主题）"),
+        StrListField(
+            "executive_summary",
+            "本人主线与业务进展：首项为 personal_summary 对应的个人定调概览；"
+            "后续各项以 focus_points 为主线，用会议理解的 session_segments / decisions 补事实；"
+            "不写整场流水账，不逐发言人复述",
+        ),
+        StrListField(
+            "key_decisions",
+            "全场决策决议：以会议理解 decisions 为准，提炼全局拍板决议；"
+            "不得把讨论/建议写成拍板；无则 []",
+        ),
+        StrListField(
+            "personally_relevant_points",
+            "个人行动看板：先输出组名行 **本人相关**：，下接本人视角模型 possible_actions；"
+            "再输出组名行 **重点协同**：，下接 collaborations（姓名：承诺与节点）；"
+            "不得从会议理解或原文补行动；无则 []",
+        ),
+        StrListField(
+            "risks_and_blockers",
+            "个人风险看板：先输出组名行 **本人相关**：，下接关注模型 concerns + data_gaps；"
+            "再输出组名行 **重点关注**：，下接 focus_risks；"
+            "不得把会议理解里的全场风险整段搬入；无则 []",
+        ),
+        StrListField(
+            "unresolved_questions",
+            "未决看板：只使用本人视角模型 open_questions；无则 []",
+        ),
+        StrListField(
+            "history_comparison",
+            "与历史对比（底层自动装配，统一输出 []）",
+        ),
+    ]
+
+
+MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT = (
+    PersonalMinutesGenerationContract.to_output_contract()
+)
 MINUTES_SUPERVISOR_OUTPUT_CONTRACT = MinutesSupervisorContract.to_output_contract()
 
 # 议题模式专用输出契约（普通字符串，不新增 *GenerationContract 子类，
@@ -116,6 +160,7 @@ MINUTES_FALLBACK_RULES = MinutesFallbackRules()
 
 __all__ = [
     "MINUTES_GENERATION_OUTPUT_CONTRACT",
+    "MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT",
     "MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT",
     "MINUTES_SUPERVISOR_OUTPUT_CONTRACT",
     "MINUTES_FALLBACK_RULES",

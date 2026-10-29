@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import pytest
 
@@ -30,6 +31,9 @@ from domains.meeting.tasks.minutes.prompts import (
     MINUTES_PERSONAL_GENERATION_PROMPT,
     MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
     MINUTES_PERSONAL_SUPERVISOR_PROMPT,
+)
+from domains.meeting.tasks.minutes.contracts import (
+    MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT,
 )
 
 
@@ -102,18 +106,26 @@ def test_perspective_modeling_prompt_quality():
 # ── 3. 纪要双轨生成提示词与分流测试 ─────────────────────────────────────────────
 
 def test_minutes_generation_prompts_decoupling():
-    """验证客观与个人生成提示词完全解耦，客观无个人噪声，个人有看板合流。"""
-    # 3.1 共享公共基底保真度测试
-    for p in (MINUTES_OBJECTIVE_GENERATION_PROMPT, MINUTES_PERSONAL_GENERATION_PROMPT):
-        assert "回到会议原文" in p
-        assert "理解层是骨架" in p
-        assert "历史记忆边界" in p
-        assert "history_comparison" in p
+    """验证客观与个人生成提示词完全解耦：客观保留共享基底，个人独立。"""
+    # 3.1 客观基底仍保留原有事实/记忆规则
+    for phrase in ("session_segments（context_and_reasoning、key_facts）为结构骨架", "本场最新讨论", "项目推进背景", "history_comparison"):
+        assert phrase in MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+    # 3.1.1 个人 Prompt 已独立：不再引用原文、用户画像、命中/雷达、旧视角字段
+    for phrase in ("回到会议原文", "原文承诺", "以【用户画像】",
+                   "参考命中块", "重点关注雷达",
+                   "attention_points", "relevant_topics", "responsibilities",
+                   "evidence"):
+        assert phrase not in MINUTES_PERSONAL_GENERATION_PROMPT, phrase
+    for phrase in ("personal_summary", "focus_points", "possible_actions",
+                   "collaborations", "concerns", "data_gaps", "focus_risks",
+                   "open_questions"):
+        assert phrase in MINUTES_PERSONAL_GENERATION_PROMPT, phrase
 
     # 3.2 客观提示词纯净化断言
-    assert "通篇统一使用第三人称" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "全员落地执行要点" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "不设立任何个人视角分组标签" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "客观中立第三人称" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "全员平铺" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "不设个人分组标签" in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert "**本人相关**：" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert "本人动作规范" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
@@ -124,6 +136,31 @@ def test_minutes_generation_prompts_decoupling():
     assert "data_gaps" in MINUTES_PERSONAL_GENERATION_PROMPT
     assert "**重点协同**：" in MINUTES_PERSONAL_GENERATION_PROMPT
     assert "**重点关注**：" in MINUTES_PERSONAL_GENERATION_PROMPT
+
+
+def test_personal_agent_uses_personal_contract() -> None:
+    """个人视角使用独立契约，不与客观/议题契约混用。"""
+    from domains.meeting.tasks.minutes.steps.minutes_agent import MinutesGenerationAgent
+
+    captured: dict = {}
+
+    class FakeClient:
+        async def structured(self, system, user, model, contract, **kwargs):
+            captured["system"] = system
+            captured["contract"] = contract
+            return Minutes(headline="")
+
+    agent = MinutesGenerationAgent(FakeClient())
+    asyncio.run(
+        agent.run(
+            "视角模式：personal\n\n会议理解：\n{}\n\n本人视角模型：\n{}\n",
+            view="personal",
+        )
+    )
+    assert captured["contract"] == MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT
+    assert captured["system"] == MINUTES_PERSONAL_GENERATION_PROMPT
+    assert "MeetingUnderstanding.decisions" not in captured["contract"]
+    assert "本人视角模型" in captured["system"]
 
 
 def test_parse_perspective_mode_routing():

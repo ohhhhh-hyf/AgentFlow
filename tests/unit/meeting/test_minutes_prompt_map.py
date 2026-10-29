@@ -270,7 +270,7 @@ def test_normal_prompt_unchanged() -> None:
         assert "议程骨架与事实归属的唯一底座" not in prompt
         assert "【议程骨架优先】" not in prompt
         assert "辅助材料使用规约" not in prompt
-    assert "## 三、全员客观纪要专有规则" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "## 三、分章节主体表达规范（就事论事原则）" in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert (
         "## 三、个人视角纪要专有规则（个人工作看板）"
         in MINUTES_PERSONAL_GENERATION_PROMPT

@@ -707,7 +707,6 @@ async def test_prepare_run_preserves_agenda_text_in_line_extra(tmp_path, monkeyp
 def test_minutes_prompt_matter_oriented_governance():
     """验证新老逻辑 Prompt 彻底去机械流水账对白，确立就事论事与正向引导准则。"""
     from domains.meeting.tasks.minutes.prompts import (
-        _MINUTES_COMMON_BASE,
         MINUTES_OBJECTIVE_GENERATION_PROMPT,
         MINUTES_AGENDA_GENERATION_PROMPT,
         MINUTES_OBJECTIVE_SUPERVISOR_PROMPT,
@@ -720,9 +719,9 @@ def test_minutes_prompt_matter_oriented_governance():
     from domains.meeting.meeting_core.understanding_profiles import TASK_PROFILES
 
     # 1. 核心诱因根治：验证公共基底彻底废除“主体+动作”句式公式，引入三层主体与就事论事
-    assert "主体 + 核心动作/主张 + 量化指标/定调依据 + 最终结论/后续安排" not in _MINUTES_COMMON_BASE
-    assert "分章节主体表达规范（就事论事原则）" in _MINUTES_COMMON_BASE
-    assert "避免机械堆砌发言动词" in _MINUTES_COMMON_BASE
+    assert "主体 + 核心动作/主张 + 量化指标/定调依据 + 最终结论/后续安排" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "分章节主体表达规范（就事论事原则）" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "避免机械堆砌发言动词" in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
     # 2. 负向对抗字眼治理：验证核心生成 Prompt 不包含杜绝/拒绝等对抗句式
     for p in [MINUTES_OBJECTIVE_GENERATION_PROMPT, MINUTES_AGENDA_GENERATION_PROMPT]:

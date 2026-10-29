@@ -11,6 +11,7 @@ from ....models import Minutes
 from ..contracts import (
     MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT,
     MINUTES_GENERATION_OUTPUT_CONTRACT,
+    MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT,
 )
 from ..prompt_map import (
     is_agenda_view,
@@ -140,11 +141,12 @@ class MinutesGenerationAgent:
         else:
             system_prompt = raw_system_prompt
 
-        output_contract = (
-            MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT
-            if is_agenda
-            else MINUTES_GENERATION_OUTPUT_CONTRACT
-        )
+        if is_agenda:
+            output_contract = MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT
+        elif view == "personal":
+            output_contract = MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT
+        else:
+            output_contract = MINUTES_GENERATION_OUTPUT_CONTRACT
         raw = await self.client.structured(
             system_prompt,
             shared_context,
