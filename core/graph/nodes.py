@@ -1104,6 +1104,10 @@ class DomainNodes:
         line_modes: dict[str, str] | None = None,
         line_extra: dict[str, str] | None = None,
         lang: str = "zh",
+        template_auto: bool = False,
+        template_source: str = "",
+        template_id: str = "",
+        template_mode: str = "normal",
     ) -> AsyncIterator[dict]:
         """流式输出：各任务线文本并行逐块推送，按线携带展示标题。
 
@@ -1162,6 +1166,10 @@ class DomainNodes:
             "line_modes": dict(line_modes or {}),
             "line_extra": dict(line_extra or {}),
             "lang": lang,
+            "template_auto": bool(template_auto),
+            "template_source": template_source or "",
+            "template_id": template_id or "",
+            "template_mode": template_mode or "normal",
         }
         # 图执行失败时 state 不会被赋值；先绑定 initial_state，
         # 保证兜底分支引用 state 不抛 NameError（最后防线自身不崩溃）

@@ -80,6 +80,17 @@ class MeetingState(TypedDict, total=False):
     has_valid_agenda: bool
     valid_agendas: list
     tagged_transcript: str
+    # 场景识别（模板自动匹配）状态：开关关闭时不参与任何节点决策。
+    # template_auto=True 表示 template 为空且 MINUTES_TEMPLATE_AUTO!=off，允许前置 Agent 分类。
+    template_auto: bool
+    # 模板来源：explicit / personal_default / default / auto（Stage 5 写入）
+    template_source: str
+    # 当前生效的英文模板 ID（不含 .md）；模板为空时先落 general_minutes
+    template_id: str
+    # 场景模式：normal（29 候选）/ agenda（20 候选）
+    template_mode: str
+    # 场景识别决策（原始输出、后处理结果、是否实际应用）；仅用于日志/调试，不进入 API 响应
+    template_decision: dict
 
 
 # 多样式纪要：浅校验放行空 sections，这里补结构门禁，供 schema repair 重出。

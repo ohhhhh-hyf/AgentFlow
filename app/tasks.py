@@ -31,12 +31,15 @@ from .config import (
     resolve_agenda_template_format,
     resolve_template_format,
     style_template_path,
+    template_key,
+    template_registry,
 )
 from core.runner.profiles import (
     is_user_profile_file,
     resolve_profile_mode,
     sanitize_user_profile,
 )
+from domains.meeting.domain_config import minutes_template_auto_mode
 
 from .id_worker import next_request_id
 from .outputs import output_dir, save_task_outputs
@@ -614,6 +617,11 @@ class _Prepared:
     # 议题纪要视角裁决 / 给调用方的提示（role_template 强制客观等）
     minutes_view: str = ""
     prepare_warning: str = ""
+    # 场景识别 Agent 的状态（API 层只组装；由 graph 前置节点消费）
+    template_auto: bool = False
+    template_source: str = ""
+    template_id: str = ""
+    template_mode: str = "normal"
 
 
 def _runner_args(p: _Prepared) -> dict:
@@ -639,7 +647,23 @@ def _runner_args(p: _Prepared) -> dict:
         "memory": p.memory,
         "meeting_time": p.time,
         "lang": p.lang,
+        "template_auto": p.template_auto,
+        "template_source": p.template_source,
+        "template_id": p.template_id,
+        "template_mode": p.template_mode,
     }
+
+
+def _explicit_template_id(value: str, lang: str = "zh") -> str:
+    """显式模板取值 → 英文模板 ID（中文显示名 / 带 .md 均可）；无法识别时保留原值。"""
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    if raw.lower().endswith(".md"):
+        raw = raw[:-3].strip()
+    key = template_key(raw, lang=lang)
+    item = template_registry(lang=lang).get(key) or {}
+    return str(item.get("template") or raw)
 
 
 def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepared:
@@ -917,6 +941,24 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         if scope_parts:
             extra_line_inputs[line] = "\n".join(scope_parts)
 
+    # 场景识别状态：API 层只组装并透传，由 graph 前置节点决定是否切换模板。
+    template_mode = "agenda" if agenda_from_docs else "normal"
+    template_auto = False
+    template_source = ""
+    template_id = ""
+    if line == "minutes":
+        requested_template = (extra.template or "").strip()
+        if requested_template:
+            template_source = "explicit"
+            template_id = _explicit_template_id(requested_template, req.lang)
+        elif effective_profile == "user":
+            template_source = "personal_default"
+            template_id = "personal_minutes"
+        else:
+            template_source = "default"
+            template_id = "general_minutes"
+            template_auto = minutes_template_auto_mode() != "off"
+
     _log_task_payload(
         lang=req.lang,
         transcript=transcript,
@@ -943,6 +985,10 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         lang=req.lang,
         minutes_view=minutes_view,
         prepare_warning=prepare_warning,
+        template_auto=template_auto,
+        template_source=template_source,
+        template_id=template_id,
+        template_mode=template_mode,
     )
 
 
@@ -1171,6 +1217,18 @@ async def iter_task_events(
         sig = inspect.signature(system.run_streaming)
         if "lang" in sig.parameters or any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()):
             streaming_kwargs["lang"] = prep.lang
+        accepts_kwargs = any(
+            param.kind == inspect.Parameter.VAR_KEYWORD
+            for param in sig.parameters.values()
+        )
+        for name, value in (
+            ("template_auto", prep.template_auto),
+            ("template_source", prep.template_source),
+            ("template_id", prep.template_id),
+            ("template_mode", prep.template_mode),
+        ):
+            if accepts_kwargs or name in sig.parameters:
+                streaming_kwargs[name] = value
 
         async for event in system.run_streaming(
             prep.transcript,

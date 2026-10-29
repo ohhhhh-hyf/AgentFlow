@@ -5,6 +5,8 @@
 - ``LINE_CN_NAMES``：任务线中文名。
 - ``LINE_KINDS``：任务线种类（手写）。渲染/CLI/sidecar/结构抽取由种类决定。
 """
+import os
+
 from core.runtime.kinds import DETERMINISTIC_PIPELINE, LLM_DOCUMENT, LLM_EXTRACT
 
 # state 类型注解类名（生成骨架用）
@@ -44,3 +46,17 @@ LINE_KINDS: dict[str, object] = {
 # 按 SUPERVISOR_GUARDRAIL 开关放行（长会始终走 LLM）。
 SUPERVISOR_FAST_PATH_CHARS = 2000
 SUPERVISOR_GUARDRAIL_RANGE = (2000, 5000)
+
+# ── 场景识别 Agent 开关与短会阈值 ─────────────────────────────
+# MINUTES_TEMPLATE_AUTO:
+#   off    关闭（默认），空 template 仍走 general_minutes
+#   shadow 只分类、只记录，不覆盖模板
+#   on     正常启用
+TEMPLATE_AUTO_MODES = ("off", "shadow", "on")
+TEMPLATE_AUTO_SHORT_CHARS = 2000
+
+
+def minutes_template_auto_mode() -> str:
+    """读取场景识别开关；非法值/缺省一律按 off。"""
+    value = (os.getenv("MINUTES_TEMPLATE_AUTO") or "off").strip().lower()
+    return value if value in TEMPLATE_AUTO_MODES else "off"

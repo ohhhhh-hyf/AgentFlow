@@ -131,6 +131,7 @@ from .tasks.agenda_minutes.contracts import AGENDA_MINUTES_FALLBACK_RULES
 from .tasks.consensus_decision.contracts import CONSENSUS_DECISION_FALLBACK_RULES
 from .tasks.mindmap.contracts import MINDMAP_FALLBACK_RULES
 from .tasks.minutes.contracts import MINUTES_FALLBACK_RULES
+from .tasks.minutes.steps.template_select import select_minutes_template
 from .tasks.minutes_styles.contracts import MULTI_STYLES_FALLBACK_RULES
 from .tasks.minutes_trace.contracts import MINUTES_TRACE_FALLBACK_RULES
 from .tasks.risks.contracts import RISK_FALLBACK_RULES
@@ -1251,9 +1252,18 @@ class _Nodes(DomainNodes):
             "meeting_understanding",
             self._make_meeting_understanding_node(line_names),
         )
-        builder.add_edge(START, "meeting_understanding")
-        cores = ["meeting_understanding"]
         selected = [name for name in (line_names or []) if name]
+        # 场景识别必须在会议理解之前：单线议题纪要会短路理解层，
+        # 但模板必须在短路前写入 state["templates"]["minutes"]。
+        if "minutes" in selected or not selected:
+            builder.add_node(
+                "template_classify", self._make_template_classify_node()
+            )
+            builder.add_edge(START, "template_classify")
+            builder.add_edge("template_classify", "meeting_understanding")
+        else:
+            builder.add_edge(START, "meeting_understanding")
+        cores = ["meeting_understanding"]
         skip_perspective = frozenset({"minutes_trace", "agenda_minutes"})
         need_perspective = (not selected) or any(
             name not in skip_perspective for name in selected
@@ -1271,6 +1281,17 @@ class _Nodes(DomainNodes):
             builder.add_edge(cores[-1], "minutes_view")
             cores = ["minutes_view"]
         return cores
+
+    def _make_template_classify_node(self):
+        """场景识别节点：开关关闭 / 显式模板 / 个人档时原样透传。"""
+
+        async def node(state: dict) -> dict:
+            return await select_minutes_template(
+                state,
+                client=getattr(self, "client", None),
+            )
+
+        return node
 
     def _make_minutes_view_node(self):
         """把本次 minutes 的有效 view 固化到 state["line_views"]。"""

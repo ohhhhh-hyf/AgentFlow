@@ -726,13 +726,29 @@ async def produce_line(
             if gate_ok is None
             else ("pass" if gate_ok else "fail")
         )
-        logger.info(
-            "render line=%s fill_mode=%s gate=%s directives=%d",
-            line_name,
-            fill_mode,
-            gate_s,
-            len(directives),
-        )
+        template_id = str(state.get("template_id") or "")
+        template_source = str(state.get("template_source") or "")
+        template_mode = str(state.get("template_mode") or "")
+        if line_name == "minutes":
+            logger.info(
+                "render line=%s template_id=%s template_source=%s "
+                "template_mode=%s fill_mode=%s gate=%s directives=%d",
+                line_name,
+                template_id,
+                template_source,
+                template_mode,
+                fill_mode,
+                gate_s,
+                len(directives),
+            )
+        else:
+            logger.info(
+                "render line=%s fill_mode=%s gate=%s directives=%d",
+                line_name,
+                fill_mode,
+                gate_s,
+                len(directives),
+            )
         if enforce_notes:
             logger.info("enforce line=%s notes=%s", line_name, ";".join(enforce_notes))
         if gate_ok is False:

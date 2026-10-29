@@ -122,6 +122,10 @@ class PreparedRun:
     task_monitor: object | None
     subject: str | None
     lang: str = "zh"
+    template_auto: bool = False
+    template_source: str = ""
+    template_id: str = ""
+    template_mode: str = "normal"
 
 
 async def prepare_run(
@@ -149,6 +153,10 @@ async def prepare_run(
     memory: bool = False,
     meeting_time: str = "",
     lang: str = "zh",
+    template_auto: bool = False,
+    template_source: str = "",
+    template_id: str = "",
+    template_mode: str = "normal",
 ) -> PreparedRun:
     """输入组装 + 注入 + 模板编译（run 与流式接口共用；本函数不执行任务）。"""
     setup_logging()
@@ -394,6 +402,10 @@ async def prepare_run(
         task_monitor=_task_monitor,
         subject=subject,
         lang=lang,
+        template_auto=template_auto,
+        template_source=template_source,
+        template_id=template_id,
+        template_mode=template_mode,
     )
 
 
@@ -421,6 +433,10 @@ async def run(
     memory: bool = False,
     meeting_time: str = "",
     lang: str = "zh",
+    template_auto: bool = False,
+    template_source: str = "",
+    template_id: str = "",
+    template_mode: str = "normal",
 ) -> dict | None:
     """Run selected task lines and persist their final artifacts.
 
@@ -440,6 +456,10 @@ async def run(
         compile_natural=compile_natural, monitor=monitor,
         collect_reports=collect_reports, extra_line_inputs=extra_line_inputs,
         memory=memory, meeting_time=meeting_time, lang=lang,
+        template_auto=template_auto,
+        template_source=template_source,
+        template_id=template_id,
+        template_mode=template_mode,
     )
     system = prep.system
     ctx = prep.ctx
@@ -474,8 +494,19 @@ async def run(
             "line_extra": line_extra,
         }
         sig = inspect.signature(system.run_streaming)
-        if "lang" in sig.parameters or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+        accepts_kwargs = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+        )
+        if "lang" in sig.parameters or accepts_kwargs:
             streaming_kwargs["lang"] = prep.lang
+        for name, value in (
+            ("template_auto", prep.template_auto),
+            ("template_source", prep.template_source),
+            ("template_id", prep.template_id),
+            ("template_mode", prep.template_mode),
+        ):
+            if accepts_kwargs or name in sig.parameters:
+                streaming_kwargs[name] = value
 
         async for event in system.run_streaming(
             transcript,
