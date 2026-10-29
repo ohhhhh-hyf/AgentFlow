@@ -87,6 +87,26 @@ def test_prompt_allows_sub_headings() -> None:
     check("仍保留「禁止同名重复」保护（禁止把栏名当标签复述）",
           "禁止同名重复" in prompt and "不得把栏名当标签复述" in prompt, "")
 
+def test_placeholder_rules_resolve_title_bracket_conflict() -> None:
+    """回归：第 1 条不能再写“标题原样保留”，否则与第 2 条“去掉方括号”打架。"""
+    from core.templates.template_prompt import (
+        PLACEHOLDER_RULES,
+        build_template_render_prompt,
+    )
+
+    assert "只替换方括号内的占位内容" in PLACEHOLDER_RULES
+    assert "标题行例外" in PLACEHOLDER_RULES
+    assert "标题行不得出现 [ ]" in PLACEHOLDER_RULES
+    assert "固定文字、标题、表头、分隔行原样保留" not in PLACEHOLDER_RULES
+
+    prompt = build_template_render_prompt(
+        renderer="渲染器",
+        source="草稿",
+        empty_rule="空值",
+    )
+    assert "占位符模板的标题文字按占位规则去掉方括号" in prompt
+
+
 def test_buggy_template_now_works() -> None:
     """两条历史坏损模板（模板文件未改也应被代码修复救回）：末栏恢复为字段。"""
     tdir = _active_dir()
