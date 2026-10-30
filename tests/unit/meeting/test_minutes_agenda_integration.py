@@ -198,7 +198,7 @@ def test_orchestrator_non_minutes_task_unaffected():
     # actions 任务应完全不受 minutes 议程注入影响
     actions_ctx = nodes._line_shared_context(state, "actions")
     assert "【现场审定的有效议题清单" not in actions_ctx
-    assert "会议原文：\n张三: 行动项与风险" in actions_ctx
+    assert "【会议原文】\n张三: 行动项与风险" in actions_ctx
 
 
 def test_tasks_prepare_minutes_with_valid_agenda(tmp_path, monkeypatch):

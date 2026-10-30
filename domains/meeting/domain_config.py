@@ -31,7 +31,7 @@ LINE_CN_NAMES: dict[str, str] = {
 # minutes_trace 是 deterministic_pipeline + sidecar，不是和 risks 对等的 3-step 线。
 LINE_KINDS: dict[str, object] = {
     "minutes": {"kind": LLM_DOCUMENT, "llm_render": "if_template"},
-    "actions": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
+    "actions": {"kind": LLM_EXTRACT, "llm_render": "never"},
     "risks": {"kind": LLM_EXTRACT, "llm_render": "if_template"},
     "mindmap": LLM_DOCUMENT,
     "minutes_styles": {"kind": LLM_DOCUMENT, "cli_mode": True},

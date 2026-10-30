@@ -15,42 +15,49 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from pydantic import ValidationError
 
 from app.schemas import TEXT_KEYS, TaskRequest
-from app.tasks import _collect_texts, _pack_minutes_auxiliary, _parse_notes_items, _prepare
+from app.tasks import (
+    _collect_texts,
+    _pack_actions_auxiliary,
+    _pack_minutes_auxiliary,
+    _parse_notes_items,
+    _prepare,
+)
 from domains.meeting.models import Minutes
 from domains.meeting.tasks.minutes.prompts import (
     AGENDA_AUX_PROMPT_BLOCK,
-    KEYPOINTS_PROMPT_BLOCK,
     MINUTES_AGENDA_GENERATION_PROMPT,
     MINUTES_OBJECTIVE_GENERATION_PROMPT,
-    NOTES_PROMPT_BLOCK,
-    VISION_PROMPT_BLOCK,
     build_minutes_supervisor_prompt,
 )
 from domains.meeting.tasks.minutes.steps.minutes_agent import MinutesGenerationAgent
 
 
 def test_tc09_schema_and_text_keys_validation():
-    """TC-09: 验证 TEXT_KEYS 包含 4 个字段，支持 vision_info，拦截未知 key。"""
+    """TC-09: 验证 TEXT_KEYS 包含 5 个字段，支持 vision_info / actions_text，拦截未知 key。"""
     assert "transcript" in TEXT_KEYS
     assert "keypoints" in TEXT_KEYS
     assert "notes" in TEXT_KEYS
     assert "vision_info" in TEXT_KEYS
-    assert len(TEXT_KEYS) == 4
+    assert "actions_text" in TEXT_KEYS
+    assert len(TEXT_KEYS) == 5
 
-    # 合法 4 字段解析
+    # 合法 5 字段解析
     req = TaskRequest(
         texts={
             "transcript": "Hello world",
             "keypoints": "Key metric 46%",
             "notes": "Quote -> Comment",
             "vision_info": "OCR text from dashboard",
+            "actions_text": "EPC需提供合同确认函",
         }
     )
     assert req.texts["vision_info"] == "OCR text from dashboard"
+    assert req.texts["actions_text"] == "EPC需提供合同确认函"
 
     # 未知 key 抛出 ValidationError
     with pytest.raises(ValidationError) as exc_info:
@@ -91,12 +98,29 @@ def test_tc03_notes_parser_and_auxiliary_pack():
     assert "【视觉信息参考(OCR)】\n系统架构图：Auth -> Gateway -> Service" in packed
 
 
+def test_actions_auxiliary_pack_isolated_from_minutes():
+    """actions_text 只进入 actions 辅助块，不能被 minutes auxiliary 消费。"""
+    packed = _pack_actions_auxiliary(
+        actions_text="EPC需提供合同确认函",
+        keypoints="重点指标达成 95%",
+        notes="原话 -> 备注",
+        vision_info="OCR 参数表",
+    )
+    assert "【用户标记待办原文】\nEPC需提供合同确认函" in packed
+    assert "【用户核心关键点】" in packed
+    assert "【用户划线原话与笔记】" in packed
+    assert "【视觉信息参考(OCR)】" in packed
+
+    minutes_aux = _pack_minutes_auxiliary("重点指标达成 95%", "原话 -> 备注", "OCR 参数表")
+    assert "【用户标记待办原文】" not in minutes_aux
+
+
 def test_tc01_downward_compatibility_pure_voice():
     """TC-01: 向下兼容纯语音 (仅 transcript，辅助项全空)。"""
     req = TaskRequest(texts={"transcript": "今天开会讨论下周发布计划。"})
-    t, k, n, v = _collect_texts(req)
+    t, k, n, v, a = _collect_texts(req)
     assert t == "今天开会讨论下周发布计划。"
-    assert k == "" and n == "" and v == ""
+    assert k == "" and n == "" and v == "" and a == ""
 
     aux = _pack_minutes_auxiliary(k, n, v)
     assert aux == ""
@@ -324,6 +348,28 @@ def test_tc06_prepare_line_extra_minutes_auxiliary():
     assert "【用户核心关键点】\n流程审批量同比增长46%" in aux
     assert "【用户划线原话与笔记】\n- 原话：\"广州珠海增加7个\" | 备注：真的假的？" in aux
     assert "【视觉信息参考(OCR)】\n吞吐量 15000 QPS" in aux
+
+
+def test_prepare_actions_auxiliary_does_not_enter_minutes():
+    """actions_text 只在 actions 线进入 line_extra，不污染 minutes_auxiliary。"""
+    req = TaskRequest(
+        texts={
+            "transcript": "EPC需在周五前提供合同确认函。",
+            "keypoints": "涡轮机运行确认",
+            "notes": "李四配合",
+            "vision_info": "涡轮机参数表",
+            "actions_text": "EPC需提供合同确认函",
+        }
+    )
+    prep = _prepare("meeting", "actions", req, user_id="test_user")
+    assert prep.line == "actions"
+    assert "actions_auxiliary" in prep.extra_line_inputs
+    aux = prep.extra_line_inputs["actions_auxiliary"]
+    assert "【用户标记待办原文】\nEPC需提供合同确认函" in aux
+    assert "【用户核心关键点】\n涡轮机运行确认" in aux
+    assert "【用户划线原话与笔记】\n- 笔记：李四配合" in aux
+    assert "【视觉信息参考(OCR)】\n涡轮机参数表" in aux
+    assert "minutes_auxiliary" not in prep.extra_line_inputs
 
 
 def test_tc06_orchestrator_context_injection():

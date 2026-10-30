@@ -22,7 +22,7 @@ def test_actions_context_is_transcript_only() -> None:
         "user_radar_block": "【重点关注雷达】",
     }
     context = _Nodes()._line_shared_context(state, "actions")
-    assert context == "会议原文：\n张三：周五前完成接口改造。"
+    assert context == "【会议原文】\n张三：周五前完成接口改造。"
     for forbidden in (
         "会议理解",
         "用户画像",

@@ -21,6 +21,7 @@ import ast
 import re
 import sys
 import traceback
+import types
 from pathlib import Path
 
 # 项目根（脚本位于 tools/codegen/sync_domain.py）
@@ -181,14 +182,33 @@ def _load_module_file(path: Path):
 
     脚本只读契约声明，不应 import 领域包——domain/meeting/__init__.py 会连锁
     import models.py，而 models.py 顶层依赖生成的 mixin（鸡生蛋）。
+
+    带相对导入的 contracts.py（如 meeting_core/contracts.py）需要一个
+    synthetic package 作为 ``__package__``，否则 ``from .x import y`` 会报
+    “attempted relative import with no known parent package”。这里只为
+    该文件所在目录建立最小包壳，不执行它的 ``__init__.py``。
     """
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location(path.stem, path)
+    source = _read_py(path)
+    has_relative_import = bool(
+        re.search(r"^\s*(?:from|import)\s+\.", source, re.MULTILINE)
+    )
+    module_name = path.stem
+    if has_relative_import:
+        package_name = path.parent.name
+        if package_name not in sys.modules:
+            package = types.ModuleType(package_name)
+            package.__path__ = [str(path.parent)]
+            package.__package__ = package_name
+            sys.modules[package_name] = package
+        module_name = f"{package_name}.{path.stem}"
+
+    spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         raise SystemExit(f"无法加载模块：{path}")
     mod = importlib.util.module_from_spec(spec)
-    sys.modules[path.stem] = mod
+    sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
     return mod
 

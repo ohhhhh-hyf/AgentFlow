@@ -8,17 +8,17 @@ from __future__ import annotations
 
 from core.schema.contracts import (
     Check, Decision, Feedback, GenerationContract, ObjListField,
-    StrField, SupervisorContract,
+    StrField, StrListField, SupervisorContract,
 )
 from core.schema.fallback_rules import FallbackRules, Lines
 
 
-# Step 1 冻结目标：待办只做客观输出，条目收敛为 8 字段。
-# 当前运行时契约仍保留旧字段；Step 2 再切换 ACTION_ITEM_FIELDS / Contract。
-ACTIONS_OBJECTIVE_OUTPUT_FIELDS = ("assigned_actions", "unassigned_actions")
+# 待办只做客观输出：单一扁平 actions 数组，每条 8 字段。
+# assigned/unassigned 由 owner 是否为 null 在展示层派生。
+ACTIONS_OBJECTIVE_OUTPUT_FIELDS = ("actions",)
 ACTIONS_OBJECTIVE_ITEM_FIELD_NAMES = (
-    "category",
-    "task",
+    "title",
+    "item",
     "owner",
     "deadline",
     "collaborators",
@@ -27,39 +27,38 @@ ACTIONS_OBJECTIVE_ITEM_FIELD_NAMES = (
     "evidence",
 )
 ACTIONS_OBJECTIVE_REMOVED_ITEM_FIELDS = (
+    "category",
+    "task",
     "timing_anchor",
     "deliverable",
     "status",
     "confidence",
 )
 ACTIONS_OBJECTIVE_REMOVED_OUTPUT_FIELDS = (
+    "assigned_actions",
+    "unassigned_actions",
     "my_actions",
     "delegated_actions",
 )
 
 ACTION_ITEM_FIELDS = [
-    StrField("category", "该待办所属的业务大类（直接继承原文中的业务议题/分组；同一组下的待办共用相同大类标题）"),
-    StrField("task", "以动词开头的具体任务描述，条件型任务写清触发条件"),
-    StrField("owner", "原文明示的负责人姓名，未明示为null"),
-    StrField("deadline", "原文明示的截止时间，未明示为null"),
-    StrField("collaborators", "原文提到的协同对象/配合方；未提及为null"),
+    StrField("title", "item 的展示小标题；不包含 deadline，不引入新事实"),
+    StrField("item", "剥离 deadline 后的可执行待办正文"),
+    StrField("owner", "原文明示的负责人姓名/团队；未明示为null"),
+    StrField("deadline", "原文明示的截止时间；保留原文表达，未明示为null"),
+    StrListField("collaborators", "原文提到的协同对象/配合方；每个元素一个对象；未提及为空数组"),
     StrField("acceptance_criteria", "原文明示的验收标准、完成判定或交付物；未提及为null"),
     StrField("dependency", "原文明示的前置条件或前置动作；无明确前后制约为null"),
-    StrField("evidence", "原文中支撑此待办的具体语句（可直接定位）"),
+    StrField("evidence", "原文或actions_text中支撑此待办的可定位摘录"),
 ]
 
 
-class ObjectiveActionItemsGenerationContract(GenerationContract):
-    """客观视角待办输出契约：全员已分配待办 + 未分配待办。"""
+class ActionItemsGenerationContract(GenerationContract):
+    """客观视角待办输出契约：单一扁平 actions 数组。"""
 
     fields = [
-        ObjListField("assigned_actions", ACTION_ITEM_FIELDS),
-        ObjListField("unassigned_actions", ACTION_ITEM_FIELDS),
+        ObjListField("actions", ACTION_ITEM_FIELDS),
     ]
-
-
-class ActionItemsGenerationContract(ObjectiveActionItemsGenerationContract):
-    """待办提取通用输出契约（已收敛为客观契约）。"""
 
 
 class ActionItemsSupervisorContract(SupervisorContract):
@@ -73,7 +72,7 @@ class ActionItemsSupervisorContract(SupervisorContract):
 
 
 ACTION_ITEMS_OBJECTIVE_GENERATION_OUTPUT_CONTRACT = (
-    ObjectiveActionItemsGenerationContract.to_output_contract()
+    ActionItemsGenerationContract.to_output_contract()
 )
 ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT = (
     ActionItemsGenerationContract.to_output_contract()
@@ -82,16 +81,11 @@ ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT = ActionItemsSupervisorContract.to_outpu
 
 # 降级拼装规则（声明式类）：fallback 节点由 sync_domain.py 检测子类后生成
 class ActionItemsFallbackRules(FallbackRules):
-    """待办降级拼装：客观合并后逐行格式化 + 结构化 items。"""
+    """待办降级拼装：扁平 actions 逐行格式化 + 结构化 items。"""
 
-    sections = [
-        Lines(
-            "assigned_actions",
-            merge=["assigned_actions", "unassigned_actions"],
-        ),
-    ]
+    sections = [Lines("actions")]
     empty_text = "暂无明确待办事项"
-    structured = {"merge": ["assigned_actions", "unassigned_actions"]}
+    structured = {"merge": ["actions"]}
 
 
 ACTION_ITEMS_FALLBACK_RULES = ActionItemsFallbackRules()
@@ -102,7 +96,6 @@ __all__ = [
     "ACTIONS_OBJECTIVE_REMOVED_ITEM_FIELDS",
     "ACTIONS_OBJECTIVE_REMOVED_OUTPUT_FIELDS",
     "ACTION_ITEM_FIELDS",
-    "ObjectiveActionItemsGenerationContract",
     "ActionItemsGenerationContract",
     "ACTION_ITEMS_OBJECTIVE_GENERATION_OUTPUT_CONTRACT",
     "ACTION_ITEMS_GENERATION_OUTPUT_CONTRACT",

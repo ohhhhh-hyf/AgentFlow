@@ -132,12 +132,14 @@ from .tasks.agenda_minutes.contracts import AGENDA_MINUTES_FALLBACK_RULES
 from .tasks.consensus_decision.contracts import CONSENSUS_DECISION_FALLBACK_RULES
 from .tasks.mindmap.contracts import MINDMAP_FALLBACK_RULES
 from .tasks.minutes.contracts import MINUTES_FALLBACK_RULES
-from .tasks.minutes.steps.template_select import select_minutes_template
 from .tasks.minutes_styles.contracts import MULTI_STYLES_FALLBACK_RULES
 from .tasks.minutes_trace.contracts import MINUTES_TRACE_FALLBACK_RULES
 from .tasks.risks.contracts import RISK_FALLBACK_RULES
 
 # ── FallbackRules import 生成区结束 ──
+
+# 模板自动识别入口：不在生成区，避免 sync_domain --write 清理
+from .tasks.minutes.steps.template_select import select_minutes_template  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -151,8 +153,7 @@ QUALITY_WARNING = "生成可能有误，请结合会议原文核对。"
 # ── 空结构常量生成区：由 tools/codegen/sync_domain.py 生成，勿手改 ──
 
 _EMPTY_ACTION_ITEMS = {
-    "assigned_actions": [],
-    "unassigned_actions": [],
+    "actions": [],
 }
 
 _EMPTY_AGENDA_MINUTES = {
@@ -171,7 +172,6 @@ _EMPTY_MEETING_UNDERSTANDING = {
     "meeting_purpose": "",
     "speakers": [],
     "session_segments": [],
-    "topics": [],
     "decisions": [],
     "open_questions": [],
     "risks": [],
@@ -742,7 +742,11 @@ class _Nodes(DomainNodes):
         if line_name == "minutes" and view == VIEW_PERSONAL:
             return self._personal_draft_context(state)
         if line_name == "actions":
-            return f"会议原文：\n{state.get('transcript') or ''}"
+            parts = [f"【会议原文】\n{state.get('transcript') or ''}"]
+            aux = str((state.get("line_extra") or {}).get("actions_auxiliary") or "").strip()
+            if aux:
+                parts.append(aux)
+            return "\n\n".join(parts)
 
         pack = self._meeting_pack(state, line_name)
         if line_name == "agenda_minutes":
@@ -909,6 +913,9 @@ class _Nodes(DomainNodes):
                     source_state, line_name, include_profile=False
                 )
             )
+            aux = str((state.get("line_extra") or {}).get("actions_auxiliary") or "").strip()
+            if aux:
+                blocks.append(aux)
             blocks.append(
                 f"{_line_draft_title(line_name)}：\n"
                 f"{_json(compact_draft_for_review(sub['draft']))}"
