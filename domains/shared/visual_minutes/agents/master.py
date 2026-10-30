@@ -6,7 +6,15 @@ from dataclasses import dataclass, field
 from typing import List
 
 from ..llm import VisualLLM
-from ..models.ir import BlockHighlight, MasterBlock, MasterVisual, SectionDecision
+from ..models.ir import (
+    BlockHighlight,
+    CardItem,
+    CardsData,
+    CardsVisual,
+    MasterBlock,
+    MasterVisual,
+    SectionDecision,
+)
 from ..parsing.parser import ParsedMinutes, SectionNode
 from .prompts import MASTER_SYSTEM_PROMPT, build_master_user_prompt
 
@@ -74,9 +82,26 @@ def fallback_master(parsed: ParsedMinutes) -> MasterVisual:
             )
         ]
 
+    card_items = [
+        CardItem(
+            tag=f"议题 {idx:02d}",
+            title=b.title,
+            summary=b.summary,
+            key_points=b.key_points,
+            highlight=b.highlight,
+        )
+        for idx, b in enumerate(blocks, start=1)
+    ]
+    cards_widget = CardsVisual(
+        kind="cards",
+        title="核心议题架构",
+        data=CardsData(items=card_items),
+    )
+
     return MasterVisual(
         headline=parsed.document_title or "会议核心议题通览",
         thesis=f"全篇围绕 {len(blocks)} 个核心议题展开深入研讨，已形成明确核心共识与落地决策。",
+        widgets=[cards_widget],
         layout="grid",
         blocks=blocks,
         metrics=[],
@@ -87,10 +112,15 @@ def _is_master_valid(master: MasterVisual, sections: List[SectionNode]) -> bool:
     """校验 Master 规划是否合法。"""
     if not master.headline or not master.headline.strip():
         return False
+
+    # 1. 优先校验自主多组件流（widgets）
+    if master.widgets and len(master.widgets) >= 1:
+        return True
+
+    # 2. 兼容校验经典单立柱块（blocks）
     if not master.blocks or len(master.blocks) < 1:
         return False
 
-    # 检查 Block 标题是否包含纯结构性占位词
     meta_count = sum(
         1
         for b in master.blocks
@@ -101,7 +131,6 @@ def _is_master_valid(master: MasterVisual, sections: List[SectionNode]) -> bool:
 
     known = {s.section_id for s in sections}
     for block in master.blocks:
-        # 清洗不在已知 section 集合中的 id
         block.section_ids = [sid for sid in block.section_ids if sid in known]
 
     return True
@@ -121,6 +150,7 @@ class MasterPlanner:
         self,
         parsed: ParsedMinutes,
         decisions: List[SectionDecision],
+        transcript: str = "",
     ) -> MasterPlanResult:
         if not parsed.sections:
             return MasterPlanResult(master=fallback_master(parsed))
@@ -131,6 +161,7 @@ class MasterPlanner:
                 build_master_user_prompt(
                     [_section_payload(s) for s in parsed.sections],
                     [d.model_dump() for d in decisions],
+                    transcript=transcript,
                 ),
                 label="visual_minutes/master",
             )

@@ -178,6 +178,41 @@ class BlockHighlight(BaseModel):
     value: str = ""
 
 
+class CardItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    tag: str = ""
+    title: str = ""
+    summary: str = ""
+    key_points: List[str] = Field(default_factory=list)
+    highlight: Optional[BlockHighlight] = None
+
+
+class CardsData(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    items: List[CardItem] = Field(default_factory=list)
+
+
+class CardsVisual(BaseModel):
+    kind: Literal["cards"] = "cards"
+    title: str = ""
+    data: CardsData = Field(default_factory=CardsData)
+
+
+MasterWidget = Annotated[
+    Union[
+        TimelineVisual,
+        TableVisual,
+        FlowVisual,
+        TreeVisual,
+        StatsVisual,
+        CardsVisual,
+    ],
+    Field(discriminator="kind"),
+]
+
+
 class MasterBlock(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -201,6 +236,7 @@ class MasterVisual(BaseModel):
 
     headline: str
     thesis: str = ""
+    widgets: List[MasterWidget] = Field(default_factory=list)
     layout: Literal["grid", "timeline", "flow", "matrix"] = "grid"
     blocks: List[MasterBlock] = Field(default_factory=list)
     metrics: List[MasterMetric] = Field(default_factory=list)
@@ -216,6 +252,9 @@ class VisualDocumentIR(BaseModel):
 
 __all__ = [
     "BlockHighlight",
+    "CardItem",
+    "CardsData",
+    "CardsVisual",
     "FlowData",
     "FlowEdge",
     "FlowNode",
@@ -223,6 +262,7 @@ __all__ = [
     "MasterBlock",
     "MasterMetric",
     "MasterVisual",
+    "MasterWidget",
     "PlannerResponse",
     "SectionDecision",
     "SectionVisual",

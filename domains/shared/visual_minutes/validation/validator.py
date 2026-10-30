@@ -107,6 +107,26 @@ def _compact_master(master: MasterVisual) -> MasterVisual:
         if block.highlight:
             block.highlight.tag = _truncate(block.highlight.tag, 10)
             block.highlight.value = _truncate(block.highlight.value, 30)
+
+    for w in master.widgets:
+        if w.kind == "cards":
+            for item in w.data.items:
+                item.summary = _truncate(item.summary, MAX_MASTER_BLOCK_SUMMARY_CHARS)
+                item.key_points = [
+                    _truncate(p, MAX_MASTER_KEY_POINT_CHARS)
+                    for p in item.key_points[:MAX_MASTER_BLOCK_KEY_POINTS]
+                    if p.strip()
+                ]
+                if item.highlight:
+                    item.highlight.tag = _truncate(item.highlight.tag, 10)
+                    item.highlight.value = _truncate(item.highlight.value, 30)
+        elif w.kind == "timeline":
+            w.data.events = w.data.events[:MAX_TIMELINE_EVENTS]
+        elif w.kind == "table":
+            w.data.columns = w.data.columns[:MAX_TABLE_COLUMNS]
+            w.data.rows = w.data.rows[:MAX_TABLE_ROWS]
+        elif w.kind == "stats":
+            w.data.metrics = w.data.metrics[:MAX_STATS_METRICS]
     return master
 
 

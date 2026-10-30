@@ -68,7 +68,9 @@ async def build_visual_ir(
             async with semaphore:
                 return await extractor.extract(section, decision, transcript)
 
-        master_task = asyncio.create_task(master_planner.plan(parsed, decisions))
+        master_task = asyncio.create_task(
+            master_planner.plan(parsed, decisions, meeting_transcript)
+        )
         extract_tasks = [asyncio.create_task(_extract(d)) for d in planned]
         results = await asyncio.gather(master_task, *extract_tasks)
         master_result = results[0]

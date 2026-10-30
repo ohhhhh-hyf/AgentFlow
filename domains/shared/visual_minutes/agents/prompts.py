@@ -17,7 +17,7 @@ PLANNER_SYSTEM_PROMPT = """你负责为会议纪要的各个章节规划合适�
 规划原则：
 1. 保持纪要常态文本：对于全文摘要、会议背景、开场致辞、结论定调、总结回顾、待办事项与行动项等纯叙述或清单内容，必须设为 "none"，保持正文纯文本原貌。
 2. 仅在讨论议题具备明确结构化关系时规划视觉，每篇纪要正文通常规划 1~3 个高价值视觉：
-   - flow：适合具有明确流转次序、跨环节协同或包含反向回路的闭环演进机制。
+   - flow：适合具有先后推进次序、跨环节协同或前后步骤衔接的流转管线。
    - tree：适合纵向分层体系、多级递进架构或模块树状拓扑。
    - table：适合多方案横向对比、或现状痛点与解法的成对映射。
    - stats：适合多项显著的量化数据提升或指标调优对比。
@@ -39,39 +39,82 @@ PLANNER_SYSTEM_PROMPT = """你负责为会议纪要的各个章节规划合适�
 }"""
 
 
-MASTER_SYSTEM_PROMPT = """你负责提炼整篇会议纪要的开篇通览大图（Master Infographic）。
+MASTER_SYSTEM_PROMPT = """你负责根据会议纪要与现场原文，提炼整篇会议的开篇全景简报看板（Master Infographic）。
 
 规划原则：
-1. 全局统领：提取整场会议的实质性议题脉络，标题（headline）直接反映会议核心主旨，观点（thesis）给出全场定调结论（60字内）。
-2. 议题均衡覆盖（blocks）：提炼 2~4 个讨论的核心实质议题，必须均衡覆盖整篇纪要的主体议程：
-   - section_ids：对应纪要中的章节编号列表。
-   - title：精炼议题名称（15字内）。
-   - summary：一句话核心定调或态势（30字内）。
-   - key_points：2~3 条事实要点，每条短小精炼（25字内）。
-   - highlight：每个议题提取 1 项专属于该议题的核心抓手，包含 tag（成果属性标签，6字内）和 value（核心结论或量化指标，20字内）。若议题包含明确量化指标则提取该指标，若为架构或战略议题则提取最核心的定调成果。严禁从单一议题扎堆提取。
-3. 布局形态（layout）：
-   - grid：并列议题或业务方向（推荐默认）
-   - flow：先后推进流程
-   - timeline：时序演进
-   - matrix：横向对标
+1. 全局统领：提取整场会议的 headline（核心主旨标题，25字内）和 thesis（全场高度定调结论，60字内）。
+2. 自主组件组合（widgets）：根据原文实际包含的事实维度，自主决定生成 2~5 个最适合展示全貌的基础组件（widgets）：
+   - stats：若原文包含明确的量化指标、耗时下降或性能调优数据，提取核心指标大卡；
+   - timeline：若原文包含明确的时间推进、多期阶段或发展沿革，提取里程碑时间列表；
+   - table：若原文包含多方案横向对比、或现状痛点与解法映射，提取结构化对比表格；
+   - cards：提炼 2~4 个核心议题立柱，包含议题名称、核心定调、事实要点与关键成果；
+   - flow：若原文包含流转步骤、跨环节协同或反向闭环反馈机制，提取流程闭环图。
+3. 真实忠实：所有组件的数据与事实严格来源于输入原文与纪要，标题与描述使用精炼短句。
 4. 输出纯 JSON 对象。
 
-输出格式：
+组件数据格式契约：
+
+【stats（指标大卡）】：
+{
+  "kind": "stats",
+  "title": "指标板块标题",
+  "data": {
+    "metrics": [{"label": "指标含义", "value": "量化数值", "evidence": "出处"}]
+  }
+}
+
+【timeline（时序推进）】：
+{
+  "kind": "timeline",
+  "title": "推进进程标题",
+  "data": {
+    "events": [{"time_label": "时间节点", "title": "阶段或事件", "detail": "具体说明", "evidence": "出处"}]
+  }
+}
+
+【table（对比映射表格）】：
+{
+  "kind": "table",
+  "title": "表格标题",
+  "data": {
+    "columns": ["维度", "属性一", "属性二"],
+    "rows": [{"cells": ["行标题", "内容一", "内容二"], "evidence": "出处"}]
+  }
+}
+
+【cards（核心议题立柱）】：
+{
+  "kind": "cards",
+  "title": "议题架构标题",
+  "data": {
+    "items": [
+      {
+        "tag": "议题 01",
+        "title": "议题名称",
+        "summary": "一句话核心定调",
+        "key_points": ["事实要点一", "事实要点二"],
+        "highlight": {"tag": "成果标签", "value": "关键突破或指标"}
+      }
+    ]
+  }
+}
+
+【flow（流程闭环）】：
+{
+  "kind": "flow",
+  "title": "流程图标题",
+  "data": {
+    "nodes": [{"node_id": "step_1", "title": "环节名称", "detail": "处理说明", "evidence": "出处"}],
+    "edges": [{"from": "step_1", "to": "step_2", "label": "流转说明"}]
+  }
+}
+
+整体输出格式：
 {
   "headline": "全篇会议核心主旨",
   "thesis": "全场核心定调结论",
-  "layout": "grid | flow | timeline | matrix",
-  "blocks": [
-    {
-      "section_ids": ["s2"],
-      "title": "议题名称",
-      "summary": "核心态势定调",
-      "key_points": ["事实要点一", "事实要点二"],
-      "highlight": {
-        "tag": "成果标签",
-        "value": "核心抓手或量化指标"
-      }
-    }
+  "widgets": [
+    // 放入自主决定的 2~5 个组件对象
   ]
 }"""
 
@@ -86,9 +129,9 @@ EXTRACTOR_SYSTEM_PROMPT = """你负责从当前章节正文及现场原文中，
 
 各形态抽取要求：
 
-【flow（流转步骤与闭环反馈）】：
-- nodes：抽取 3~6 个核心步骤节点，包含 node_id、title（步骤名称）、detail（动作描述）、evidence。
-- edges：抽取节点间的流向连线（from, to, label）。若存在反向修正、评估反馈或持续迭代等回流回路，将边（edge）的 from 指向反馈发起节点，to 指向受影响的目标节点，并在 label 中注明反馈信号。
+【flow（先后流转与推进管线）】：
+- nodes：抽取 3~6 个核心步骤节点，包含 node_id、title（步骤名称）、detail（动作与处理说明）、evidence。
+- edges：抽取相邻步骤间的顺向推进连线（from, to, label），并在 label 中注明交接传递的成果或信号。
 格式：
 {
   "kind": "flow",
@@ -178,11 +221,13 @@ def build_extractor_user_prompt(
 def build_master_user_prompt(
     sections: List[dict[str, Any]],
     decisions: List[dict[str, Any]],
+    transcript: str = "",
 ) -> str:
+    transcript_text = transcript[:25000] if transcript else "（无现场原文）"
     return (
-        "请根据以下所有章节信息生成开篇通览大图（Master Infographic）：\n"
-        f"章节列表：\n{json.dumps({'sections': sections}, ensure_ascii=False, indent=2)}\n\n"
-        f"规划决策：\n{json.dumps({'sections': decisions}, ensure_ascii=False, indent=2)}"
+        "请根据以下纪要章节骨架与现场原文，自主决定并提炼整场会议的开篇全景简报看板（Master Infographic）：\n\n"
+        f"【纪要章节骨架】：\n{json.dumps({'sections': sections}, ensure_ascii=False, indent=2)}\n\n"
+        f"【现场原文全文/精选】：\n{transcript_text}"
     )
 
 
