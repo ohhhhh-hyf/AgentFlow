@@ -39,13 +39,13 @@ def test_action_items_text_render():
     text = ActionItemsRender.render_items(items)
     assert "**网关压测流控**： 完成 SDK 适配补丁并进行 2000 QPS 压测（责任方：张伟）" in text
     assert " - 时间节点：周五 18:00 前" in text
-    assert " - 交付验收：压测报告与 API 文档" in text
+    assert " - 验收交付：压测报告与 API 文档" in text
     assert " - 前置依赖：基础架构组签发临时 Token" in text
     assert "**申请预发布集群机器配额**： 申请预发布集群机器配额" in text
     assert "待认领" not in text
     # 极简项不应出现未明确占位符
     assert "时间节点：无" not in text
-    assert "交付验收：无" not in text
+    assert "验收交付：无" not in text
     assert "前置依赖：无" not in text
 
 
@@ -466,7 +466,7 @@ def test_action_items_flat_contract_compatibility() -> None:
     assert "契约解耦与单测" in rendered_text
     assert "完成新旧契约解耦与单测编写" in rendered_text
     assert "核心团队" in rendered_text
-    assert " - 协同配合：测试组、运维组" in rendered_text
+    assert "（责任方：核心团队 配合方：测试组、运维组）" in rendered_text
     assert "线上告警监控" in rendered_text
     assert "跟进线上告警指标监控" in rendered_text
 

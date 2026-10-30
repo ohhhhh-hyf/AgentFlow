@@ -177,6 +177,8 @@ class DeadlineIR(BaseModel):
     # 结构化容器（保证与下游 Tool 100% 兼容）
     date: Optional[DateSpec] = None
     range: Optional[DateRangeSpec] = None
+    # 多个候选范围（如“这周或下周初”）；由 Tool 按相邻/小间隔合并为一个保守范围
+    candidate_ranges: List[DateRangeSpec] = Field(default_factory=list)
     time: TimeSpec = Field(default_factory=TimeSpec)
 
     reason: Optional[str] = None
@@ -237,8 +239,11 @@ class DeadlineIR(BaseModel):
         if self.status == "resolved":
             has_date = self.date is not None
             has_range = self.range is not None
-            if has_date == has_range:
-                raise ValueError("resolved 状态必须且只能提供 date 或 range 之一")
+            has_candidates = bool(self.candidate_ranges)
+            if sum((has_date, has_range, has_candidates)) != 1:
+                raise ValueError(
+                    "resolved 状态必须且只能提供 date、range、candidate_ranges 之一"
+                )
             if has_date and self.date is not None:
                 if (
                     self.date.rule == DateRule.IMPLICIT_DATE

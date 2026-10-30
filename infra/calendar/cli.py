@@ -2,9 +2,9 @@
 
 默认输出：标准业务待办对象数组，每项包含 raw, deadline, time_slot, kind。
 示例：
-    python calendar/cli.py \
+    python -m infra.calendar.cli \
       --meeting-time "2026-10-29 14:30:45" \
-      --input calendar/examples/input.json
+      --input -
 """
 from __future__ import annotations
 
@@ -15,8 +15,10 @@ import sys
 from pathlib import Path
 from typing import Any, List
 
-from agent import CalendarAgentError, run_deadline_agent
-from config import DEFAULT_TIMEZONE, get_api_key, is_placeholder_api_key
+from infra.llm.config import load_env
+
+from .agent import run_deadline_agent
+from .config import DEFAULT_TIMEZONE
 
 
 def _text_from_mapping(item: dict) -> str:
@@ -163,20 +165,15 @@ def _report_errors(results: List[dict]) -> None:
 def main(argv: List[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
+    # 独立 CLI 运行：加载项目根目录 .env，供 infra.llm.LLMClient 使用。
+    root = Path(__file__).resolve().parents[2]
+    load_env(root / ".env")
+
     try:
         raw = _load_input(args.input)
         texts = normalize_input(raw)
     except Exception as exc:  # noqa: BLE001
         print(f"[calendar] 读取输入失败：{exc}", file=sys.stderr)
-        return 2
-
-    # 如果显式禁用了 fast path 且没有 API key，提前友好提示
-    if args.no_fast_path and is_placeholder_api_key(get_api_key()):
-        print(
-            "[calendar] 已禁用 Fast-Path，请先在 calendar/config.py 填写 DEEPSEEK_API_KEY，"
-            "或设置环境变量 DEEPSEEK_API_KEY。",
-            file=sys.stderr,
-        )
         return 2
 
     try:
@@ -188,9 +185,6 @@ def main(argv: List[str] | None = None) -> int:
                 use_fast_path=not args.no_fast_path,
             )
         )
-    except CalendarAgentError as exc:
-        print(f"[calendar] Agent 配置错误：{exc}", file=sys.stderr)
-        return 2
     except Exception as exc:  # noqa: BLE001
         print(f"[calendar] 执行失败：{exc}", file=sys.stderr)
         return 1

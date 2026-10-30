@@ -122,13 +122,13 @@ ACTION_ITEMS_RENDER_PROMPT = """你是待办事项渲染器。根据已审核通
 
 - 全文无待办时，统一输出：「暂无明确待办事项」；
 - 严格按 actions 数组顺序输出，不按业务议题重新分组；
-- 每条待办第一行：`**{title}**： {item}（责任方：{owner}）`；
+- 每条待办第一行：`**{title}**： {item}（责任方：{owner} 配合方：{collaborators}）`；
+- 责任方与配合方放在同一括号内，用空格分隔；`collaborators` 用“、”连接；
+- 两者都为空时省略整个括号；只有一项时只输出该项；
 - 属性行固定顺序，有值才输出：
-  1. ` - 协同配合：{collaborators 用“、”连接}`
-  2. ` - 时间节点：{deadline}`
-  3. ` - 前置依赖：{dependency}`
-  4. ` - 交付验收：{acceptance_criteria}`
-- `collaborators` 用“、”连接；`owner` 为空时省略整个括号；
+  1. ` - 时间节点：{deadline}`
+  2. ` - 前置依赖：{dependency}`
+  3. ` - 验收交付：{acceptance_criteria}`
 - 不输出序号；多条待办之间空一行；
 - 使用规范公文排版，不添加图形化表情装饰。
 

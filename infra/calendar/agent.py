@@ -14,30 +14,26 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import re
-from typing import Any, Dict, List, Optional, Sequence, TypedDict
+from typing import Any, Dict, List, Optional, Protocol, Sequence, TypedDict
 
-import httpx
 from langgraph.graph import END, START, StateGraph
 
-from config import (
-    DEEPSEEK_TIMEOUT_SECONDS,
-    DEFAULT_TIMEZONE,
-    get_api_key,
-    get_base_url,
-    get_model,
-    get_temperature,
-    is_placeholder_api_key,
-)
-from fast_path import try_fast_extract
-from models import DeadlineIR, ExtractionResponse, ResolvedDeadline
-from prompts import DEADLINE_EXTRACTION_SYSTEM_PROMPT, build_extraction_user_prompt
-from tool import resolve_deadlines
+from .config import DEFAULT_TIMEZONE
+from .fast_path import try_fast_extract
+from .llm import CalendarLLM
+from .models import DeadlineIR, ExtractionResponse, ResolvedDeadline
+from .prompts import DEADLINE_EXTRACTION_SYSTEM_PROMPT, build_extraction_user_prompt
+from .tool import resolve_deadlines
 
 
-class CalendarAgentError(RuntimeError):
-    """Agent 配置或调用异常。"""
+class CalendarLLMProtocol(Protocol):
+    """calendar 只需要一个批量 JSON 调用接口。"""
+
+    async def chat_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> Dict[str, Any]: ...
 
 
 class CalendarState(TypedDict, total=False):
@@ -52,89 +48,6 @@ class CalendarState(TypedDict, total=False):
     error: Optional[str]
 
 
-def _extract_json_object(text: str) -> Dict[str, Any]:
-    """从模型输出提取 JSON 对象，兼容 Markdown 代码块与前置噪声。"""
-    raw = (text or "").strip()
-    if raw.startswith("```"):
-        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
-        raw = re.sub(r"\s*```$", "", raw)
-    try:
-        value = json.loads(raw)
-    except json.JSONDecodeError:
-        start = raw.find("{")
-        end = raw.rfind("}")
-        if start < 0 or end <= start:
-            raise
-        value = json.loads(raw[start : end + 1])
-    if not isinstance(value, dict):
-        raise ValueError("模型输出必须是 JSON 对象")
-    return value
-
-
-class DeepSeekClient:
-    """精简且健壮的 DeepSeek / OpenAI 兼容接口客户端。"""
-
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        timeout: float = DEEPSEEK_TIMEOUT_SECONDS,
-    ) -> None:
-        self.api_key = (api_key or get_api_key()).strip()
-        self.base_url = (base_url or get_base_url()).rstrip("/")
-        self.model = (model or get_model()).strip()
-        self.temperature = get_temperature() if temperature is None else temperature
-        self.timeout = timeout
-        if is_placeholder_api_key(self.api_key):
-            raise CalendarAgentError(
-                "请先在 calendar/config.py 填写 DEEPSEEK_API_KEY，"
-                "或设置环境变量 DEEPSEEK_API_KEY。"
-            )
-
-    async def chat_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
-        url = f"{self.base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        base_payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": self.temperature,
-            "max_tokens": 4096,
-        }
-
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                url,
-                headers=headers,
-                json={**base_payload, "response_format": {"type": "json_object"}},
-            )
-            # 部分兼容代理不接受 response_format，自动降级重试一次
-            if response.status_code == 400:
-                response = await client.post(url, headers=headers, json=base_payload)
-            if response.status_code >= 400:
-                body = response.text[:1000]
-                raise CalendarAgentError(
-                    f"DeepSeek HTTP {response.status_code}: {body}"
-                )
-            data = response.json()
-
-        try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise CalendarAgentError(f"DeepSeek 返回结构异常：{data!r}") from exc
-        try:
-            return _extract_json_object(content)
-        except Exception as exc:  # noqa: BLE001
-            raise CalendarAgentError(f"DeepSeek 未返回合法 JSON：{content!r}") from exc
-
-
 def _ambiguous_ir(index: int, raw: str, reason: str) -> DeadlineIR:
     return DeadlineIR(
         index=index,
@@ -146,13 +59,13 @@ def _ambiguous_ir(index: int, raw: str, reason: str) -> DeadlineIR:
 
 async def _llm_extract_pending(
     pending_items: List[Dict[str, Any]],
-    client: Optional[DeepSeekClient] = None,
+    client: Optional[CalendarLLMProtocol] = None,
 ) -> Dict[int, DeadlineIR]:
     """仅向 LLM 提交未命中规则的项进行批提取。"""
     if not pending_items:
         return {}
 
-    llm = client or DeepSeekClient()
+    llm = client or CalendarLLM()
     last_error = ""
 
     for attempt in range(2):
@@ -199,7 +112,7 @@ async def _llm_extract_pending(
 
 async def extract_irs(
     texts: Sequence[str],
-    client: Optional[DeepSeekClient] = None,
+    client: Optional[CalendarLLMProtocol] = None,
     use_fast_path: bool = True,
 ) -> List[DeadlineIR]:
     """两阶段混合提取 IR：Fast-Path 快路径优先，复杂表达降级给 LLM。"""
@@ -270,7 +183,7 @@ def _route_after_fast(state: CalendarState) -> str:
     return "resolve_deadlines"
 
 
-def _build_llm_extract_node(client: Optional[DeepSeekClient]):
+def _build_llm_extract_node(client: Optional[CalendarLLMProtocol]):
     async def llm_extract_node(state: CalendarState) -> Dict[str, Any]:
         pending = state.get("pending_items") or []
         fast_irs = state.get("fast_irs") or {}
@@ -329,7 +242,7 @@ def _build_resolve_node():
 
 
 def build_graph(
-    client: Optional[DeepSeekClient] = None,
+    client: Optional[CalendarLLMProtocol] = None,
 ):
     """编译企业级混合分流 LangGraph 图。"""
     builder = StateGraph(CalendarState)
@@ -358,7 +271,7 @@ async def run_deadline_agent(
     meeting_start_time: str,
     texts: Sequence[str],
     timezone: str = DEFAULT_TIMEZONE,
-    client: Optional[DeepSeekClient] = None,
+    client: Optional[CalendarLLMProtocol] = None,
     use_fast_path: bool = True,
 ) -> Dict[str, Any]:
     """执行完整图，返回 results 与 error。"""
@@ -386,7 +299,7 @@ def run_deadline_agent_sync(
     meeting_start_time: str,
     texts: Sequence[str],
     timezone: str = DEFAULT_TIMEZONE,
-    client: Optional[DeepSeekClient] = None,
+    client: Optional[CalendarLLMProtocol] = None,
     use_fast_path: bool = True,
 ) -> Dict[str, Any]:
     """同步入口，方便 CLI 和业务同步服务直接调用。"""
@@ -402,8 +315,7 @@ def run_deadline_agent_sync(
 
 
 __all__ = [
-    "CalendarAgentError",
-    "DeepSeekClient",
+    "CalendarLLMProtocol",
     "build_graph",
     "extract_irs",
     "run_deadline_agent",

@@ -17,7 +17,7 @@ from datetime import date, datetime, time, timedelta
 from typing import List, Tuple, Union, Optional
 from zoneinfo import ZoneInfo
 
-from models import (
+from .models import (
     DateRule,
     DateSpec,
     DeadlineIR,
@@ -386,6 +386,49 @@ def _resolve_range(
     return start_text, end_text
 
 
+def _merge_candidate_ranges(
+    meeting_start: datetime,
+    candidate_ranges,
+    warnings: List[str],
+) -> Tuple[str, str]:
+    """把多个候选范围按时间排序；相邻/小间隔合并为一个保守窗口。"""
+    intervals: List[Tuple[date, date]] = []
+    for spec in candidate_ranges:
+        start_date = _resolve_date(meeting_start, spec.start, warnings)
+        end_date = _resolve_date(meeting_start, spec.end, warnings)
+        if end_date < start_date:
+            raise ValueError(f"候选范围结束日期早于开始日期：{start_date} > {end_date}")
+        intervals.append((start_date, end_date))
+
+    if not intervals:
+        raise ValueError("candidate_ranges 为空")
+
+    intervals.sort(key=lambda pair: (pair[0], pair[1]))
+    merged: List[List[date]] = [[intervals[0][0], intervals[0][1]]]
+    for start_date, end_date in intervals[1:]:
+        current = merged[-1]
+        # 重叠、首尾相邻，或只隔一个自然日，视为同一候选窗口。
+        if start_date <= current[1] + timedelta(days=1):
+            if end_date > current[1]:
+                current[1] = end_date
+        else:
+            merged.append([start_date, end_date])
+
+    if len(merged) > 1:
+        raise ValueError("多个候选时间范围间隔过大，无法安全合并")
+
+    start_date, end_date = merged[0]
+    if end_date < meeting_start.date():
+        if "target_in_past" not in warnings:
+            warnings.append("target_in_past")
+    elif start_date < meeting_start.date():
+        if "range_start_in_past" not in warnings:
+            warnings.append("range_start_in_past")
+    warnings.append("candidate_ranges_merged")
+    warnings[:] = list(dict.fromkeys(warnings))
+    return start_date.strftime("%Y/%m/%d"), end_date.strftime("%Y/%m/%d")
+
+
 def resolve_deadline(
     meeting_start: Union[str, datetime],
     ir: DeadlineIR,
@@ -436,6 +479,21 @@ def resolve_deadline(
     warnings = list(ir.assumptions)
     try:
         meeting = parse_meeting_start(meeting_start, timezone)
+        if ir.candidate_ranges:
+            start_text, end_text = _merge_candidate_ranges(
+                meeting, ir.candidate_ranges, warnings
+            )
+            return ResolvedDeadline(
+                index=ir.index,
+                raw=ir.raw,
+                deadline=end_text,
+                deadline_start=start_text,
+                deadline_end=end_text,
+                time_slot=None,
+                kind="range",
+                warnings=warnings,
+                error=None,
+            )
         if ir.range is not None:
             start_text, end_text = _resolve_range(meeting, ir.range, warnings)
             return ResolvedDeadline(

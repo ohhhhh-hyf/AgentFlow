@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from typing import Optional, Tuple
 
-from models import (
+from .models import (
     DateRule,
     DateSpec,
     DeadlineIR,
@@ -62,6 +62,12 @@ _WINDOW_RE = re.compile(
 )
 _EVENT_ANCHOR_RE = re.compile(
     r"项目启动|项目上线|上线|发布|评审|客户确认|合同签署|培训结束|会议结束|验收|交付"
+)
+# 模糊时长：预计三天 / 大概N天 / 估计N天 / 可能N天。
+# 按“第 N 天结束前”处理，即 offset_days = N - 1。
+_FUZZY_NDAY_RE = re.compile(
+    r"(?:预计|大概|估计|可能|大约|差不多)\s*(?:需要|要)?\s*"
+    r"(\d+|[一二两三四五六七八九十]+)\s*天(?!\s*[后前])"
 )
 _DATE_CUE_RE = re.compile(
     r"今天|明天|后天|大后天|昨天|前天|本周|下周|上周|大下|下下|"
@@ -223,6 +229,23 @@ def try_fast_extract(index: int, raw_text: str) -> Optional[DeadlineIR]:
     # 1. 检查无时间表达
     if _is_none_expression(text):
         return DeadlineIR(index=index, raw=raw_text, status="none")
+
+    # 1.0 模糊时长：预计/大概/估计/可能 N 天 → 第 N 天结束前
+    fuzzy_m = _FUZZY_NDAY_RE.search(text)
+    if fuzzy_m and not _TIME_CUE_RE.search(text):
+        days = _parse_int(fuzzy_m.group(1))
+        if days is not None:
+            return DeadlineIR(
+                index=index,
+                raw=raw_text,
+                status="resolved",
+                date=DateSpec(
+                    rule=DateRule.OFFSET_DAYS,
+                    amount=max(days - 1, 0),
+                ),
+                time=TimeSpec(rule=TimeRule.ALL_DAY),
+                assumptions=[f"模糊时长 {days} 天按第 {days} 天结束前处理"],
+            )
 
     # 1.1 多解/不确定表达交给 LLM 做语义消歧，避免 Fast-Path 静默选中第一个日期。
     if re.search(r"或者|或|要么|还是|左右|前后|大概|可能|也许|暂定|看情况", text):

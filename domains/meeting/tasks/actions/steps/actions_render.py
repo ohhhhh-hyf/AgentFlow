@@ -102,11 +102,10 @@ class ActionItemsRender:
         """把扁平待办条目渲染为无序号块式清单。
 
         格式：
-        **{title}**： {item}（责任方：{owner}）
-         - 协同配合：{collaborators}
+        **{title}**： {item}（责任方：{owner} 配合方：{collaborators}）
          - 时间节点：{deadline}
          - 前置依赖：{dependency}
-         - 交付验收：{acceptance_criteria}
+         - 验收交付：{acceptance_criteria}
         """
         if not items:
             return "暂无明确待办事项"
@@ -158,16 +157,19 @@ class ActionItemsRender:
             dependency = str(item.get("dependency") or "").strip()
 
             lines = [f"**{title}**： {body}"]
+            inline_meta: list[str] = []
             if owner and owner.lower() not in _invalid:
-                lines[0] += f"（责任方：{owner}）"
+                inline_meta.append(f"责任方：{owner}")
             if collab and collab.lower() not in _invalid:
-                lines.append(f" - 协同配合：{collab}")
+                inline_meta.append(f"配合方：{collab}")
+            if inline_meta:
+                lines[0] += f"（{' '.join(inline_meta)}）"
             if deadline and deadline.lower() not in _invalid:
                 lines.append(f" - 时间节点：{deadline}")
             if dependency and dependency.lower() not in _invalid:
                 lines.append(f" - 前置依赖：{dependency}")
             if acceptance and acceptance.lower() not in _invalid:
-                lines.append(f" - 交付验收：{acceptance}")
+                lines.append(f" - 验收交付：{acceptance}")
             blocks.append("\n".join(lines))
 
         return "\n\n".join(blocks)
