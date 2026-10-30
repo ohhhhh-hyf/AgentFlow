@@ -15,30 +15,33 @@ def test_action_items_text_render():
     """测试待办事项文本渲染与动态弹性伸缩。"""
     items = [
         {
-            "category": "网关压测流控",
-            "task": "完成 SDK 适配补丁并进行 2000 QPS 压测",
+            "title": "网关压测流控",
+            "item": "完成 SDK 适配补丁并进行 2000 QPS 压测",
             "owner": "张伟",
             "deadline": "周五 18:00 前",
+            "collaborators": [],
             "acceptance_criteria": "压测报告与 API 文档",
             "dependency": "基础架构组签发临时 Token",
+            "evidence": "完成 SDK 适配补丁并进行 2000 QPS 压测",
         },
         {
-            "category": "网关压测流控",
-            "task": "申请预发布集群机器配额",
+            "title": "申请预发布集群机器配额",
+            "item": "申请预发布集群机器配额",
             "owner": "待认领",
             "deadline": None,
+            "collaborators": [],
             "acceptance_criteria": None,
             "dependency": None,
+            "evidence": "申请预发布集群机器配额",
         },
     ]
 
     text = ActionItemsRender.render_items(items)
-    assert "1. **[网关压测流控]**" in text
-    assert "- 完成 SDK 适配补丁并进行 2000 QPS 压测 (责任人：张伟)" in text
-    assert "> 时间节点：周五 18:00 前" in text
-    assert "> 交付验收：压测报告与 API 文档" in text
-    assert "> 前置依赖：基础架构组签发临时 Token" in text
-    assert "- 申请预发布集群机器配额" in text
+    assert "**网关压测流控**： 完成 SDK 适配补丁并进行 2000 QPS 压测（责任方：张伟）" in text
+    assert " - 时间节点：周五 18:00 前" in text
+    assert " - 交付验收：压测报告与 API 文档" in text
+    assert " - 前置依赖：基础架构组签发临时 Token" in text
+    assert "**申请预发布集群机器配额**： 申请预发布集群机器配额" in text
     assert "待认领" not in text
     # 极简项不应出现未明确占位符
     assert "时间节点：无" not in text
@@ -371,40 +374,35 @@ def test_risks_prompts_and_contracts_positive_hygiene():
 
 
 def test_action_items_report_validation_new_schema():
-    """验证待办报告校验器（ActionItemsReport）完全兼容无 priority 及包含 timing_anchor/collaborators/acceptance_criteria 的新契约。"""
+    """验证待办报告校验器（ActionItemsReport）使用扁平 8 字段契约。"""
+    from core.schema.validation import OutputValidationError
     from domains.meeting.reports import ActionItemsReport
 
-    # 1. 纯新契约（无 priority，含时间节点、协同配合、交付验收）
     payload = {
         "actions": [
             {
-                "category": "外业检查情况",
-                "task": "检查并处理卢萨卡点提升桶位置雨水倒灌问题，通过技术措施解决",
+                "title": "雨水倒灌问题处理",
+                "item": "检查并处理卢萨卡点提升桶位置雨水倒灌问题，通过技术措施解决",
                 "owner": "施工组",
                 "deadline": "会后",
-                "timing_anchor": "会后",
-                "collaborators": "运维团队",
+                "collaborators": ["运维团队"],
                 "acceptance_criteria": "通过技术措施解决雨水倒灌问题",
-                "deliverable": "整改方案与复测记录",
                 "dependency": "现场脚手架搭建就绪",
-                "status": "explicit",
                 "evidence": "检查并处理卢萨卡点提升桶位置雨水倒灌问题",
-                "confidence": "high",
             }
         ],
         "quality_warning": None,
-        "personalized_text": "### 外业检查情况\n- 检查并处理卢萨卡点提升桶位置雨水倒灌问题",
+        "personalized_text": "1. **雨水倒灌问题处理**\n   - 检查并处理卢萨卡点提升桶位置雨水倒灌问题",
     }
     report = ActionItemsReport.validate(payload)
     assert len(report.actions) == 1
     act = report.actions[0]
-    assert act["task"].startswith("检查并处理卢萨卡点")
+    assert act["title"] == "雨水倒灌问题处理"
+    assert act["item"].startswith("检查并处理卢萨卡点")
     assert act["owner"] == "施工组"
-    assert act["timing_anchor"] == "会后"
     assert act["acceptance_criteria"] == "通过技术措施解决雨水倒灌问题"
-    assert "priority" not in act
 
-    # 2. 遗留数据兼容（含 legacy priority）
+    # 旧字段不再被接受
     payload_legacy = {
         "actions": [
             {
@@ -412,87 +410,78 @@ def test_action_items_report_validation_new_schema():
                 "owner": "施工组",
                 "deadline": "今天",
                 "priority": "high",
-                "status": "explicit",
                 "evidence": "今天先把防汛板立起来",
-                "confidence": "high",
             }
         ]
     }
-    report_legacy = ActionItemsReport.validate(payload_legacy)
-    assert len(report_legacy.actions) == 1
-    assert report_legacy.actions[0]["priority"] == "high"
+    with pytest.raises(OutputValidationError):
+        ActionItemsReport.validate(payload_legacy)
 
 
-def test_action_items_assigned_actions_compatibility() -> None:
-    """验证客观全员待办契约（assigned_actions）的校验器兼容性与渲染链路."""
+def test_action_items_flat_contract_compatibility() -> None:
+    """验证扁平 actions 契约的校验器与渲染链路。"""
     from domains.meeting.models import ActionItems
     from domains.meeting.tasks.actions.steps.actions_render import ActionItemsRender
 
-    payload_assigned = {
-        "assigned_actions": [
+    payload = {
+        "actions": [
             {
-                "category": "架构改造",
-                "task": "完成新旧契约解耦与单测编写",
+                "title": "契约解耦与单测",
+                "item": "完成新旧契约解耦与单测编写",
                 "owner": "核心团队",
                 "deadline": "周五",
-                "timing_anchor": "周五前",
-                "collaborators": "测试组",
+                "collaborators": ["测试组", "运维组"],
                 "acceptance_criteria": "全量单测通过",
-                "deliverable": "PR",
-                "dependency": "无",
-                "status": "explicit",
+                "dependency": None,
                 "evidence": "周五前完成解耦",
-                "confidence": "high",
-            }
-        ],
-        "unassigned_actions": [
+            },
             {
-                "category": "日常维护",
-                "task": "跟进线上告警指标监控",
+                "title": "线上告警监控",
+                "item": "跟进线上告警指标监控",
                 "owner": None,
                 "deadline": None,
-                "timing_anchor": None,
-                "collaborators": None,
+                "collaborators": [],
                 "acceptance_criteria": None,
-                "deliverable": None,
                 "dependency": None,
-                "status": "inferred",
                 "evidence": "后续多关注监控",
-                "confidence": "medium",
-            }
+            },
         ],
     }
 
-    # 1. ActionItems 只保留客观两数组
-    inst = ActionItems.validate(payload_assigned)
-    assert len(inst.assigned_actions) == 1
-    assert inst.assigned_actions[0]["task"] == "完成新旧契约解耦与单测编写"
-    assert len(inst.unassigned_actions) == 1
-    assert not hasattr(inst, "my_actions")
+    # 1. ActionItems 只保留扁平 actions
+    inst = ActionItems.validate(payload)
+    assert len(inst.actions) == 2
+    assert inst.actions[0]["item"] == "完成新旧契约解耦与单测编写"
+    assert not hasattr(inst, "assigned_actions")
+    assert not hasattr(inst, "unassigned_actions")
 
-    # 2. 渲染器能够双键兼容读取并正确渲染清单
+    # 2. 渲染器读取扁平 actions 并正确渲染清单
     state = {
         "objective_perspective": True,
-        "lines": {"actions": {"draft": payload_assigned}},
+        "lines": {"actions": {"draft": payload}},
     }
     extracted = ActionItemsRender.extract_actions(state)
     assert len(extracted) == 2
     rendered_text = ActionItemsRender.render_draft(state)
+    assert "契约解耦与单测" in rendered_text
     assert "完成新旧契约解耦与单测编写" in rendered_text
     assert "核心团队" in rendered_text
+    assert " - 协同配合：测试组、运维组" in rendered_text
+    assert "线上告警监控" in rendered_text
     assert "跟进线上告警指标监控" in rendered_text
-    # 3. 验证经过 LLMClient 结构化解析器时不会被剥离 assigned_actions
+
+    # 3. 验证经过 LLMClient 结构化解析器时不会被剥离 actions
     import json
     from infra.llm.llmclient import LLMClient
-    raw_json = json.dumps(payload_assigned)
+    raw_json = json.dumps(payload)
     parsed = LLMClient._parse_and_validate(
         raw_json,
         ActionItems,
         allow_missing=frozenset(),
     )
-    assert len(parsed.assigned_actions) == 1
-    assert parsed.assigned_actions[0]["task"] == "完成新旧契约解耦与单测编写"
-    assert not hasattr(parsed, "my_actions")
+    assert len(parsed.actions) == 2
+    assert parsed.actions[0]["item"] == "完成新旧契约解耦与单测编写"
+    assert not hasattr(parsed, "assigned_actions")
 
 
 def test_actions_has_no_understanding_profile() -> None:
@@ -536,7 +525,7 @@ def test_orchestrator_shared_context_supplies_transcript_for_actions_and_risks()
 
     # 1. actions 只给原文，不再给会议理解 / 视角 / 命中内容
     ctx_actions = orch._line_shared_context(state, "actions")
-    assert ctx_actions == "会议原文：\n" + state["transcript"]
+    assert ctx_actions == "【会议原文】\n" + state["transcript"]
     assert "会议理解" not in ctx_actions
     assert "action_hints" not in ctx_actions
     assert "用户画像" not in ctx_actions

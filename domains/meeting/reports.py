@@ -57,7 +57,7 @@ class ActionItemsReport(ModelMixin, ActionItemsReportValidation):
     ``rendered`` → LLM 渲染文本（无模板普通渲染 / 有模板按模板）。
     """
 
-    # 结构化待办列表（客观全员：已分配 + 未分配）
+    # 结构化待办列表（扁平 actions；owner 为 null 即未分配）
     actions: list[dict[str, Any]] = field(
         default_factory=list,
         metadata={

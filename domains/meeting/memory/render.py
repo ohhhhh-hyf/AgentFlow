@@ -2187,23 +2187,119 @@ def render_risks_html(title: str, text: str, data: dict | None = None) -> str:
     return page_html
 
 
+def _is_flat_actions_text(lines: list[str]) -> bool:
+    """判断是否为扁平 actions 渲染格式。
+
+    兼容两种标题：
+    - 无序号：``**标题**： 正文（责任方：xxx）``
+    - 带序号旧格式：``1. **标题**``（标题不带 [板块] 括号）
+    """
+    for raw in lines:
+        line_s = raw.strip()
+        m = re.match(r"^\d+\.\s+\*\*(.+?)\*\*\s*$", line_s)
+        if m:
+            title = m.group(1).strip()
+            if title and not title.startswith(("[", "【")):
+                return True
+        if re.match(r"^\*\*.+\*\*[：:]", line_s):
+            return True
+    return False
+
+
+def _parse_flat_actions_from_text(lines: list[str]) -> list[dict[str, Any]]:
+    """解析扁平 actions 文本：标题行 + 正文行 + ` - 字段：值` 属性行。"""
+    actions: list[dict[str, Any]] = []
+    for raw in lines:
+        line_s = raw.strip()
+        if not line_s or line_s.startswith(("# ", "```", "---")):
+            continue
+        title_m = re.match(r"^\d+\.\s+\*\*(.+?)\*\*\s*$", line_s)
+        inline_m = re.match(r"^\*\*(.+?)\*\*[：:]\s*(.*)$", line_s)
+        if title_m or inline_m:
+            title = (title_m or inline_m).group(1).strip()
+            item = ""
+            owner = ""
+            if inline_m:
+                rest = inline_m.group(2).strip()
+                owner_m = re.search(r"（责任方[：:]\s*(.+?)）\s*$", rest)
+                if owner_m:
+                    owner = owner_m.group(1).strip()
+                    item = rest[: owner_m.start()].strip()
+                else:
+                    item = rest
+            actions.append(
+                {
+                    "title": title,
+                    "item": item,
+                    "owner": owner,
+                    "deadline": "",
+                    "collaborators": "",
+                    "acceptance_criteria": "",
+                    "dependency": "",
+                    "evidence": "",
+                }
+            )
+            continue
+        if not actions:
+            continue
+        clean_sub = line_s.lstrip(">》- ").strip()
+        if re.match(r"^(?:责任人|负责人|执行人)[:：]", clean_sub):
+            actions[-1]["owner"] = re.sub(r"^(?:责任人|负责人|执行人)[:：]\s*", "", clean_sub)
+            continue
+        if re.match(r"^(?:时间节点|截止时间|完成时限|交付时限)[:：]", clean_sub):
+            actions[-1]["deadline"] = re.sub(
+                r"^(?:时间节点|截止时间|完成时限|交付时限)[:：]\s*", "", clean_sub
+            )
+            continue
+        if re.match(r"^(?:协同配合|协同对象|配合方)[:：]", clean_sub):
+            actions[-1]["collaborators"] = re.sub(
+                r"^(?:协同配合|协同对象|配合方)[:：]\s*", "", clean_sub
+            )
+            continue
+        if re.match(r"^(?:交付验收|验收标准|交付标准)[:：]", clean_sub):
+            actions[-1]["acceptance_criteria"] = re.sub(
+                r"^(?:交付验收|验收标准|交付标准)[:：]\s*", "", clean_sub
+            )
+            continue
+        if re.match(r"^(?:前置依赖|前置条件|依赖)[:：]", clean_sub):
+            actions[-1]["dependency"] = re.sub(
+                r"^(?:前置依赖|前置条件|依赖)[:：]\s*", "", clean_sub
+            )
+            continue
+        if re.match(r"^原文依据[:：]", clean_sub):
+            actions[-1]["evidence"] = re.sub(r"^原文依据[:：]\s*", "", clean_sub)
+            continue
+        body_m = re.match(r"^[-*•]\s+(.+)$", line_s)
+        if body_m and not actions[-1]["item"]:
+            actions[-1]["item"] = body_m.group(1).strip().strip("*").strip()
+    return actions
+
+
 def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
     """从纯文本或 Markdown 清单中解析结构化待办条目。
 
     兼容两种形态：
-    1. 业务板块聚合形态：
+    1. 扁平 actions 形态：
+       1. **标题**
+          - 事项正文
+            > 责任人：xxx
+            > 时间节点：xxx
+    2. 业务板块聚合形态：
        1. **【板块】**
           - 事项描述（责任主体）
             > 交付时限：xxx
             > 交付成果：xxx
             > 前置依赖：xxx
-    2. 单行卡片形态：
+    3. 单行卡片形态：
        1. **【板块】事项描述**
           > 责任主体：xxx
           > 交付时限：xxx
     """
-    actions: list[dict[str, Any]] = []
     lines = (text or "").strip().splitlines()
+    if _is_flat_actions_text(lines):
+        return _parse_flat_actions_from_text(lines)
+
+    actions: list[dict[str, Any]] = []
     current_category = ""
 
     for line in lines:
@@ -2397,15 +2493,6 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
     if hasattr(data, "model_dump"):
         data = data.model_dump()
     raw_actions = (data or {}).get("actions")
-    if not (isinstance(raw_actions, list) and raw_actions):
-        combined = []
-        if isinstance(data, dict):
-            for k in ("assigned_actions", "unassigned_actions"):
-                val = data.get(k)
-                if isinstance(val, list):
-                    combined.extend(val)
-        if combined:
-            raw_actions = combined
 
     parsed_actions = _parse_actions_from_text(text) if (text and text.strip()) else []
     if parsed_actions:
@@ -2442,12 +2529,29 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
     for cat_name, cat_items in groups.items():
         items_html = []
         for item in cat_items:
-            task_desc = escape(str(item.get("task") or item.get("title") or "").strip().strip("*"), quote=False)
+            item_body = str(item.get("item") or "").strip().strip("*")
+            task_desc = escape(str(item.get("title") or item.get("task") or item_body).strip().strip("*"), quote=False)
             if not task_desc:
                 continue
+            body_html = ""
+            if item_body and item_body != task_desc:
+                body_html = (
+                    f'<div class="ck-item-body">{escape(item_body, quote=False)}</div>'
+                )
             owner = escape(str(item.get("owner") or "").strip(), quote=False)
             deadline = escape(str(item.get("deadline") or "").strip(), quote=False)
-            deliverable = escape(str(item.get("deliverable") or "").strip(), quote=False)
+            deliverable = escape(
+                str(item.get("acceptance_criteria") or item.get("deliverable") or "").strip(),
+                quote=False,
+            )
+            collab_raw = item.get("collaborators")
+            if isinstance(collab_raw, (list, tuple)):
+                collab = escape(
+                    "、".join(str(v).strip() for v in collab_raw if str(v).strip()),
+                    quote=False,
+                )
+            else:
+                collab = escape(str(collab_raw or "").strip(), quote=False)
             dependency = escape(str(item.get("dependency") or item.get("prerequisite") or "").strip(), quote=False)
             prio_key = str(item.get("priority") or "").lower().strip()
             prio_info = prio_map.get(prio_key)
@@ -2462,6 +2566,10 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
             meta_html = f" {' '.join(meta_spans)}" if meta_spans else ""
 
             drawer_rows = []
+            if collab and collab.lower() not in ("null", "none", "无", "未提及", "未明确", "-"):
+                drawer_rows.append(
+                    f'<div class="ck-card-row"><span class="ck-card-label">协同配合：</span>{collab}</div>'
+                )
             if deliverable and deliverable.lower() not in ("null", "none", "无", "未提及", "未明确", "-"):
                 drawer_rows.append(
                     f'<div class="ck-card-row"><span class="ck-card-label">交付标准：</span>{deliverable}</div>'
@@ -2483,6 +2591,7 @@ def render_actions_html(title: str, text: str, data: dict | None = None) -> str:
                 f'    <span class="ck-card-title">{task_desc}</span>'
                 f'    {meta_html}'
                 f'  </div>'
+                f'  {body_html}'
                 f'  {drawer_html}'
                 f'</div>'
             )

@@ -13,29 +13,27 @@ from domains.meeting.orchestrator import MeetingAgentSystem
 
 def _items() -> ActionItems:
     return ActionItems(
-        assigned_actions=[
+        actions=[
             {
-                "category": "网关鉴权",
-                "task": "完成网关鉴权重构",
+                "title": "网关鉴权重构",
+                "item": "完成网关鉴权重构",
                 "owner": "张三",
                 "deadline": "周五下班前",
-                "collaborators": "李四",
+                "collaborators": ["李四"],
                 "acceptance_criteria": "通过联调",
                 "dependency": "等待测试环境就绪",
                 "evidence": "张三：我周五前把网关鉴权重构完，李四配合联调。",
-            }
-        ],
-        unassigned_actions=[
+            },
             {
-                "category": "上线排期",
-                "task": "补充测试环境GPU驱动版本",
+                "title": "补充GPU驱动版本",
+                "item": "补充测试环境GPU驱动版本",
                 "owner": None,
                 "deadline": None,
-                "collaborators": None,
+                "collaborators": [],
                 "acceptance_criteria": None,
                 "dependency": None,
                 "evidence": "需要补充测试环境的GPU驱动版本。",
-            }
+            },
         ],
     )
 
@@ -65,11 +63,11 @@ class _FakeClient:
 
     async def text(self, prompt, user, **kwargs):
         self.render_calls.append((prompt, user))
-        return "1. **[网关鉴权]**\n   - 完成网关鉴权重构 (责任人：张三)"
+        return "1. **网关鉴权重构**\n   - 完成网关鉴权重构\n     > 责任人：张三"
 
     async def stream_text(self, prompt, user, **kwargs):
         self.render_calls.append((prompt, user))
-        yield "1. **[网关鉴权]**\n   - 完成网关鉴权重构 (责任人：张三)"
+        yield "1. **网关鉴权重构**\n   - 完成网关鉴权重构\n     > 责任人：张三"
 
 
 def test_actions_only_bypasses_meeting_understanding_and_perspective() -> None:
@@ -102,6 +100,9 @@ def test_actions_only_bypasses_meeting_understanding_and_perspective() -> None:
     )
     assert "网关鉴权" in full_text
     assert "完成网关鉴权重构" in full_text
+    assert "**网关鉴权重构**： 完成网关鉴权重构（责任方：张三）" in full_text
+    assert "1. **" not in full_text
+    assert client.render_calls == []
 
     actions_calls = [
         (system_prompt, user)
@@ -110,8 +111,14 @@ def test_actions_only_bypasses_meeting_understanding_and_perspective() -> None:
     ]
     assert len(actions_calls) == 1
     system_prompt, user_prompt = actions_calls[0]
-    assert "全员待办事项 Agent" in system_prompt
-    assert "会议原文" in user_prompt
+    assert "全员待办事项提取 Agent" in system_prompt
+    assert "【会议原文】" in user_prompt
     assert "会议理解" not in user_prompt
     assert "用户画像" not in user_prompt
     assert "perspective_profile" not in user_prompt
+
+
+def test_actions_render_policy_is_programmatic() -> None:
+    from domains.meeting.domain_config import LINE_KINDS
+
+    assert LINE_KINDS["actions"]["llm_render"] == "never"

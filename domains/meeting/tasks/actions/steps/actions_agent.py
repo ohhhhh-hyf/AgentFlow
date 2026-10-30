@@ -4,11 +4,11 @@ from domains.shared.supervisor import StructuredGenerationAgent
 
 from ....models import ActionItems
 from ..contracts import ACTION_ITEMS_OBJECTIVE_GENERATION_OUTPUT_CONTRACT
-from ..prompts import ACTION_ITEMS_GENERATION_SYSTEM_PROMPT
+from ..prompts import ACTION_ITEMS_GENERATION_SYSTEM_PROMPT, build_actions_system_prompt
 
 
 class ActionItemsAgent(StructuredGenerationAgent):
-    """提取客观待办：直接从会议原文分组、分点并输出待办字段。"""
+    """提取客观待办：输出单一扁平 actions 数组。"""
 
     system_prompt = ACTION_ITEMS_GENERATION_SYSTEM_PROMPT
     output_model = ActionItems
@@ -17,10 +17,10 @@ class ActionItemsAgent(StructuredGenerationAgent):
 
     async def run(self, shared_context: str) -> ActionItems:
         return await self.client.structured(
-            ACTION_ITEMS_GENERATION_SYSTEM_PROMPT,
+            build_actions_system_prompt(shared_context),
             shared_context,
             self.output_model,
-            ACTION_ITEMS_OBJECTIVE_GENERATION_OUTPUT_CONTRACT,
+            self.output_contract,
             label="actions/agent",
             **self.extra_kwargs,
         )

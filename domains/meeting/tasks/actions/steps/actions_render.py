@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections.abc import AsyncIterator
 
 from infra.llm import LLMClient
@@ -87,104 +86,91 @@ class ActionItemsRender:
 
     @staticmethod
     def extract_actions(state: MeetingState) -> list[dict]:
-        """从 state 中提取最终客观待办列表（降级兜底用，不调 LLM）。"""
+        """从 state 中提取最终扁平待办列表（降级兜底用，不调 LLM）。"""
         actions = (
             (state.get("lines") or {})
             .get("actions", {})
             .get("draft")
             or {}
         )
-        assigned = list(actions.get("assigned_actions") or [])
-        items = assigned + list(actions.get("unassigned_actions") or [])
-
-        roster: set[str] = set()
-        mu = state.get("meeting_understanding") or {}
-        if isinstance(mu, dict):
-            for p in mu.get("participants") or []:
-                if isinstance(p, str) and p.strip():
-                    roster.add(p.strip())
-                elif isinstance(p, dict) and p.get("name"):
-                    roster.add(str(p["name"]).strip())
-        return validate_action_roster(items, roster)
+        items = list(actions.get("actions") or [])
+        # actions 不消费会议理解；只清理占位符 owner，不按参会名单推断人名。
+        return validate_action_roster(items, set())
 
     @staticmethod
     def render_items(items: list[dict]) -> str:
-        """把待办条目列表按业务板块（话题）归类聚合，渲染为结构化卡片清单。
+        """把扁平待办条目渲染为无序号块式清单。
 
-        格式规范：
-        1. 板块主行：{板块序号}. **[{业务板块}]**
-        2. 待办列表项：   - {动词开头的具体事项} (责任人：{责任主体})
-        3. 卡片属性块（条件输出）：
-           - 时间节点：{时间锚点/截止节点}
-           - 协同配合：{协同对象/配合方}
-           - 交付验收：{验收标准/交付产物}
-           - 前置依赖：{前置条件}
+        格式：
+        **{title}**： {item}（责任方：{owner}）
+         - 协同配合：{collaborators}
+         - 时间节点：{deadline}
+         - 前置依赖：{dependency}
+         - 交付验收：{acceptance_criteria}
         """
         if not items:
             return "暂无明确待办事项"
 
-        _invalid = {"null", "none", "无", "未提及", "未明确", "待排期", "待指定", "-", "待认领", "未分配", "待定", "待确认"}
+        _invalid = {
+            "null",
+            "none",
+            "无",
+            "未提及",
+            "未明确",
+            "待排期",
+            "待指定",
+            "-",
+            "待认领",
+            "未分配",
+            "待定",
+            "待确认",
+        }
 
-        # 1. 话题归类聚合（保持初次出现的先后顺序）
-        groups: dict[str, list[dict]] = {}
+        valid: list[dict] = []
         for item in items:
             if not isinstance(item, dict):
                 continue
-            task_raw = str(item.get("task") or "").strip()
-            if not task_raw:
+            body = str(item.get("item") or "").strip()
+            if not body:
                 continue
-            cat = str(item.get("category") or "").strip()
-            if not cat and (task_raw.startswith("【") or task_raw.startswith("[")):
-                m = re.match(r"^[【\[](.*?)[】\]](.*)$", task_raw)
-                if m:
-                    cat = m.group(1).strip()
-            if not cat:
-                cat = "综合事项"
-            groups.setdefault(cat, []).append(item)
+            valid.append(item)
 
-        if not groups:
+        if not valid:
             return "暂无明确待办事项"
 
-        topic_blocks: list[str] = []
-        for cat_idx, (cat, cat_items) in enumerate(groups.items(), start=1):
-            topic_lines = [f"{cat_idx}. **[{cat}]**"]
-            for item in cat_items:
-                task_raw = str(item.get("task") or "").strip()
-                # 剔除可能重复包含在 task_raw 开头的 [cat] 或【cat】
-                if task_raw.startswith(f"[{cat}]"):
-                    task = task_raw[len(f"[{cat}]"):].strip()
-                elif task_raw.startswith(f"【{cat}】"):
-                    task = task_raw[len(f"【{cat}】"):].strip()
-                elif (task_raw.startswith("【") and "】" in task_raw) or (task_raw.startswith("[") and "]" in task_raw):
-                    m = re.match(r"^[【\[](.*?)[】\]](.*)$", task_raw)
-                    task = m.group(2).strip() if m else task_raw
-                else:
-                    task = task_raw
+        blocks: list[str] = []
+        for item in valid:
+            title = str(item.get("title") or "").strip().strip("*").strip()
+            body = str(item.get("item") or "").strip()
+            if not title:
+                title = body
 
-                owner = str(item.get("owner") or "").strip()
-                timing = str(item.get("deadline") or "").strip()
-                collab = str(item.get("collaborators") or "").strip()
-                acceptance = str(item.get("acceptance_criteria") or "").strip()
-                dependency = str(item.get("dependency") or "").strip()
+            owner = str(item.get("owner") or "").strip()
+            deadline = str(item.get("deadline") or "").strip()
+            collab_raw = item.get("collaborators")
+            if isinstance(collab_raw, (list, tuple)):
+                collab = "、".join(
+                    str(v).strip() for v in collab_raw if str(v).strip()
+                )
+            else:
+                collab = str(collab_raw or "").strip()
+            acceptance = str(item.get("acceptance_criteria") or "").strip()
+            dependency = str(item.get("dependency") or "").strip()
 
-                if owner and owner.lower() not in _invalid:
-                    topic_lines.append(f"   - {task} (责任人：{owner})")
-                else:
-                    topic_lines.append(f"   - {task}")
+            lines = [f"**{title}**： {body}"]
+            if owner and owner.lower() not in _invalid:
+                lines[0] += f"（责任方：{owner}）"
+            if collab and collab.lower() not in _invalid:
+                lines.append(f" - 协同配合：{collab}")
+            if deadline and deadline.lower() not in _invalid:
+                lines.append(f" - 时间节点：{deadline}")
+            if dependency and dependency.lower() not in _invalid:
+                lines.append(f" - 前置依赖：{dependency}")
+            if acceptance and acceptance.lower() not in _invalid:
+                lines.append(f" - 交付验收：{acceptance}")
+            blocks.append("\n".join(lines))
 
-                # 条件输出属性块（有内容才输出，无内容整行隐去）
-                if timing and timing.lower() not in _invalid:
-                    topic_lines.append(f"     > 时间节点：{timing}")
-                if collab and collab.lower() not in _invalid:
-                    topic_lines.append(f"     > 协同配合：{collab}")
-                if acceptance and acceptance.lower() not in _invalid:
-                    topic_lines.append(f"     > 交付验收：{acceptance}")
-                if dependency and dependency.lower() not in _invalid:
-                    topic_lines.append(f"     > 前置依赖：{dependency}")
-
-            topic_blocks.append("\n".join(topic_lines))
-
-        return "\n\n".join(topic_blocks)
+        return "\n\n".join(blocks)
 
     @staticmethod
     def render_draft(state: dict) -> str:
@@ -192,11 +178,7 @@ class ActionItemsRender:
         actions = (
             (state.get("lines") or {}).get("actions", {}).get("draft") or {}
         )
-        assigned_items = list(actions.get("assigned_actions") or [])
-        unassigned_items = list(actions.get("unassigned_actions") or [])
-
-        all_items = assigned_items + unassigned_items
-        return ActionItemsRender.render_items(all_items)
+        return ActionItemsRender.render_items(list(actions.get("actions") or []))
 
     @staticmethod
     def format_action(index: int, item: dict) -> str:

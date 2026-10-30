@@ -446,40 +446,50 @@ def test_action_items_render() -> None:
     from domains.meeting.tasks.actions.steps.actions_render import ActionItemsRender
     from domains.meeting.memory.render import _parse_actions_from_text, render_actions_html
 
-    # 1. 结构化草稿测试（含具象短语话题多事项聚合）
+    # 1. 结构化草稿测试（扁平 actions）
     state = {
         "lines": {
             "actions": {
                 "draft": {
-                    "assigned_actions": [
+                    "actions": [
                         {
-                            "category": "音视频SDK推流适配",
-                            "task": "完成音视频推流协议适配与压测",
+                            "title": "音视频SDK推流适配",
+                            "item": "完成音视频推流协议适配与压测",
                             "owner": "张伟",
                             "deadline": "周五前",
+                            "collaborators": [],
                             "acceptance_criteria": "压测报告及文档",
                             "dependency": "需后端先提供鉴权Token",
                             "evidence": "张伟周五前把推流适配好",
                         },
                         {
-                            "category": "音视频SDK推流适配",
-                            "task": "与基础架构团队联调鉴权网关",
+                            "title": "联调鉴权网关",
+                            "item": "与基础架构团队联调鉴权网关",
                             "owner": "张伟",
+                            "deadline": None,
+                            "collaborators": [],
+                            "acceptance_criteria": None,
+                            "dependency": None,
                             "evidence": "张伟再跟架构联调一下",
                         },
                         {
-                            "category": "数据看表口径梳理",
-                            "task": "梳理数据看表口径",
+                            "title": "梳理数据看表口径",
+                            "item": "梳理数据看表口径",
                             "owner": "李莉",
                             "deadline": "09-28",
+                            "collaborators": [],
+                            "acceptance_criteria": None,
+                            "dependency": None,
                             "evidence": "李莉把看表口径理一下",
                         },
-                    ],
-                    "unassigned_actions": [
                         {
-                            "category": "预发布环境压测机申请",
-                            "task": "申请预发布压测机器",
+                            "title": "申请预发布压测机器",
+                            "item": "申请预发布压测机器",
+                            "owner": None,
+                            "deadline": None,
+                            "collaborators": [],
                             "acceptance_criteria": "机器分配就绪",
+                            "dependency": None,
                             "evidence": "尽快去运维申请压测机",
                         },
                     ],
@@ -488,19 +498,21 @@ def test_action_items_render() -> None:
         }
     }
     draft_text = ActionItemsRender.render_draft(state)
-    check("待办草稿包含[音视频SDK推流适配]业务板块主行", "1. **[音视频SDK推流适配]**" in draft_text, draft_text)
-    check("包含具体任务及括号责任主体张伟", "完成音视频推流协议适配与压测 (责任人：张伟)" in draft_text, draft_text)
-    check("同板块事项聚拢在[音视频SDK推流适配]下", "与基础架构团队联调鉴权网关 (责任人：张伟)" in draft_text, draft_text)
-    check("包含[数据看表口径梳理]业务板块主行", "2. **[数据看表口径梳理]**" in draft_text, draft_text)
-    check("包含[预发布环境压测机申请]业务板块主行", "3. **[预发布环境压测机申请]**" in draft_text, draft_text)
-    check("未分配待办无待认领且无括号", "- 申请预发布压测机器" in draft_text and "待认领" not in draft_text, draft_text)
-    check("不再单列责任主体行", "> 责任主体：" not in draft_text, draft_text)
-    check("包含交付时限：周五前", "> 时间节点：周五前" in draft_text, draft_text)
-    check("包含交付标准：压测报告及文档", "> 交付验收：压测报告及文档" in draft_text, draft_text)
-    check("包含前置条件：需后端先提供鉴权Token", "> 前置依赖：需后端先提供鉴权Token" in draft_text, draft_text)
-    check("包含交付标准：机器分配就绪", "> 交付验收：机器分配就绪" in draft_text, draft_text)
-    check("彻底去除原句引用", '张伟周五前把推流适配好' not in draft_text, draft_text)
-    check("无大标题分组", "## 一、重点待办" not in draft_text and "## 二、待分配" not in draft_text, draft_text)
+    check(
+        "待办草稿标题与正文同一行并带责任方",
+        "**音视频SDK推流适配**： 完成音视频推流协议适配与压测（责任方：张伟）"
+        in draft_text,
+        draft_text,
+    )
+    check("包含第二条待办", "**联调鉴权网关**： 与基础架构团队联调鉴权网关（责任方：张伟）" in draft_text, draft_text)
+    check("包含第三条待办", "**梳理数据看表口径**： 梳理数据看表口径（责任方：李莉）" in draft_text, draft_text)
+    check("包含第四条待办", "**申请预发布压测机器**： 申请预发布压测机器" in draft_text, draft_text)
+    check("未分配待办无待认领", "待认领" not in draft_text, draft_text)
+    check("包含交付时限：周五前", " - 时间节点：周五前" in draft_text, draft_text)
+    check("包含交付标准：压测报告及文档", " - 交付验收：压测报告及文档" in draft_text, draft_text)
+    check("包含前置条件：需后端先提供鉴权Token", " - 前置依赖：需后端先提供鉴权Token" in draft_text, draft_text)
+    check("包含交付标准：机器分配就绪", " - 交付验收：机器分配就绪" in draft_text, draft_text)
+    check("彻底去除原句引用", "张伟周五前把推流适配好" not in draft_text, draft_text)
 
     # 2. 空状态测试
     empty_state = {"lines": {"actions": {"draft": {}}}}
@@ -510,38 +522,36 @@ def test_action_items_render() -> None:
     # 3. HTML 与解析测试
     parsed = _parse_actions_from_text(draft_text)
     check("文本能正确解析出 4 条待办", len(parsed) == 4, str(parsed))
-    check("解析项 1 业务板块正确", parsed[0].get("category") == "音视频SDK推流适配", str(parsed[0]))
+    check("解析项 1 标题正确", parsed[0].get("title") == "音视频SDK推流适配", str(parsed[0]))
     check("解析项 1 包含责任人张伟", parsed[0].get("owner") == "张伟", str(parsed[0]))
-    check("解析项 1 包含交付物", parsed[0].get("deliverable") == "压测报告及文档", str(parsed[0]))
+    check("解析项 1 包含交付物", parsed[0].get("acceptance_criteria") == "压测报告及文档", str(parsed[0]))
     check("解析项 1 包含依赖", parsed[0].get("dependency") == "需后端先提供鉴权Token", str(parsed[0]))
-    check("解析项 2 同属音视频推流适配", parsed[1].get("category") == "音视频SDK推流适配", str(parsed[1]))
+    check("解析项 2 正文正确", parsed[1].get("item") == "与基础架构团队联调鉴权网关", str(parsed[1]))
     check("解析项 4 无未确定责任人", not parsed[3].get("owner"), str(parsed[3]))
     html = render_actions_html("待办事项清单", draft_text)
     check("HTML 公文流渲染成功包含 ck-flow-item", "ck-flow-item" in html, html[:200])
+    check("HTML 包含待办正文", "完成音视频推流协议适配与压测" in html, html[:500])
 
-
-    # 4. ActionItemsReport 校验测试（确保多余 category, deliverable, dependency 不报错）
+    # 4. ActionItemsReport 校验测试
     from domains.meeting.reports import ActionItemsReport
     report_data = {
         "actions": [
             {
-                "category": "接口联调",
-                "task": "完成音视频推流协议适配与压测",
+                "title": "接口联调",
+                "item": "完成音视频推流协议适配与压测",
                 "owner": "张伟",
                 "deadline": "周五前",
-                "deliverable": "压测报告及文档",
+                "collaborators": [],
+                "acceptance_criteria": "压测报告及文档",
                 "dependency": "需后端先提供鉴权Token",
-                "priority": "high",
-                "status": "explicit",
                 "evidence": "张伟周五前把推流适配好",
-                "confidence": "high",
             }
         ],
         "quality_warning": None,
         "personalized_text": None,
     }
     validated_report = ActionItemsReport.validate(report_data)
-    check("ActionItemsReport 校验成功通过且保留扩展字段", validated_report.actions[0]["category"] == "接口联调", str(validated_report))
+    check("ActionItemsReport 校验成功通过且保留扁平字段", validated_report.actions[0]["title"] == "接口联调", str(validated_report))
 
 
 def test_risk_items_render() -> None:

@@ -23,23 +23,14 @@ from .models_base import ModelMixin
 class ActionItems(ModelMixin):
     """ActionItems输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
-    assigned_actions: list[dict[str, Any]] = field(default_factory=list)
-    unassigned_actions: list[dict[str, Any]] = field(default_factory=list)
+    actions: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def validate(cls, data: dict) -> "ActionItems":
-        d = dict(data)
-        if "unassigned_actions" not in d:
-            d["unassigned_actions"] = []
-        if "assigned_actions" not in d:
-            d["assigned_actions"] = []
-        for key in ("assigned_actions", "unassigned_actions"):
-            if not isinstance(d.get(key), list):
-                raise OutputValidationError(f"{key} 必须是数组")
-        return cls(
-            unassigned_actions=d["unassigned_actions"],
-            assigned_actions=d["assigned_actions"],
-        )
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        if not isinstance(data["actions"], list):
+            raise OutputValidationError("actions 必须是数组")
+        return cls(**data)
 
 @dataclass
 class AgendaMinutes(ModelMixin):
@@ -84,7 +75,6 @@ class MeetingUnderstanding(ModelMixin):
     meeting_purpose: str
     speakers: list[dict[str, Any]] = field(default_factory=list)
     session_segments: list[dict[str, Any]] = field(default_factory=list)
-    topics: list[dict[str, Any]] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
@@ -101,8 +91,6 @@ class MeetingUnderstanding(ModelMixin):
             raise OutputValidationError("speakers 必须是数组")
         if not isinstance(data["session_segments"], list):
             raise OutputValidationError("session_segments 必须是数组")
-        if not isinstance(data["topics"], list):
-            raise OutputValidationError("topics 必须是数组")
         _string_list(data["decisions"], "decisions")
         _string_list(data["open_questions"], "open_questions")
         _string_list(data["risks"], "risks")
@@ -141,8 +129,6 @@ class Minutes(ModelMixin):
 
     @classmethod
     def validate(cls, data: dict) -> "Minutes":
-        if isinstance(data, dict) and "history_comparison" not in data:
-            data["history_comparison"] = []
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
         _string(data["headline"], "headline")
         _string_list(data["executive_summary"], "executive_summary")
@@ -182,6 +168,30 @@ class MultiStyles(ModelMixin):
         _string(data["summary"], "summary")
         if not isinstance(data["sections"], list):
             raise OutputValidationError("sections 必须是数组")
+        return cls(**data)
+
+@dataclass
+class PersonalMinutes(ModelMixin):
+    """PersonalMinutes输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
+
+    headline: str
+    executive_summary: list[str] = field(default_factory=list)
+    key_decisions: list[str] = field(default_factory=list)
+    personally_relevant_points: list[str] = field(default_factory=list)
+    risks_and_blockers: list[str] = field(default_factory=list)
+    unresolved_questions: list[str] = field(default_factory=list)
+    history_comparison: list[str] = field(default_factory=list)
+
+    @classmethod
+    def validate(cls, data: dict) -> "PersonalMinutes":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["headline"], "headline")
+        _string_list(data["executive_summary"], "executive_summary")
+        _string_list(data["key_decisions"], "key_decisions")
+        _string_list(data["personally_relevant_points"], "personally_relevant_points")
+        _string_list(data["risks_and_blockers"], "risks_and_blockers")
+        _string_list(data["unresolved_questions"], "unresolved_questions")
+        _string_list(data["history_comparison"], "history_comparison")
         return cls(**data)
 
 @dataclass

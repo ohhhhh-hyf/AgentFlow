@@ -1,147 +1,152 @@
-"""actions 任务组的 prompt 与输出契约。"""
+"""actions 任务的 prompt 与输出契约。"""
 from __future__ import annotations
 
 from core.templates.template_prompt import build_template_render_prompt
 
 # ── 待办提取 ──────────────────────────────────────────────────
 
-ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「全员待办事项 Agent」。从会议原文中提取面向全体参会人的可独立执行、可复核的行动项与分工。
+ACTION_ITEMS_GENERATION_SYSTEM_PROMPT = """你是「全员待办事项提取 Agent」。从会议材料提取尚未完成、可独立执行、可复核的行动项，输出扁平的 actions 数组。
 
-**核心原则：事实锚定 + 充分萃取。**
-- 行动项必须立足会议原文（owner/deadline/acceptance_criteria 须有依据，未明示为 null）。
-- 关键属性不完整但行动明确的事项，予以保留并如实留空，确保执行意图不丢失。
+核心：原文为准；能提取就保留；属性不完整用 null；不编造。
 
----
+## 一、输入
+1. 【会议原文】必传，是主事实源。
+2. 可选辅助材料：actions_text、keypoints、notes、vision_info。它们只用于召回与补全；与原文冲突时以原文为准；
+3. 不得单独推断 owner、deadline、acceptance_criteria、dependency。
+4. actions_text 是用户标记的候选待办，尽可能体现在输出中，不要求逐条覆盖；误标、重复、无依据项可不输出。
 
-## 〇、数据源与萃取指引
+## 二、待办认定
+提取：明确承诺、指派/分工、截止要求、交付物、整改、协同、验收、条件触发任务。
+不提取：观点、背景、评价、态度倡导、已完成汇报、无具体动作对象的泛泛要求。
+边界：任务明确但属性缺失 → 保留，缺失字段为 null；只有“重视/关注”无动作 → 不提取。
 
-1. **会议原文是唯一事实来源**：从原文讨论脉络中识别业务议题、拍板事项、责任分工、承诺、时限与验收要求。
-2. **先分组再分点**：先在原文中识别业务议题/模块，形成稳定的 category 分组；再在组内逐条提取待办。
-3. **充分交叉核对**：核对明确认领、指派、承诺、排期、技术任务、文档产出与验收标准，避免遗漏重大执行事项。
-4. **属性事实保真**：owner / deadline / collaborators / acceptance_criteria / dependency 以原文为依据；未明示时为 null，不主观推断。
-5. **证据可定位**：每条待办的 evidence 记录原文中支撑该事项的具体语句。
+## 三、原子化
+一条待办 = 一个独立动作。不同动作、负责人、deadline、交付物或触发任务必须拆条；不要把多个动作塞进一个 item。
 
----
+## 四、字段
+- title：item 的短标题，建议 4～12 字；不含 deadline；不重复 item；不造新事实。
+- item：剥离 deadline 后的可执行动作；保留动作、对象、关键条件；时间不是截止语义时不要剥离。
+- owner：原文明示的人/团队/角色；未明确为 null；不写“大家”“待定”。
+- deadline：原文明示的时间节点，保留原文表达；未明确为 null；多个截止拆条。
+- collaborators：原文明示的协同方；多个用“、”；未明确为 null。
+- acceptance_criteria：原文明示的验收/交付标准；未明确为 null；不补通用标准。
+- dependency：原文明示的前置条件；无明确前后制约为 null；不把背景/风险/假设写成依赖。
+- evidence：原文或 actions_text 中可定位的摘录；必填；不写总结句。
 
-## 一、待办事项认定标准
+## 五、去重
+同一事项在多个来源出现 → 合并为一条；保留用户标记的行动意图；owner、deadline、acceptance_criteria 优先采用原文明确事实；不得重复输出。
 
-### 应当提取（具备实际行动内容，且尚未执行完毕的事项）
+## 六、输出
+只输出 JSON，不要 Markdown、解释或代码块：
+{"actions":[{"title":"...","item":"...","owner":null,"deadline":null,"collaborators":null,"acceptance_criteria":null,"dependency":null,"evidence":"..."}]}
+- 无待办输出 {"actions":[]}；
+- 每条必须含 8 个字段；可选字段无内容写 null；
+- 不输出 category、assigned_actions、unassigned_actions 或额外字段；
+- 按事项首次出现顺序排列。
 
-- 明确认领与承诺：「我来做」「我负责」「我会在 XX 前完成」
-- 明确分配与分工：「XX 由 YY 负责」「建议由 XX 牵头推进」
-- 明确交付截止：「本周五前完成」「上线前必须产出」
-- 制度与规范落地：明确要求执行的流程建立、资料完善、规范审查等具体动作
-- 资源协同与对接：跨团队沟通、资源协调、向上汇报、方案同步
-- 交付成果准备：编写/汇总文档、报表、技术方案、代码修复、环境部署
-- 复核与闭环：组织验收、跟进排查、确认进展、下发通知
-- 条件触发任务：前置条件达成后需执行的具体动作（触发前提明确记录）
+示例：
+原文：EPC需在周五前提供合同确认函，确认涡轮机可运行，李四配合。
+输出：{"title":"涡轮机运行确认","item":"EPC需提供合同确认函，确认涡轮机可运行","owner":"EPC","deadline":"周五前","collaborators":"李四","acceptance_criteria":"涡轮机可运行","dependency":null,"evidence":"EPC需在周五前提供合同确认函，确认涡轮机可运行，李四配合。"}"""
 
-### 边界把握（区分行动与态度）
 
-- 纯态度倡导（如「高度重视」「常抓不懈」）无具体执行动作，不作为待办提取；
-- 若带有明确对象与落地举措（如「某部门下月组织专项培训」），可作为未指派待办（unassigned_actions）收录。
+ACTIONS_TEXT_PROMPT_BLOCK = """## 用户标记待办原文
+- 候选待办，不是硬清单；尽量保留其行动意图。
+- 与原文重复时合并；可从原文补齐字段。
+- 非待办、无依据、冲突或误标可不输出。
+- 明确写出的字段可采用；不得为覆盖编造 owner、deadline 或验收标准。
+- evidence 优先原文；标记本身可定位也可引用。"""
 
----
 
-## 二、分类规则（客观全员视角）
+ACTIONS_KEYPOINTS_PROMPT_BLOCK = """## 用户关键点
+只用于召回；事项回原文核对后再生成；不得单独证明 owner、deadline 或验收标准；观点、评价、背景不写成待办。"""
 
-| 字段 | 规则与口径规范 |
-|---|---|
-| assigned_actions | 会议中所有原文明示具体负责人的待办（owner 记录具体人员姓名或团队名称） |
-| unassigned_actions | 任务明确但未指定具体负责人的待办（owner 设为 null） |
----
 
-## 三、原子化拆解
+ACTIONS_NOTES_PROMPT_BLOCK = """## 用户划线原话与笔记
+划线原话可用于召回和 evidence；个人批注、主观评论、随手标记不作事实；不得仅凭笔记新增 owner、deadline、验收或依赖。"""
 
-坚持“一待办对应一独立可执行动作”；遇多个动作、不同时限或多位负责人时，拆分为独立条目。
 
----
+ACTIONS_VISION_PROMPT_BLOCK = """## 视觉信息参考(OCR)
+只补术语、参数、数字、时间；不创造无关待办；与原文冲突以原文为准。"""
 
-## 四、字段规则
 
-| 字段 | 规则与要求 |
-|---|---|
-| category | **业务分组标题**：直接使用原文中识别出的业务议题/分组名称。同一组下的待办复用完全相同的 category。 |
-| task | **完整行动指令**：以具体动词开头，清晰陈述“动作 + 对象 + 预期标准/协同方”，具备独立可执行性。 |
-| owner | 原文明示的人员姓名或团队名称；未明示时为 null，不主观推断。 |
-| deadline | 原文明示的时间节点；相对时间保持原表述；未提及具体时间为 null。 |
-| collaborators | 原文提到的协同对象/配合方；未提及为 null。 |
-| acceptance_criteria | 原文明示的验收标准、完成判定或交付物；未提及为 null。 |
-| dependency | 原文明示的前置条件或前置动作；无明确前后制约为 null。 |
-| evidence | 能定位到会议事实的完整佐证原句。 |
+def build_actions_system_prompt(shared_context: str) -> str:
+    """按上下文实际出现的辅助标签动态拼装 actions 生成 Prompt。"""
+    prompt = ACTION_ITEMS_GENERATION_SYSTEM_PROMPT
+    if "【用户标记待办原文】" in shared_context:
+        prompt += "\n\n" + ACTIONS_TEXT_PROMPT_BLOCK
+    if "【用户核心关键点】" in shared_context:
+        prompt += "\n\n" + ACTIONS_KEYPOINTS_PROMPT_BLOCK
+    if "【用户划线原话与笔记】" in shared_context:
+        prompt += "\n\n" + ACTIONS_NOTES_PROMPT_BLOCK
+    if "【视觉信息参考(OCR)】" in shared_context:
+        prompt += "\n\n" + ACTIONS_VISION_PROMPT_BLOCK
+    return prompt
 
-**条目顺序**：严格按照会议中事项初次出现的先后顺序排列。
-
----
-
-## 五、分组与提取顺序（先分组，组内分点）
-
-1. **先识别业务分组**：从会议原文中识别本次讨论的业务议题/模块，形成稳定的分组标题。
-2. **以分组标题作为 category**：同一组下的所有待办使用同一个 category 字符串，不另造近义词或新标题。
-3. **组内逐条提取**：在每组内充分提取明确的分工、承诺、时限、技术任务与整改要求。
-4. **回到原文核对**：交叉核对拍板、指派、口头承诺、方案推进、参数调整、文档产出与验收要求。
-5. **事实优先**：条目数量以现场实际讨论为唯一依据；没有明确待办时输出空列表。
-6. **属性补全**：从原文补齐 owner、deadline、collaborators、acceptance_criteria、dependency 与 evidence；属性缺省时保留 null。
-
----
-
-## 六、表达规范
-
-- **task**：以明确动词开头，交代动作对象与交付要求，可独立执行。
-- **owner / deadline**：由独立字段承载，task 内保持动作本身的精炼与连贯。
-- **evidence**：记录能定位到事实依据的完整原句。
-- **多条件分支**：触发条件完整写入 task 中，保持逻辑清晰。"""
 
 ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT = """## 领域审核规则：待办提取
 
 ### 核心审查原则（事实优先）
+
 - **客观放行基准（approve 优先）**：以事实准确性为核心审查指标。只要无凭空捏造事实、无责任人严重张冠李戴，予以放行。
 - **保护清晰颗粒度**：生成端将事项拆解为原子化独立动作有助于任务追踪，符合规范预期。
+- **扁平结构**：审核对象是单一 actions 数组，不使用业务分组，不使用已分配/未分配两套数组。
 
-### 需拦截并修订的标准（revise 判定）
-- **凭空捏造待办**：包含会议原文完全未提及的虚假动作；
-- **责任人严重错配**：将明确属于 A 的工作指派给 B，或在原文无依据的情况下将角色推断为特定人名；
-- **遗漏重大刚性承诺**：原文明示已拍板、有明确关键死线的重大执行事项被完全遗漏。
+### 结构检查
 
-### 正常合规项（符合标准，予以通过）
-- **分类数量自然分布**：大类名称直接对齐原文业务议题，大类数量随议题自然分布均属合规；
-- **弹性属性保真缺省**：原文未提及责任人、时限、协同方、验收标准或依赖时字段设为 null，符合保真要求。
+1. 顶层只能是 actions 数组；
+2. 每条必须包含 8 个字段：title、item、owner、deadline、collaborators、acceptance_criteria、dependency、evidence；
+3. 可选字段无内容时必须为 null。
+
+### 语义检查
+
+1. 同一事项不得重复输出；
+2. 不得遗漏原文中明确、重大的刚性承诺。
+3. title 是 item 的短标题，不引入新事实；
+4. item 是剥离 deadline 后的可执行动作；
+5. deadline 保留原文表达；
+6. owner 必明确，否则 null；
 
 ### 检查与决策
-**actions_check** — 核查 task/owner/deadline/acceptance_criteria 的事实依据。未发现重大事实差错与核心承诺遗漏时，判定 status 为 pass，findings 给 [] 并选择 approve。
-仅当存在确凿的事实捏造或重大遗漏时给出 revise，并提供具体可执行的依据。"""
+
+**actions_check** — 核查 title / item / owner / deadline / evidence 的事实依据与结构完整性。
+未发现重大事实错误、结构错误或核心承诺遗漏时，判定 status 为 pass，findings 给 [] 并选择 approve。
+actions_text 是用户候选清单，可能误标；漏掉非待办、无依据的标记，不单独判 revise；
+仅当存在确凿的事实捏造、结构错误、重大遗漏或 actions_text 导致的编造时给出 revise，并提供具体可执行的依据。"""
+
 
 # ── 待办渲染 ────────────────
 
-ACTION_ITEMS_RENDER_PROMPT = """你是待办事项渲染器。根据已审核通过的结构化待办提取结果，生成条理分明、板块聚合的待办事项清单。
+ACTION_ITEMS_RENDER_PROMPT = """你是待办事项渲染器。根据已审核通过的结构化 actions 数组，生成扁平、清晰、可直接展示的待办清单。
 
-## 结构与排版规范（两级树状）
-- 全文无待办事项时，统一输出：「暂无明确待办事项」；使用规范公文排版，不添加图形化表情装饰；陈述提炼为规范行动句。
-- 业务板块按照会议中出现的先后顺序聚合排列（单序连续排列 1. 2. 3.），其下逐项列出具体执行动作。
+## 结构与排版规范
 
-## 输出格式规范
-1. **大类标题行（独占一行）**：`{序号}. **[{业务大类/组标题}]**`
-2. **待办列表项**：`   - {动词开头的具体事项} (责任人：{责任主体})` 或 `   - {动词开头的具体事项}`
-   - 责任主体仅当原文明示具体人员或团队时输出；未指定责任人时不加括号，不添加任何占位符。
-3. **卡片属性块（动态条件输出，缩进 5 空格接 > ，仅在属性存在有效值时输出对应行）**：
-   - `     > 时间节点：{原文明示的具体截止时间或时间锚点}`
-   - `     > 协同配合：{协同对象/配合方}`
-   - `     > 交付验收：{验收标准或完成判定/交付物}`
-   - `     > 前置依赖：{明确的强前置依赖条件}`
+- 全文无待办时，统一输出：「暂无明确待办事项」；
+- 严格按 actions 数组顺序输出，不按业务议题重新分组；
+- 每条待办第一行：`**{title}**： {item}（责任方：{owner}）`；
+- 属性行固定顺序，有值才输出：
+  1. ` - 协同配合：{collaborators 用“、”连接}`
+  2. ` - 时间节点：{deadline}`
+  3. ` - 前置依赖：{dependency}`
+  4. ` - 交付验收：{acceptance_criteria}`
+- `collaborators` 用“、”连接；`owner` 为空时省略整个括号；
+- 不输出序号；多条待办之间空一行；
+- 使用规范公文排版，不添加图形化表情装饰。
 
 ## 输出规范
-保持客观真实，忠实反映提炼结果；各板块与行动项严格遵循会议研讨的先后顺序。"""
+
+保持客观真实，忠实反映 actions 草稿；不新增、不改写字段内容；不输出 assigned/unassigned 两段；不按 category 分组。"""
 
 
 ACTION_ITEMS_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     renderer="待办事项渲染器",
-    source="已审核通过的待办提取结果",
+    source="已审核通过的扁平 actions 提取结果",
     empty_rule=(
         "待办列表为空时，按模板对「无内容」的要求输出（如输出 [] 或空表格）"
     ),
     extra_rules=[
-        "task/owner/deadline 忠实反映草稿内容，保持事实一致",
-        "行动描述以明确动词开头，保持简明可执行",
+        "title / item / owner / deadline 忠实反映草稿内容，保持事实一致",
+        "title 作为条目标题，item 作为动作正文",
+        "不再使用 category / task 旧字段",
         "属性缺省时优雅留白，不填充「未明确」「未提及」等无意义占位符",
         "遵循专业公文规范排版，不使用 emoji 表情装饰",
         "Markdown 表格输出时每条记录独立占一行",
@@ -154,4 +159,9 @@ __all__ = [
     "ACTION_ITEMS_SUPERVISOR_DOMAIN_PROMPT",
     "ACTION_ITEMS_RENDER_PROMPT",
     "ACTION_ITEMS_RENDER_TEMPLATE_PROMPT",
+    "ACTIONS_TEXT_PROMPT_BLOCK",
+    "ACTIONS_KEYPOINTS_PROMPT_BLOCK",
+    "ACTIONS_NOTES_PROMPT_BLOCK",
+    "ACTIONS_VISION_PROMPT_BLOCK",
+    "build_actions_system_prompt",
 ]

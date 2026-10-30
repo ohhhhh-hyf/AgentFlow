@@ -174,14 +174,15 @@ def _catalog_input_file(user_id: str, subject: str, name: str) -> Path:
     )
 
 
-def _collect_texts(req: TaskRequest) -> tuple[str, str, str, str]:
-    """返回 (transcript, keypoints, notes, vision_info)。"""
+def _collect_texts(req: TaskRequest) -> tuple[str, str, str, str, str]:
+    """返回 (transcript, keypoints, notes, vision_info, actions_text)。"""
     texts = req.texts or {}
     transcript = (texts.get("transcript") or "").strip()
     keypoints = (texts.get("keypoints") or "").strip()
     notes = (texts.get("notes") or "").strip()
     vision_info = (texts.get("vision_info") or "").strip()
-    return transcript, keypoints, notes, vision_info
+    actions_text = (texts.get("actions_text") or "").strip()
+    return transcript, keypoints, notes, vision_info, actions_text
 
 
 def _is_image_name(name: str) -> bool:
@@ -404,6 +405,22 @@ def _pack_minutes_auxiliary(keypoints: str, notes: str, vision_info: str) -> str
             blocks.append("【用户划线原话与笔记】\n" + "\n".join(note_lines))
     if vision_info.strip():
         blocks.append(f"【视觉信息参考(OCR)】\n{vision_info.strip()}")
+    return "\n\n".join(blocks).strip()
+
+
+def _pack_actions_auxiliary(
+    actions_text: str,
+    keypoints: str,
+    notes: str,
+    vision_info: str,
+) -> str:
+    """组装 actions 线专用辅助材料；actions_text 不进入 minutes auxiliary。"""
+    blocks = []
+    if actions_text.strip():
+        blocks.append(f"【用户标记待办原文】\n{actions_text.strip()}")
+    minutes_aux = _pack_minutes_auxiliary(keypoints, notes, vision_info)
+    if minutes_aux:
+        blocks.append(minutes_aux)
     return "\n\n".join(blocks).strip()
 
 
@@ -672,7 +689,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     line = _validate(req, task, user_id)
     extra = req.extra
 
-    transcript, keypoints, notes, vision_info = _collect_texts(req)
+    transcript, keypoints, notes, vision_info, actions_text = _collect_texts(req)
     if not transcript and notes:
         transcript = notes
     if transcript:
@@ -932,6 +949,12 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             extra_line_inputs["minutes_auxiliary"] = aux_text
         if agenda_from_docs:
             extra_line_inputs["agenda_text"] = agenda_from_docs
+    if line == "actions":
+        # Phase 1：只准备 actions 专用辅助材料，暂不注入生成上下文。
+        actions_aux = _pack_actions_auxiliary(actions_text, keypoints, notes, vision_info)
+        if actions_aux:
+            extra_line_inputs["actions_auxiliary"] = actions_aux
+            aux_text = actions_aux
     if line in {"review", "quiz"}:
         scope_parts = []
         if (user_id or "").strip():
