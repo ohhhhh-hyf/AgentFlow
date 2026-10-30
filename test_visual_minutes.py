@@ -27,6 +27,15 @@ def _default_output(minutes_path: Path) -> Path:
     return minutes_path.with_name(f"{minutes_path.stem}_visual.html")
 
 
+def _looks_like_duplicated_minutes(text: str) -> bool:
+    """检测纪要前后两半完全相同；用于提前发现上游重复写入。"""
+    normalized = (text or "").strip()
+    if len(normalized) < 200 or len(normalized) % 2:
+        return False
+    middle = len(normalized) // 2
+    return normalized[:middle].strip() == normalized[middle:].strip()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="读取纪要 Markdown 与会议文本，调用 visual_minutes 生成图文纪要 HTML。",
@@ -56,6 +65,13 @@ def main(argv: list[str] | None = None) -> int:
 
     minutes_markdown = _read_text(minutes_path, "纪要文件")
     meeting_transcript = _read_text(transcript_path, "会议文本")
+
+    if _looks_like_duplicated_minutes(minutes_markdown):
+        print(
+            "警告：纪要 Markdown 前后两半完全相同，疑似被重复写入。"
+            "visual_minutes 不会改写正文，因此重复内容也会原样进入 HTML。"
+            "请检查上游纪要写入逻辑，或只保留前半段后重新生成。"
+        )
 
     result = generate_visual_minutes(
         minutes_markdown,

@@ -1,6 +1,8 @@
-"""Markdown 纪要 → 稳定 section 树。
+"""Markdown 纪要 → 稳定 section 树（多级自适应语义切分版）。
 
-只使用基础 Markdown 结构，不依赖具体业务标题或内容。
+不仅支持扁平标题，更能智能识别容器型主章节（如“要点梳理”、“主要议题”），
+将真正承载讨论内容的子议题提升为独立的实质 SectionNode。
+确保 100% 原始 Markdown 完整保真，不丢行、不改字。
 """
 from __future__ import annotations
 
@@ -58,26 +60,12 @@ def _headings(markdown: str) -> list[tuple[int, int, str]]:
     return out
 
 
-def _heading_paths(
-    headings: list[tuple[int, int, str]],
-    primary_level: int,
-) -> dict[int, list[str]]:
-    """按标题层级推导每个主 section 的祖先路径。"""
-    stack: list[tuple[int, str]] = []
-    paths: dict[int, list[str]] = {}
-    for line, level, title in headings:
-        while stack and stack[-1][0] >= level:
-            stack.pop()
-        if level == primary_level:
-            paths[line] = [t for _, t in stack if t] + [title]
-        stack.append((level, title))
-    return paths
-
-
 def parse_minutes(markdown: str) -> ParsedMinutes:
-    """解析出主章节（存在 h2 时以 h2 为主，否则使用最浅标题）。
+    """自适应解析出实质性章节。
 
-    子标题内容归入其所属主章节，保证每个主章节的 Markdown 连续、完整。
+    - 存在容器型章节（如 ## 要点梳理 下包含多个 ### 子议题）时，自动将子议题提升为独立评判单元；
+    - 扁平章节保持原样切分；
+    - 100% 原始 Markdown 行无损保留。
     """
     text = markdown or ""
     lines = text.splitlines()
@@ -108,28 +96,72 @@ def parse_minutes(markdown: str) -> ParsedMinutes:
             sections=[section],
         )
 
+    # 确定基准层级
     levels = {level for _, level, _ in headings}
-    primary_level = 2 if 2 in levels else min(levels)
-    primary = [h for h in headings if h[1] == primary_level]
+    base_level = 2 if 2 in levels else min(levels)
 
     document_title = next(
         (title for _, level, title in headings if level == 1 and title),
-        primary[0][2] if primary else "图文纪要",
+        headings[0][2] if headings else "图文纪要",
     )
-    first_primary_line = primary[0][0] if primary else headings[0][0]
-    preamble = "\n".join(lines[:first_primary_line]).strip()
-    paths = _heading_paths(headings, primary_level)
 
+    # 自适应提取实质性 section 边界
+    # 策略：扫描 base_level 标题，若该标题下包含 >= 2 个 base_level + 1 子标题，
+    # 则将子标题提升为独立 section（容器标题附属在首个子标题顶部）
+    sections_meta: list[tuple[int, int, str, list[str]]] = []
+    i = 0
+    while i < len(headings):
+        line, level, title = headings[i]
+        if level == base_level:
+            children = []
+            j = i + 1
+            while j < len(headings) and headings[j][1] > base_level:
+                if headings[j][1] == base_level + 1:
+                    children.append((headings[j][0], headings[j][1], headings[j][2]))
+                j += 1
+
+            if len(children) >= 2:
+                # 容器型标题：提升子标题为独立 section
+                for c_idx, (c_line, c_level, c_title) in enumerate(children):
+                    sec_start = line if c_idx == 0 else c_line
+                    sec_path = [title, c_title]
+                    sections_meta.append((sec_start, c_level, c_title, sec_path))
+                i = j
+                continue
+            else:
+                sections_meta.append((line, level, title, [title]))
+                i += 1
+        elif level < base_level:
+            # 高于基准层级（如单独的 H1 标题）
+            sections_meta.append((line, level, title, [title]))
+            i += 1
+        else:
+            # 孤立的深层标题
+            sections_meta.append((line, level, title, [title]))
+            i += 1
+
+    if not sections_meta:
+        sections_meta = [(headings[0][0], headings[0][1], headings[0][2], [headings[0][2]])]
+
+    # 计算前导文本（Preamble）
+    first_sec_line = sections_meta[0][0]
+    preamble = "\n".join(lines[:first_sec_line]).strip()
+
+    # 构建连续且无损的 SectionNode 列表
     sections: List[SectionNode] = []
-    for order, (start, level, title) in enumerate(primary):
-        next_start = primary[order + 1][0] if order + 1 < len(primary) else len(lines)
+    for order, (start, level, title, path) in enumerate(sections_meta):
+        next_start = (
+            sections_meta[order + 1][0]
+            if order + 1 < len(sections_meta)
+            else len(lines)
+        )
         raw = "\n".join(lines[start:next_start]).strip()
         sections.append(
             SectionNode(
                 section_id=f"s{order + 1}",
                 heading=title,
                 level=level,
-                path=paths.get(start, [title]),
+                path=path,
                 order=order,
                 markdown=raw,
                 plain_text=_plain_text(raw),

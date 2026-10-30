@@ -1,6 +1,7 @@
-"""Section 级原文检索。
+"""Section 级现场原文智能检索（高保真段落检索版）。
 
-只做轻量、确定性的相关片段选择，避免把整篇 transcript 塞给每个 section。
+以自然发言段落为基本单位，基于关键词与字二元组加权匹配，
+挑选与当前 Section 最相关的连贯现场原文，避免句子碎片化。
 """
 from __future__ import annotations
 
@@ -17,9 +18,23 @@ def _grams(text: str) -> set[str]:
     return {chars[i : i + 2] for i in range(len(chars) - 1)}
 
 
-def _blocks(transcript: str) -> List[str]:
-    parts = re.split(r"\n\s*\n|(?<=[。！？!?])\s*(?=[^\s])", transcript or "")
-    return [p.strip() for p in parts if p.strip()]
+def _paragraphs(transcript: str) -> List[str]:
+    # 优先按两个以上换行符（发言人切换段落）切分
+    parts = [p.strip() for p in re.split(r"\n{2,}", transcript or "") if p.strip()]
+    if len(parts) >= 3:
+        return parts
+
+    # 兜底：若无双换行，按发言人时间戳行（如 "张三 00:12:30"）切分
+    parts = [
+        p.strip()
+        for p in re.split(r"(?=\n[^\n]{1,15}\s+\d{1,2}:\d{2})", transcript or "")
+        if p.strip()
+    ]
+    if len(parts) >= 3:
+        return parts
+
+    # 再次兜底：按单换行切分
+    return [line.strip() for line in (transcript or "").splitlines() if line.strip()]
 
 
 def retrieve_transcript(
@@ -27,28 +42,35 @@ def retrieve_transcript(
     transcript: str,
     budget: int = TRANSCRIPT_CHAR_BUDGET,
 ) -> str:
-    """按二元字重合度选相关段落；不足预算时按原顺序拼接。"""
+    """挑选与当前 section 相关性最高的连贯原文段落。"""
     source = (transcript or "").strip()
     if not source:
         return ""
     if len(source) <= budget:
         return source
 
-    blocks = _blocks(source)
+    blocks = _paragraphs(source)
     if not blocks:
         return source[:budget]
 
-    target = _grams(section_text)
+    target_grams = _grams(section_text)
+    if not target_grams:
+        return source[:budget]
+
+    # 计算匹配分数：重合二元组数量 / sqrt(段落长度)，平衡相关度与段落饱满度
     scored: list[tuple[float, int, str]] = []
     for idx, block in enumerate(blocks):
-        grams = _grams(block)
-        overlap = len(target & grams) / max(1, len(grams))
-        scored.append((overlap, idx, block))
+        bg = _grams(block)
+        if not bg:
+            continue
+        common = len(target_grams & bg)
+        score = common / (len(bg) ** 0.5)
+        scored.append((score, idx, block))
 
     selected: list[tuple[int, str]] = []
     used = 0
     for score, idx, block in sorted(scored, key=lambda x: (-x[0], x[1])):
-        if score <= 0:
+        if score <= 0.05:
             continue
         if used + len(block) > budget:
             continue
@@ -59,6 +81,8 @@ def retrieve_transcript(
 
     if not selected:
         return source[:budget]
+
+    # 按原文时序还原拼接
     selected.sort(key=lambda x: x[0])
     return "\n\n".join(block for _, block in selected)
 

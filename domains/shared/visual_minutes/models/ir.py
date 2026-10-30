@@ -171,6 +171,13 @@ class PlannerResponse(BaseModel):
 
 # ── 开篇通览图 ────────────────────────────────────────────────
 
+class BlockHighlight(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    tag: str = ""
+    value: str = ""
+
+
 class MasterBlock(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -178,6 +185,7 @@ class MasterBlock(BaseModel):
     title: str
     summary: str = ""
     key_points: List[str] = Field(default_factory=list)
+    highlight: Optional[BlockHighlight] = None
 
 
 class MasterMetric(BaseModel):
@@ -207,6 +215,7 @@ class VisualDocumentIR(BaseModel):
 
 
 __all__ = [
+    "BlockHighlight",
     "FlowData",
     "FlowEdge",
     "FlowNode",
