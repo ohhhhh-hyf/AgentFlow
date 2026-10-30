@@ -6,7 +6,6 @@ from typing import List
 from ...models.ir import CardsVisual, MasterVisual
 from .base import escape
 from .flow import render_flow
-from .stats import render_stats
 from .table import render_table
 from .timeline import render_timeline
 from .tree import render_tree
@@ -78,7 +77,8 @@ def render_master(model: MasterVisual) -> str:
             if w.kind == "cards":
                 widgets_html.append(_render_cards_widget(w))
             elif w.kind == "stats":
-                widgets_html.append(render_stats(w))
+                # 显式阻断局部指标卡在大图中渲染，确保大图聚焦全场各议题全局全貌
+                continue
             elif w.kind == "timeline":
                 widgets_html.append(render_timeline(w))
             elif w.kind == "table":

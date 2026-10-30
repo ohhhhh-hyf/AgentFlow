@@ -163,19 +163,25 @@ TASTE_CSS = """
 }
 
 .vm-master-grid {
-  display: grid;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
+  padding-bottom: 12px;
+  padding-top: 4px;
+  padding-left: 2px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 #F2F3F5;
 }
 
-.vm-master-grid.vm-cols-1 { grid-template-columns: 1fr; }
-.vm-master-grid.vm-cols-2 { grid-template-columns: repeat(2, 1fr); }
-.vm-master-grid.vm-cols-3 { grid-template-columns: repeat(3, 1fr); }
-.vm-master-grid.vm-cols-4 { grid-template-columns: repeat(4, 1fr); }
-.vm-master-grid.vm-cols-5 { grid-template-columns: repeat(5, 1fr); }
-.vm-master-grid.vm-flow { display: flex; flex-wrap: wrap; align-items: stretch; }
-
 .vm-master-block {
+  flex: 1 0 310px;
+  min-width: 310px;
+  max-width: 380px;
   display: flex;
   flex-direction: column;
   background: #FFFFFF;
@@ -185,6 +191,7 @@ TASTE_CSS = """
   border-top: 3.5px solid var(--block-accent, var(--vm-accent-blue));
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
 }
 
 .vm-master-block:hover {
@@ -369,13 +376,25 @@ TASTE_CSS = """
 }
 
 .vm-flow-track {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 14px;
   align-items: stretch;
+  padding-bottom: 12px;
+  padding-top: 4px;
+  padding-left: 2px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 #F2F3F5;
 }
 
 .vm-flow-step-card {
+  flex: 0 0 240px;
+  min-width: 240px;
+  max-width: 280px;
   display: flex;
   flex-direction: column;
   background: var(--vm-tone-card);
@@ -385,6 +404,7 @@ TASTE_CSS = """
   border-top: 3px solid var(--vm-accent-blue);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
 }
 
 .vm-flow-step-card:hover {
@@ -426,7 +446,7 @@ TASTE_CSS = """
 }
 
 .vm-flow-delivery {
-  margin-top: 12px;
+  margin-top: auto;
   padding: 6px 10px;
   background: #F7F8FA;
   border: 1px solid var(--vm-border);
@@ -567,12 +587,27 @@ TASTE_CSS = """
    5. 【量化成效】Stats 关键指标大卡
    ───────────────────────────────────────────────────────────── */
 .vm-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
   gap: 14px;
+  align-items: stretch;
+  padding-bottom: 12px;
+  padding-top: 4px;
+  padding-left: 2px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 #F2F3F5;
 }
 
 .vm-stat-card {
+  flex: 0 0 220px;
+  min-width: 220px;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
   background: #FFFFFF;
   border: 1px solid var(--vm-border);
   border-top: 3.5px solid var(--vm-accent-blue);
@@ -580,6 +615,7 @@ TASTE_CSS = """
   padding: 18px 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
 }
 
 .vm-stat-card:hover {
@@ -601,12 +637,13 @@ TASTE_CSS = """
   font-weight: 700;
   color: var(--vm-ink-title);
   margin-top: 6px;
+  flex: 1;
 }
 
 .vm-stat-evidence {
   font-size: 11.5px;
   color: var(--vm-ink-muted);
-  margin-top: 6px;
+  margin-top: auto;
   line-height: 1.5;
   background: #F7F8FA;
   padding: 4px 8px;
@@ -624,16 +661,33 @@ TASTE_CSS = """
 }
 
 .vm-timeline-track {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
   gap: 14px;
+  align-items: stretch;
+  padding-bottom: 12px;
+  padding-top: 4px;
+  padding-left: 2px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 #F2F3F5;
 }
 
 .vm-timeline-item {
+  flex: 0 0 220px;
+  min-width: 220px;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
   background: #FFFFFF;
   border: 1px solid var(--vm-border);
+  border-top: 3px solid var(--vm-accent-blue);
   border-radius: var(--vm-radius);
   padding: 14px 16px;
+  box-sizing: border-box;
 }
 
 .vm-timeline-time {
@@ -655,25 +709,51 @@ TASTE_CSS = """
   color: var(--vm-ink-muted);
   line-height: 1.55;
   margin-top: 5px;
+  flex: 1;
 }
 
-/* 响应式断点 */
-@media (max-width: 900px) {
-  .vm-master-grid.vm-cols-3,
-  .vm-master-grid.vm-cols-4,
-  .vm-master-grid.vm-cols-5 {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* ─────────────────────────────────────────────────────────────
+   飞书质感精细滚动条 (Feishu Sleek Scrollbar)
+   ───────────────────────────────────────────────────────────── */
+.vm-master-grid::-webkit-scrollbar,
+.vm-flow-track::-webkit-scrollbar,
+.vm-stats-grid::-webkit-scrollbar,
+.vm-timeline-track::-webkit-scrollbar,
+.vm-table-wrap::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
 }
 
+.vm-master-grid::-webkit-scrollbar-track,
+.vm-flow-track::-webkit-scrollbar-track,
+.vm-stats-grid::-webkit-scrollbar-track,
+.vm-timeline-track::-webkit-scrollbar-track,
+.vm-table-wrap::-webkit-scrollbar-track {
+  background: #F2F3F5;
+  border-radius: 4px;
+}
+
+.vm-master-grid::-webkit-scrollbar-thumb,
+.vm-flow-track::-webkit-scrollbar-thumb,
+.vm-stats-grid::-webkit-scrollbar-thumb,
+.vm-timeline-track::-webkit-scrollbar-thumb,
+.vm-table-wrap::-webkit-scrollbar-thumb {
+  background: #C9CDD4;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.vm-master-grid::-webkit-scrollbar-thumb:hover,
+.vm-flow-track::-webkit-scrollbar-thumb:hover,
+.vm-stats-grid::-webkit-scrollbar-thumb:hover,
+.vm-timeline-track::-webkit-scrollbar-thumb:hover,
+.vm-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: #86909C;
+}
+
+/* 响应式精修 */
 @media (max-width: 640px) {
   .vm-master-card { padding: 20px 16px; }
-  .vm-master-grid.vm-cols-2,
-  .vm-master-grid.vm-cols-3,
-  .vm-master-grid.vm-cols-4,
-  .vm-master-grid.vm-cols-5 {
-    grid-template-columns: 1fr;
-  }
   .vm-tree-layer-card {
     flex-direction: column;
     gap: 4px;
