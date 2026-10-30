@@ -9,10 +9,10 @@ import re
 from typing import List
 
 from ...models.ir import TreeNode, TreeVisual
-from .base import SVG_ICON_TREE, escape
+from .base import SVG_ICON_TREE, escape, render_figure_caption
 
 
-def render_tree(model: TreeVisual) -> str:
+def render_tree(model: TreeVisual, in_master: bool = False) -> str:
     nodes = model.data.nodes
     if not nodes:
         return ""
@@ -88,13 +88,30 @@ def render_tree(model: TreeVisual) -> str:
             f'</div>'
         )
 
-    title = escape(model.title)
-    return f"""
-<div class="vm-visual">
-  <div class="vm-visual-title">{SVG_ICON_TREE} {title}</div>
+    tree_container_html = f"""
   <div class="vm-tree-container">
     {''.join(cards)}
   </div>
+"""
+
+    if in_master:
+        title_html = (
+            f'<div class="vm-widget-title">{escape(model.title)}</div>'
+            if model.title
+            else ""
+        )
+        return f"""
+<div class="vm-master-widget vm-widget-tree">
+  {title_html}
+{tree_container_html}
+</div>
+"""
+
+    caption_html = render_figure_caption(model.title)
+    return f"""
+<div class="vm-visual">
+{tree_container_html}
+  {caption_html}
 </div>
 """
 

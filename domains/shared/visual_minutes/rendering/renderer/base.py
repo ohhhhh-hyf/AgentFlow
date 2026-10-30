@@ -90,6 +90,34 @@ TASTE_CSS = """
   letter-spacing: -0.01em;
 }
 
+/* 飞书出版物图注规范 (Figure Caption) */
+.vm-figure-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--vm-ink-subtle);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.vm-caption-prefix {
+  font-weight: 700;
+  color: var(--vm-accent-blue);
+  font-size: 11.5px;
+}
+
+.vm-caption-divider {
+  color: var(--vm-ink-faint);
+}
+
+.vm-caption-title {
+  font-weight: 600;
+  color: var(--vm-ink-muted);
+}
+
 /* ─────────────────────────────────────────────────────────────
    1. 【开篇统领】Master Infographic (全景通览大图 - 飞书旗舰商务版)
    ───────────────────────────────────────────────────────────── */
@@ -766,6 +794,18 @@ def escape(value: Any) -> str:
     return html.escape(str(value or ""), quote=True)
 
 
+def render_figure_caption(title: str) -> str:
+    if not title or not title.strip():
+        return ""
+    return (
+        f'<div class="vm-figure-caption">'
+        f'  <span class="vm-caption-prefix">▲ 图</span>'
+        f'  <span class="vm-caption-divider">·</span>'
+        f'  <span class="vm-caption-title">{escape(title.strip())}</span>'
+        f'</div>'
+    )
+
+
 __all__ = [
     "SVG_ICON_FLOW",
     "SVG_ICON_LOOP",
@@ -776,4 +816,5 @@ __all__ = [
     "SVG_ICON_TREE",
     "TASTE_CSS",
     "escape",
+    "render_figure_caption",
 ]

@@ -80,13 +80,13 @@ def render_master(model: MasterVisual) -> str:
                 # 显式阻断局部指标卡在大图中渲染，确保大图聚焦全场各议题全局全貌
                 continue
             elif w.kind == "timeline":
-                widgets_html.append(render_timeline(w))
+                widgets_html.append(render_timeline(w, in_master=True))
             elif w.kind == "table":
-                widgets_html.append(render_table(w))
+                widgets_html.append(render_table(w, in_master=True))
             elif w.kind == "flow":
-                widgets_html.append(render_flow(w))
+                widgets_html.append(render_flow(w, in_master=True))
             elif w.kind == "tree":
-                widgets_html.append(render_tree(w))
+                widgets_html.append(render_tree(w, in_master=True))
 
     # 2. 兼容兜底经典 blocks
     if not widgets_html and model.blocks:
@@ -137,12 +137,6 @@ def render_master(model: MasterVisual) -> str:
     return f"""
 <div class="vm-visual vm-master">
   <div class="vm-master-card">
-    <div class="vm-master-badge">
-      <svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-      </svg>
-      <span>会议全景架构与核心共识看板</span>
-    </div>
     <h1 class="vm-master-headline">{headline}</h1>
     <div class="vm-master-thesis">
       <span class="vm-thesis-quote-bar"></span>

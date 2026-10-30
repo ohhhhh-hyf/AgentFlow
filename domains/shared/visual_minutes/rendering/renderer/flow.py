@@ -7,10 +7,10 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 from ...models.ir import FlowEdge, FlowNode, FlowVisual
-from .base import SVG_ICON_FLOW, escape
+from .base import SVG_ICON_FLOW, escape, render_figure_caption
 
 
-def render_flow(model: FlowVisual) -> str:
+def render_flow(model: FlowVisual, in_master: bool = False) -> str:
     nodes = model.data.nodes
     if not nodes:
         return ""
@@ -64,15 +64,32 @@ def render_flow(model: FlowVisual) -> str:
             f'</div>'
         )
 
-    title = escape(model.title)
-    return f"""
-<div class="vm-visual">
-  <div class="vm-visual-title">{SVG_ICON_FLOW} {title}</div>
+    flow_container_html = f"""
   <div class="vm-flow-container">
     <div class="vm-flow-track">
       {''.join(step_items)}
     </div>
   </div>
+"""
+
+    if in_master:
+        title_html = (
+            f'<div class="vm-widget-title">{escape(model.title)}</div>'
+            if model.title
+            else ""
+        )
+        return f"""
+<div class="vm-master-widget vm-widget-flow">
+  {title_html}
+{flow_container_html}
+</div>
+"""
+
+    caption_html = render_figure_caption(model.title)
+    return f"""
+<div class="vm-visual">
+{flow_container_html}
+  {caption_html}
 </div>
 """
 

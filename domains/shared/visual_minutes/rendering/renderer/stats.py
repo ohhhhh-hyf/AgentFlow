@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from ...models.ir import StatsVisual
-from .base import SVG_ICON_STATS, escape
+from .base import SVG_ICON_STATS, escape, render_figure_caption
 
 
-def render_stats(model: StatsVisual) -> str:
+def render_stats(model: StatsVisual, in_master: bool = False) -> str:
     if not model.data.metrics:
         return ""
 
@@ -24,13 +24,30 @@ def render_stats(model: StatsVisual) -> str:
             f'</div>'
         )
 
-    title = escape(model.title)
-    return f"""
-<div class="vm-visual">
-  <div class="vm-visual-title">{SVG_ICON_STATS} {title}</div>
+    stats_grid_html = f"""
   <div class="vm-stats-grid">
     {''.join(cards)}
   </div>
+"""
+
+    if in_master:
+        title_html = (
+            f'<div class="vm-widget-title">{escape(model.title)}</div>'
+            if model.title
+            else ""
+        )
+        return f"""
+<div class="vm-master-widget vm-widget-stats">
+  {title_html}
+{stats_grid_html}
+</div>
+"""
+
+    caption_html = render_figure_caption(model.title)
+    return f"""
+<div class="vm-visual">
+{stats_grid_html}
+  {caption_html}
 </div>
 """
 
