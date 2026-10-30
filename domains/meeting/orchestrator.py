@@ -36,6 +36,7 @@ from .domain_config import (
     LINE_KINDS,
     SUPERVISOR_FAST_PATH_CHARS,
     SUPERVISOR_GUARDRAIL_RANGE,
+    actions_calendar_backfill_enabled,
 )
 from .views import (
     AgendaPersonalUnsupported,
@@ -1750,4 +1751,90 @@ class MeetingAgentSystem(_Nodes):
         self._line_cn_names = LINE_CN_NAMES
         self._state_class = MeetingState
         self._quality_warning = QUALITY_WARNING
+
+    async def _pre_render_async(self, state: dict, line_name: str) -> None:
+        """actions 审核通过后、渲染前，按开关批量回填 calendar 绝对时间。"""
+        if line_name != "actions":
+            return
+        if not actions_calendar_backfill_enabled():
+            return
+        await self._backfill_actions_deadlines(state)
+
+    async def _backfill_actions_deadlines(self, state: dict) -> None:
+        sub = _line(state, "actions")
+        if bool(sub.get("degraded")):
+            return
+        draft = sub.get("draft") or {}
+        actions = draft.get("actions")
+        if not isinstance(actions, list) or not actions:
+            return
+
+        meeting_time = str(state.get("meeting_time") or "").strip()
+        if not meeting_time:
+            logger.warning(
+                "[actions:calendar] skipped: meeting_time is empty"
+            )
+            return
+
+        pending: list[tuple[int, int, str]] = []
+        for action_index, action in enumerate(actions):
+            if not isinstance(action, dict):
+                continue
+            deadline = str(action.get("deadline") or "").strip()
+            if deadline:
+                pending.append((len(pending), action_index, deadline))
+        if not pending:
+            return
+
+        texts = [deadline for _, _, deadline in pending]
+        try:
+            from infra.calendar import CalendarLLM, run_deadline_agent
+
+            result = await run_deadline_agent(
+                meeting_start_time=meeting_time,
+                texts=texts,
+                client=CalendarLLM(self.client),
+            )
+        except Exception:  # noqa: BLE001 - 回填失败不影响 actions 主结果
+            logger.warning("[actions:calendar] batch failed", exc_info=True)
+            return
+
+        if result.get("error"):
+            logger.warning(
+                "[actions:calendar] top-level error: %s", result.get("error")
+            )
+
+        by_batch = {
+            int(item.get("index")): item
+            for item in (result.get("results") or [])
+            if isinstance(item, dict) and item.get("index") is not None
+        }
+        for batch_index, action_index, _ in pending:
+            action = actions[action_index]
+            item = by_batch.get(batch_index) or {}
+            error = item.get("error")
+            if error:
+                logger.warning(
+                    "[actions:calendar] index=%s action_index=%s error=%s",
+                    batch_index,
+                    action_index,
+                    error,
+                )
+                action["deadline_time"] = None
+                action["deadline_start"] = None
+                action["deadline_end"] = None
+                action["deadline_time_slot"] = None
+                action["deadline_kind"] = "none"
+                continue
+            action["deadline_time"] = item.get("deadline")
+            action["deadline_start"] = item.get("deadline_start")
+            action["deadline_end"] = item.get("deadline_end")
+            action["deadline_time_slot"] = item.get("time_slot")
+            action["deadline_kind"] = item.get("kind") or "none"
+
+        logger.info(
+            "[actions:calendar] backfilled=%d skipped_null=%d",
+            len(pending),
+            len(actions) - len(pending),
+        )
 

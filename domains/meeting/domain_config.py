@@ -60,3 +60,16 @@ def minutes_template_auto_mode() -> str:
     """读取场景识别开关；非法值/缺省一律按 off。"""
     value = (os.getenv("MINUTES_TEMPLATE_AUTO") or "off").strip().lower()
     return value if value in TEMPLATE_AUTO_MODES else "off"
+
+
+# ── actions 审核后 calendar 回填开关 ──────────────────────────
+# off：不调用 calendar，只输出原始 deadline
+# on ：审核通过后批量回填 deadline_time / range 字段
+ACTIONS_CALENDAR_BACKFILL_ENV = "ACTIONS_CALENDAR_BACKFILL"
+
+
+def actions_calendar_backfill_enabled() -> bool:
+    value = (
+        os.getenv(ACTIONS_CALENDAR_BACKFILL_ENV) or "off"
+    ).strip().lower()
+    return value in {"1", "true", "on", "yes"}

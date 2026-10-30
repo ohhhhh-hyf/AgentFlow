@@ -91,6 +91,9 @@ def _action(item: dict, path: str) -> None:
     allowed = {
         "title", "item", "owner", "deadline", "collaborators",
         "acceptance_criteria", "dependency", "evidence",
+        # calendar 审核后回填的派生字段（开关开启时出现）
+        "deadline_time", "deadline_start", "deadline_end",
+        "deadline_time_slot", "deadline_kind",
     }
     if not isinstance(item, dict):
         raise OutputValidationError(f"{path} 必须是 JSON 对象")
@@ -115,6 +118,20 @@ def _action(item: dict, path: str) -> None:
         _string(item["acceptance_criteria"], f"{path}.acceptance_criteria", nullable=True)
     if "dependency" in item:
         _string(item["dependency"], f"{path}.dependency", nullable=True)
+    for key in (
+        "deadline_time",
+        "deadline_start",
+        "deadline_end",
+        "deadline_time_slot",
+    ):
+        if key in item:
+            _string(item[key], f"{path}.{key}", nullable=True)
+    if "deadline_kind" in item and item["deadline_kind"] is not None:
+        _choice(
+            item["deadline_kind"],
+            {"date", "datetime", "range", "none"},
+            f"{path}.deadline_kind",
+        )
 
 
 def validate_supervisor_semantics(

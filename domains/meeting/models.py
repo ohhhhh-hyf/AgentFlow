@@ -44,6 +44,8 @@ class MeetingState(TypedDict, total=False):
     """
 
     transcript: str
+    # 会议开始时间（请求体 extra.time）；供 calendar 相对时间回填使用
+    meeting_time: str
     user: dict
     # 由画像 perspective=objective 判定，供展示与兜底拼装使用
     objective_perspective: bool

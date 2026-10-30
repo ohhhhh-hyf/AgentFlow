@@ -1244,6 +1244,8 @@ async def iter_task_events(
             param.kind == inspect.Parameter.VAR_KEYWORD
             for param in sig.parameters.values()
         )
+        if "meeting_time" in sig.parameters or accepts_kwargs:
+            streaming_kwargs["meeting_time"] = p.time
         for name, value in (
             ("template_auto", prep.template_auto),
             ("template_source", prep.template_source),

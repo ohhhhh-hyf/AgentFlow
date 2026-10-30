@@ -334,6 +334,7 @@ async def produce_line(
             dur = time.time() - _render_t0
             progress("[render:done] line=%s dur=%.2fs", line_name, dur)
             return
+        await engine._pre_render_async(state, line_name)
         if engine._pre_render_hook(state, line_name):
             await queue.put(
                 {

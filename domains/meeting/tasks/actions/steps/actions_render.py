@@ -103,7 +103,7 @@ class ActionItemsRender:
 
         格式：
         **{title}**： {item}（责任方：{owner} 配合方：{collaborators}）
-         - 时间节点：{deadline}
+         - 时间节点：{绝对时间或原始 deadline}
          - 前置依赖：{dependency}
          - 验收交付：{acceptance_criteria}
         """
@@ -145,7 +145,12 @@ class ActionItemsRender:
                 title = body
 
             owner = str(item.get("owner") or "").strip()
-            deadline = str(item.get("deadline") or "").strip()
+            raw_deadline = str(item.get("deadline") or "").strip()
+            deadline_time = str(item.get("deadline_time") or "").strip()
+            deadline_start = str(item.get("deadline_start") or "").strip()
+            deadline_end = str(item.get("deadline_end") or "").strip()
+            deadline_slot = str(item.get("deadline_time_slot") or "").strip()
+            deadline_kind = str(item.get("deadline_kind") or "").strip().lower()
             collab_raw = item.get("collaborators")
             if isinstance(collab_raw, (list, tuple)):
                 collab = "、".join(
@@ -164,8 +169,40 @@ class ActionItemsRender:
                 inline_meta.append(f"配合方：{collab}")
             if inline_meta:
                 lines[0] += f"（{' '.join(inline_meta)}）"
-            if deadline and deadline.lower() not in _invalid:
-                lines.append(f" - 时间节点：{deadline}")
+
+            def _valid(value: str) -> bool:
+                return bool(value) and value.lower() not in _invalid
+
+            timing = ""
+            has_range = (
+                deadline_kind == "range"
+                or bool(deadline_start)
+                or bool(deadline_end)
+            )
+            if has_range:
+                if _valid(deadline_start) and _valid(deadline_end):
+                    timing = (
+                        deadline_start
+                        if deadline_start == deadline_end
+                        else f"{deadline_start} ~ {deadline_end}"
+                    )
+                elif _valid(deadline_start):
+                    timing = deadline_start
+                elif _valid(deadline_end):
+                    timing = deadline_end
+                elif _valid(deadline_time):
+                    timing = deadline_time
+                elif _valid(raw_deadline):
+                    timing = raw_deadline
+            elif _valid(deadline_time):
+                timing = deadline_time
+                if _valid(deadline_slot) and " " not in deadline_time:
+                    timing = f"{deadline_time} {deadline_slot}"
+            elif _valid(raw_deadline):
+                timing = raw_deadline
+
+            if timing:
+                lines.append(f" - 时间节点：{timing}")
             if dependency and dependency.lower() not in _invalid:
                 lines.append(f" - 前置依赖：{dependency}")
             if acceptance and acceptance.lower() not in _invalid:

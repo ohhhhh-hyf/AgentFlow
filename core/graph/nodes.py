@@ -457,8 +457,15 @@ class DomainNodes:
         return policy_for(LLM_DOCUMENT)
 
     def _pre_render_hook(self, state: dict, line_name: str) -> bool:
-        """render 前钩子：返回 True 表示已自行产出 rendered（跳过 render 调用）。"""
+        """render 前同步钩子：返回 True 表示已自行产出 rendered（跳过 render 调用）。"""
         return False
+
+    async def _pre_render_async(self, state: dict, line_name: str) -> None:
+        """render 前异步钩子：用于异步后处理（如 actions calendar 回填）。
+
+        默认 no-op；只影响调用它的任务线，不阻塞其他线。
+        """
+        return None
 
     def _post_render_hook(self, state: dict, line_name: str) -> None:
         """按种类抽结构：pipeline 不抽；extract 抽列表；document 仅当 Report 声明 structure。"""
@@ -1104,6 +1111,7 @@ class DomainNodes:
         line_modes: dict[str, str] | None = None,
         line_extra: dict[str, str] | None = None,
         lang: str = "zh",
+        meeting_time: str = "",
         template_auto: bool = False,
         template_source: str = "",
         template_id: str = "",
@@ -1166,6 +1174,7 @@ class DomainNodes:
             "line_modes": dict(line_modes or {}),
             "line_extra": dict(line_extra or {}),
             "lang": lang,
+            "meeting_time": meeting_time or "",
             "template_auto": bool(template_auto),
             "template_source": template_source or "",
             "template_id": template_id or "",

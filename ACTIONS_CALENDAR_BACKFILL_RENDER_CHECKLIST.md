@@ -13,6 +13,24 @@
 
 ---
 
+## 当前落地进度（2026-10-30）
+
+- [x] `.env` 增加 `ACTIONS_CALENDAR_BACKFILL=off`
+- [x] `domain_config.py` 增加开关读取函数
+- [x] `MeetingState` 增加 `meeting_time`
+- [x] `run_streaming` / `initial_state` / runner / app 透传 `meeting_time`
+- [x] `DomainNodes` 增加异步 pre-render hook
+- [x] `produce_line` 在渲染前 await hook
+- [x] `MeetingAgentSystem` 实现 actions calendar 批量回填
+- [x] 回填字段：`deadline_time` / `deadline_start` / `deadline_end` / `deadline_time_slot` / `deadline_kind`
+- [x] 单点 / datetime / 时段 / range / 同日 range / 单端 range / 失败回退 / 空时间 渲染分支
+- [x] `_action` 校验允许派生字段
+- [x] FakeLLM 验证开关 on/off
+- [x] actions 回归测试 57 passed
+- [ ] 真实部署版 DeepSeek 端到端冒烟（vLLM 服务未启动）
+
+---
+
 ## 一、最终目标
 
 ### 开关关闭
