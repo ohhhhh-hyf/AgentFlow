@@ -100,7 +100,7 @@ def test_actions_only_bypasses_meeting_understanding_and_perspective() -> None:
     )
     assert "网关鉴权" in full_text
     assert "完成网关鉴权重构" in full_text
-    assert "**网关鉴权重构**： 完成网关鉴权重构（责任方：张三）" in full_text
+    assert "**网关鉴权重构**： 完成网关鉴权重构（责任方：张三 配合方：李四）" in full_text
     assert "1. **" not in full_text
     assert client.render_calls == []
 

@@ -42,9 +42,10 @@ DEADLINE_EXTRACTION_SYSTEM_PROMPT = """你是“待办截止时间语义解析�
   - is_midnight: true (表示目标日期次日 00:00；用于晚上12点、24点、零点)
   - offset_minutes: 分钟偏移 (会后正数，会前负数)
 - 范围字段：
-  - range: 仅范围表达时使用；结构为 {"start": DateSpec, "end": DateSpec}
-  - status=resolved 时，date 和 range 二选一，不能同时输出
-  - range.start / range.end 都使用上面的日期规则字段
+  - range: 仅单一范围表达时使用；结构为 {"start": DateSpec, "end": DateSpec}
+  - candidate_ranges: 仅“A或B”多候选窗口时使用；结构为 [{"start": DateSpec, "end": DateSpec}, ...]；单日期候选 start=end
+  - status=resolved 时，date / range / candidate_ranges 三选一
+  - range.start / range.end / candidate_ranges[].start/end 都使用上面的日期规则字段
 - 特殊状态：
   - status: "none" (无时间或"尽快/待定/无")
   - status: "ambiguous" (存在多个冲突日期，必须在 reason 说明，不要猜)
@@ -54,6 +55,7 @@ DEADLINE_EXTRACTION_SYSTEM_PROMPT = """你是“待办截止时间语义解析�
    - 本周X → weekday, week_offset=0；即使日期已过去也保留本周。
    - 下周X → week_offset=1；上周X → -1；大下周/下下周 → 2。
    - 裸“周五” → weekday，不传 week_offset，表示下一次出现。
+   - 下周初 → 范围：start=weekday 1 week_offset=1，end=weekday 3 week_offset=1；本周初同理 week_offset=0。
    - N周后/前 → offset_weeks, amount=N/-N；不要用 weekday。
 2. 月日：
    - 本月/这个月X号 → day_of_month, month_offset=0, month_explicit=true。
@@ -77,9 +79,11 @@ DEADLINE_EXTRACTION_SYSTEM_PROMPT = """你是“待办截止时间语义解析�
    - 会前/会后 → offset_minutes 负数/正数；一个半小时=90。
 5. 无时间/歧义：
    - 尽快/待定/无/未提及 → status=none。
-   - 或者/或/要么/还是/左右/前后/大概/可能/也许/暂定/看情况 → status=ambiguous + reason，禁止选第一个。
+   - 左右/前后/也许/暂定/看情况 → status=ambiguous + reason，禁止猜。
+   - 或者/或/要么/还是：先提取全部候选窗口；候选重叠、相邻或间隔不超过 1 天时，输出 candidate_ranges，由 Tool 合并；候选间隔大时 status=ambiguous + reason，禁止只选第一个。
    - 相对锚点不是会议时间（项目启动/上线/评审/客户确认/会议结束等）且没有提供事件日期 → status=ambiguous + reason，禁止按会议日期加偏移。
    - 周期/重复表达（每周五、每月15号、每年年底、每季度末）→ status=ambiguous + reason，禁止输出单次日期。
+   - 预计/大概/估计/可能/大约/差不多 N 天 → offset_days, amount=N-1（按第 N 天结束前处理）。
 6. 范围/窗口：
    - N周内 → range.start=same_day, range.end=offset_weeks, amount=N。
    - N天内 → range.start=same_day, range.end=offset_days, amount=N。
@@ -95,7 +99,9 @@ DEADLINE_EXTRACTION_SYSTEM_PROMPT = """你是“待办截止时间语义解析�
 - "会议后两周"            -> {"index": 0, "rule": "offset_weeks", "amount": 2}
 - "这个月十五号"          -> {"index": 0, "rule": "day_of_month", "day": 15, "month_offset": 0, "month_explicit": true}
 - "这个月十五号下午3点"    -> {"index": 0, "rule": "day_of_month", "day": 15, "month_offset": 0, "month_explicit": true, "exact_time": "15:00"}
-- "这周五或者最迟下周一"    -> {"index": 0, "status": "ambiguous", "reason": "存在两个不同日期"}
+- "这周或下周初"          -> {"index": 0, "candidate_ranges": [{"start": {"rule": "same_day"}, "end": {"rule": "weekday", "target_weekday": 7, "week_offset": 0}}, {"start": {"rule": "weekday", "target_weekday": 1, "week_offset": 1}, "end": {"rule": "weekday", "target_weekday": 3, "week_offset": 1}}]}
+- "这周五或下周五"        -> {"index": 0, "status": "ambiguous", "reason": "候选间隔过大"}
+- "预计三天"              -> {"index": 0, "rule": "offset_days", "amount": 2}
 - "3点"                  -> {"index": 0, "rule": "implicit_date", "exact_time": "15:00"}
 - "明天零点"              -> {"index": 0, "rule": "offset_days", "amount": 1, "is_midnight": true}
 - "零点"                  -> {"index": 0, "rule": "implicit_date", "is_midnight": true}

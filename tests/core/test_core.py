@@ -509,9 +509,9 @@ def test_action_items_render() -> None:
     check("包含第四条待办", "**申请预发布压测机器**： 申请预发布压测机器" in draft_text, draft_text)
     check("未分配待办无待认领", "待认领" not in draft_text, draft_text)
     check("包含交付时限：周五前", " - 时间节点：周五前" in draft_text, draft_text)
-    check("包含交付标准：压测报告及文档", " - 交付验收：压测报告及文档" in draft_text, draft_text)
+    check("包含交付标准：压测报告及文档", " - 验收交付：压测报告及文档" in draft_text, draft_text)
     check("包含前置条件：需后端先提供鉴权Token", " - 前置依赖：需后端先提供鉴权Token" in draft_text, draft_text)
-    check("包含交付标准：机器分配就绪", " - 交付验收：机器分配就绪" in draft_text, draft_text)
+    check("包含交付标准：机器分配就绪", " - 验收交付：机器分配就绪" in draft_text, draft_text)
     check("彻底去除原句引用", "张伟周五前把推流适配好" not in draft_text, draft_text)
 
     # 2. 空状态测试

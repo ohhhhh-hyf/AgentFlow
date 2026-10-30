@@ -2219,12 +2219,25 @@ def _parse_flat_actions_from_text(lines: list[str]) -> list[dict[str, Any]]:
             title = (title_m or inline_m).group(1).strip()
             item = ""
             owner = ""
+            collaborators = ""
             if inline_m:
                 rest = inline_m.group(2).strip()
-                owner_m = re.search(r"（责任方[：:]\s*(.+?)）\s*$", rest)
-                if owner_m:
-                    owner = owner_m.group(1).strip()
-                    item = rest[: owner_m.start()].strip()
+                meta_m = re.search(
+                    r"（((?:责任方|配合方)[：:].*?)）\s*$",
+                    rest,
+                )
+                if meta_m:
+                    meta = meta_m.group(1).strip()
+                    owner_m = re.search(
+                        r"责任方[：:]\s*(.*?)(?=\s*配合方[：:]|$)",
+                        meta,
+                    )
+                    collab_m = re.search(r"配合方[：:]\s*(.*?)$", meta)
+                    if owner_m:
+                        owner = owner_m.group(1).strip()
+                    if collab_m:
+                        collaborators = collab_m.group(1).strip()
+                    item = rest[: meta_m.start()].strip()
                 else:
                     item = rest
             actions.append(
@@ -2233,7 +2246,7 @@ def _parse_flat_actions_from_text(lines: list[str]) -> list[dict[str, Any]]:
                     "item": item,
                     "owner": owner,
                     "deadline": "",
-                    "collaborators": "",
+                    "collaborators": collaborators,
                     "acceptance_criteria": "",
                     "dependency": "",
                     "evidence": "",
@@ -2256,9 +2269,9 @@ def _parse_flat_actions_from_text(lines: list[str]) -> list[dict[str, Any]]:
                 r"^(?:协同配合|协同对象|配合方)[:：]\s*", "", clean_sub
             )
             continue
-        if re.match(r"^(?:交付验收|验收标准|交付标准)[:：]", clean_sub):
+        if re.match(r"^(?:交付验收|验收交付|验收标准|交付标准)[:：]", clean_sub):
             actions[-1]["acceptance_criteria"] = re.sub(
-                r"^(?:交付验收|验收标准|交付标准)[:：]\s*", "", clean_sub
+                r"^(?:交付验收|验收交付|验收标准|交付标准)[:：]\s*", "", clean_sub
             )
             continue
         if re.match(r"^(?:前置依赖|前置条件|依赖)[:：]", clean_sub):
@@ -2325,8 +2338,8 @@ def _parse_actions_from_text(text: str) -> list[dict[str, Any]]:
             if re.match(r"^(?:协同配合|协同对象|协同团队|配合方|协同)[:：]", clean_sub):
                 actions[-1]["collaborators"] = re.sub(r"^(?:协同配合|协同对象|协同团队|配合方|协同)[:：]\s*", "", clean_sub)
                 continue
-            if re.match(r"^(?:交付验收|验收标准|交付标准|交付成果|交付产物|交付物|成果|产出)[:：]", clean_sub):
-                deliv = re.sub(r"^(?:交付验收|验收标准|交付标准|交付成果|交付产物|交付物|成果|产出)[:：]\s*", "", clean_sub)
+            if re.match(r"^(?:交付验收|验收交付|验收标准|交付标准|交付成果|交付产物|交付物|成果|产出)[:：]", clean_sub):
+                deliv = re.sub(r"^(?:交付验收|验收交付|验收标准|交付标准|交付成果|交付产物|交付物|成果|产出)[:：]\s*", "", clean_sub)
                 actions[-1]["deliverable"] = deliv
                 actions[-1]["acceptance_criteria"] = deliv
                 continue

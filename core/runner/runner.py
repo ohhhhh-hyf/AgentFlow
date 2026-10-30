@@ -492,6 +492,7 @@ async def run(
             "lines": line_names,
             "line_modes": modes or {},
             "line_extra": line_extra,
+            "meeting_time": meeting_time,
         }
         sig = inspect.signature(system.run_streaming)
         accepts_kwargs = any(
