@@ -235,7 +235,7 @@ class MasterVisual(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     headline: str
-    thesis: str = ""
+    thesis: str = ""  # 已彻底废弃：大模型不提取，前端不渲染
     widgets: List[MasterWidget] = Field(default_factory=list)
     layout: Literal["grid", "timeline", "flow", "matrix"] = "grid"
     blocks: List[MasterBlock] = Field(default_factory=list)

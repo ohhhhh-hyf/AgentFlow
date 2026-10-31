@@ -179,60 +179,6 @@ TASTE_CSS = """
   margin: 0 0 12px 0;
 }
 
-.vm-master-thesis {
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-inset-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 12px;
-  padding: 13px 18px;
-  margin: 0 0 24px 0;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  box-sizing: border-box;
-}
-
-.vm-thesis-lead {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex-shrink: 0;
-}
-
-.vm-thesis-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--vm-accent-blue);
-  box-shadow: 0 0 6px var(--vm-accent-blue);
-  flex-shrink: 0;
-}
-
-.vm-thesis-badge {
-  font-size: 11.5px;
-  font-weight: 700;
-  font-family: var(--vm-font-mono);
-  color: var(--vm-accent-blue);
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-}
-
-.vm-thesis-divider {
-  width: 2px;
-  height: 18px;
-  background: #DCE3EC;
-  border-right: 1px solid #FFFFFF;
-  flex-shrink: 0;
-}
-
-.vm-thesis-content {
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--vm-ink-title);
-  line-height: 1.6;
-  flex: 1;
-}
-
 .vm-master-widgets-container {
   display: flex;
   flex-direction: column;
@@ -966,15 +912,6 @@ TASTE_CSS = """
 /* 响应式精修 */
 @media (max-width: 640px) {
   .vm-master-card { padding: 20px 16px; }
-  .vm-master-thesis {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 12px 14px;
-  }
-  .vm-thesis-divider {
-    display: none;
-  }
   .vm-tree-layer-card {
     flex-direction: column;
     gap: 4px;

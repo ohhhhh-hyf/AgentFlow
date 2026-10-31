@@ -133,25 +133,9 @@ def render_master(model: MasterVisual) -> str:
     if not widgets_html:
         return ""
 
-    headline = escape(model.headline)
-    thesis = escape(model.thesis)
-
-    thesis_html = ""
-    if thesis:
-        thesis_html = f'''    <div class="vm-master-thesis">
-      <div class="vm-thesis-lead">
-        <span class="vm-thesis-dot"></span>
-        <span class="vm-thesis-badge">核心定调</span>
-      </div>
-      <div class="vm-thesis-divider"></div>
-      <div class="vm-thesis-content">{thesis}</div>
-    </div>'''
-
     return f"""
 <div class="vm-visual vm-master">
   <div class="vm-master-card">
-    <h1 class="vm-master-headline">{headline}</h1>
-{thesis_html}
     <div class="vm-master-widgets-container">
       {''.join(widgets_html)}
     </div>

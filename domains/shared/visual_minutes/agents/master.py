@@ -100,7 +100,7 @@ def fallback_master(parsed: ParsedMinutes) -> MasterVisual:
 
     return MasterVisual(
         headline=parsed.document_title or "会议核心议题通览",
-        thesis=f"全篇围绕 {len(blocks)} 个核心议题展开深入研讨，已形成明确核心共识与落地决策。",
+        thesis="",
         widgets=[cards_widget],
         layout="grid",
         blocks=blocks,
