@@ -12,13 +12,17 @@ def _hard_break(line: str) -> str:
 
 
 def render_markdown(sections: List[SectionSummary]) -> str:
-    """按「时间+标题 / 关键词 / 纪要」渲染，段间空一行。"""
+    """按「时间+标题(加粗) / 关键词(加粗) / 纪要(引用竖线)」渲染，段间空一行。"""
     blocks: List[str] = []
     for section in sections:
-        lines = [_hard_break(f"{section.time_start}  {section.title}")]
+        lines = [_hard_break(f"**{section.time_start}  {section.title}**")]
         if section.key_words:
-            lines.append(_hard_break("关键词：" + "、".join(section.key_words)))
-        lines.append(section.section_summary)
+            lines.append(_hard_break(f"**关键词：{'、'.join(section.key_words)}**"))
+        summary_raw = (section.section_summary or "").strip()
+        if summary_raw:
+            summary_lines = summary_raw.splitlines()
+            quoted = "\n".join(f"> {line}" if line.strip() else ">" for line in summary_lines)
+            lines.append(quoted)
         blocks.append("\n".join(lines))
 
     if not blocks:

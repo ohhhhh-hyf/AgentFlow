@@ -224,12 +224,12 @@ def test_render_markdown_with_and_without_keywords() -> None:
         ),
     ]
     assert render_markdown(sections) == (
-        "00:00:00  预算讨论  \n"
-        "关键词：预算、确认  \n"
-        "张三介绍预算。\n"
+        "**00:00:00  预算讨论**  \n"
+        "**关键词：预算、确认**  \n"
+        "> 张三介绍预算。\n"
         "\n"
-        "00:03:10  排期讨论  \n"
-        "确认下周三交付。\n"
+        "**00:03:10  排期讨论**  \n"
+        "> 确认下周三交付。\n"
     )
 
 
@@ -242,8 +242,8 @@ def test_agent_uses_prompt_and_fake_client() -> None:
     assert len(result.sections) == 2
     assert result.sections[0].time_start == "00:00:00"
     assert result.sections[1].time_start == "00:03:10"
-    assert result.markdown.startswith("00:00:00  1.4.5 版本发布进展  \n")
-    assert "关键词：版本发布、提测  \n" in result.markdown
+    assert result.markdown.startswith("**00:00:00  1.4.5 版本发布进展**  \n")
+    assert "**关键词：版本发布、提测**  \n" in result.markdown
 
     system_prompt, user_prompt, kwargs = client.calls[0]
     assert "00:00:00 [申家坤]" in system_prompt
@@ -261,7 +261,7 @@ def test_agent_falls_back_on_bad_json() -> None:
     assert result.markdown
     assert result.raw_response == "这不是 JSON"
     assert any("规则兜底" in warning for warning in result.warnings)
-    assert result.markdown.startswith("00:00:00  ")
+    assert result.markdown.startswith("**00:00:00  ")
 
 
 def test_prompt_contains_placeholder_and_key_rules() -> None:

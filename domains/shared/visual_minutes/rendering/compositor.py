@@ -75,12 +75,18 @@ MARKDOWN_BODY_CSS = """
 }
 
 .markdown-body blockquote {
-  margin: 20px 0;
-  padding: 12px 18px;
-  background: var(--vm-tone-stone);
-  border-left: 3px solid var(--vm-accent-blue);
-  border-radius: 0 var(--vm-radius) var(--vm-radius) 0;
-  color: var(--vm-ink-muted);
+  margin: 8px 0 24px;
+  padding: 4px 0 4px 14px;
+  background: transparent;
+  border-left: 3px solid rgb(78, 205, 196);
+  border-radius: 0;
+  color: var(--vm-ink-body);
+}
+
+.markdown-body blockquote p {
+  margin: 0;
+  color: var(--vm-ink-body);
+  line-height: 1.7;
 }
 
 .markdown-body code {
