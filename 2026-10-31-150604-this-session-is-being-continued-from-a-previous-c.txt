@@ -1,0 +1,3429 @@
+ ▐▛███▛█   Claude Code v2.1.314
+▝▜██████▀  deepseek-flash · API Usage Billing
+ ▝▝   ▝▝   D:\study\demo
+
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\planner.py)
+  ⎿  Added 10 lines, removed 2 lines
+      36                  build_planner_user_prompt([_payload(s) for s in
+           sections]),
+      37                  label="visual_minutes/planner",
+      38              )
+      39 -            response = PlannerResponse.model_validate(raw)     
+      39          except Exception:  # noqa: BLE001 - 规划失败默认全部不
+          出图
+      40              logger.warning("section planner failed; fallback to
+           none", exc_info=True)
+      41              return PlannerResponse(
+     ...
+      50                  ]
+      51              )
+      52  
+      54 -        by_id = {d.section_id: d for d in response.sections}   
+      53 +        by_id: dict[str, SectionDecision] = {}                 
+      54 +        raw_sections = raw.get("sections") if isinstance(raw, d
+         +ict) else None                                                 
+      55 +        for item in raw_sections or []:                        
+      56 +            try:                                               
+      57 +                decision = SectionDecision.model_validate(item)
+      58 +            except Exception:  # noqa: BLE001 - 单条非法只影响 
+         +该条                                                           
+      59 +                logger.warning("invalid planner decision ignore
+         +d: %r", item)                                                  
+      60 +                continue                                       
+      61 +            by_id[decision.section_id] = decision              
+      62 +                                                               
+      63          normalized: list[SectionDecision] = []
+      64          for section in sections:
+      65              decision = by_id.get(section.section_id)
+  ⎿  Read visual_minutes\planner.py (79 lines)
+  ⎿  Read visual_minutes\pipeline.py (98 lines)
+  ⎿  Read visual_minutes\__init__.py (22 lines)
+  ⎿  Read visual_minutes\agent.py (41 lines)
+  ⎿  Read visual_minutes\compositor.py (109 lines)
+
+  Thought for 3s, read 1 file (ctrl+o to expand)
+
+● Update(visual_minutes\compositor.py)
+  ⎿  Added 1 line, removed 1 line
+      10  
+      11  from .ir import SectionVisual, VisualDocumentIR
+      12  from .parser import ParsedMinutes, SectionNode, parse_minutes
+      13 -from .renderer import TASTE_CSS, render_master, render_visual  
+      13 +from .renderer import TASTE_CSS, escape, render_master, render_
+         +visual                                                         
+      14  
+      15  MARKDOWN_BODY_CSS = """
+      16  .markdown-body { font-family: var(--vm-font-sans); font-size: 1
+          5px; line-height: 1.75; color: var(--vm-ink-body); }
+
+● Update(visual_minutes\compositor.py)
+  ⎿  Added 1 line, removed 1 line
+      83  <head>
+      84  <meta charset="UTF-8">
+      85  <meta name="viewport" content="width=device-width, initial-scal
+          e=1.0">
+      86 -<title>{ir.master.headline}</title>                            
+      86 +<title>{escape(ir.master.headline)}</title>                    
+      87  <style>
+      88  {TASTE_CSS}
+      89  {MARKDOWN_BODY_CSS}
+
+  Thought for 15s, read 5 files, ran 5 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\parser.py)
+  ⎿  Added 7 lines
+      67      lines = text.splitlines()
+      68      headings = _headings(text)
+      69  
+      70 +    if not headings and not text.strip():                      
+      71 +        return ParsedMinutes(                                  
+      72 +            document_title="图文纪要",                         
+      73 +            preamble_markdown="",                              
+      74 +            sections=[],                                       
+      75 +        )                                                      
+      76 +                                                               
+      77      if not headings:
+      78          section = SectionNode(
+      79              section_id="s1",
+
+  Thought for 7s, read 2 files, ran 2 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\pipeline.py)
+  ⎿  Added 3 lines, removed 1 line
+      66      minutes_markdown: str,
+      67      meeting_transcript: str,
+      68      output_path: Optional[str] = None,
+      69 +    *,                                                         
+      70 +    llm: VisualLLM | None = None,                              
+      71  ) -> tuple[str, VisualDocumentIR]:
+      72      """异步执行端到端流水线。"""
+      71 -    ir = await build_visual_ir(minutes_markdown, meeting_transc
+         -ript)                                                          
+      73 +    ir = await build_visual_ir(minutes_markdown, meeting_transc
+         +ript, llm=llm)                                                 
+      74      parsed = parse_minutes(minutes_markdown)
+      75      html = DocumentCompositor().composite(parsed, ir)
+      76      if output_path:
+
+● Update(visual_minutes\pipeline.py)
+  ⎿  Added 3 lines
+      84      minutes_markdown: str,
+      85      meeting_transcript: str,
+      86      output_path: Optional[str] = None,
+      87 +    *,                                                         
+      88 +    llm: VisualLLM | None = None,                              
+      89  ) -> str:
+      90      """同步阻塞入口。"""
+      91      html, _ = asyncio.run(
+     ...
+      93              minutes_markdown,
+      94              meeting_transcript,
+      95              output_path,
+      96 +            llm=llm,                                           
+      97          )
+      98      )
+      99      return html
+
+  Thought for 13s, read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Update(visual_minutes\ir.py)
+  ⎿  Added 1 line
+      166      model_config = ConfigDict(extra="ignore")
+      167  
+      168      sections: List[SectionDecision] = Field(default_factory=li
+           st)
+      169 +    warnings: List[str] = Field(default_factory=list)         
+      170  
+      171  
+      172  # ── 开篇通览图 ──────────────────────────────────────────────
+           ──
+
+● Update(visual_minutes\planner.py)
+  ⎿  Added 4 lines, removed 1 line
+      47                          rationale="planner fallback",
+      48                      )
+      49                      for s in sections
+      50 -                ]                                              
+      50 +                ],                                             
+      51 +                warnings=["section planner failed; all sections
+         + set to none"],                                                
+      52              )
+      53  
+      54          by_id: dict[str, SectionDecision] = {}
+      55 +        warnings: list[str] = []                               
+      56          raw_sections = raw.get("sections") if isinstance(raw, d
+          ict) else None
+      57          for item in raw_sections or []:
+      58              try:
+      59                  decision = SectionDecision.model_validate(item)
+      60              except Exception:  # noqa: BLE001 - 单条非法只影响
+          该条
+      61                  logger.warning("invalid planner decision ignore
+          d: %r", item)
+      62 +                warnings.append("invalid planner decision ignor
+         +ed")                                                           
+      63                  continue
+      64              by_id[decision.section_id] = decision
+      65  
+
+● Update(visual_minutes\planner.py)
+  ⎿  Added 1 line, removed 1 line
+      75                  )
+      76              normalized.append(decision)
+      77  
+      78 -        return PlannerResponse(sections=normalized)            
+      78 +        return PlannerResponse(sections=normalized, warnings=wa
+         +rnings)                                                        
+      79  
+      80  
+      81  __all__ = ["SectionPlanner"]
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\master.py)
+  ⎿  Added 1 line
+      2  from __future__ import annotations
+      3  
+      4  import logging
+      5 +from dataclasses import dataclass, field                        
+      6  from typing import List
+      7  
+      8  from .ir import MasterBlock, MasterVisual, SectionDecision
+
+● Update(visual_minutes\master.py)
+  ⎿  Added 14 lines, removed 5 lines
+      53      return seen == expected
+      54  
+      55  
+      56 +@dataclass                                                     
+      57 +class MasterPlanResult:                                        
+      58 +    master: MasterVisual                                       
+      59 +    warnings: List[str] = field(default_factory=list)          
+      60 +                                                               
+      61 +                                                               
+      62  class MasterPlanner:
+      63      def __init__(self, llm: VisualLLM) -> None:
+      64          self.llm = llm
+     ...
+      67          self,
+      68          parsed: ParsedMinutes,
+      69          decisions: List[SectionDecision],
+      64 -    ) -> MasterVisual:                                         
+      70 +    ) -> MasterPlanResult:                                     
+      71          if not parsed.sections:
+      66 -            return fallback_master(parsed)                     
+      72 +            return MasterPlanResult(master=fallback_master(pars
+         +ed))                                                           
+      73  
+      74          try:
+      75              raw = await self.llm.json_call(
+     ...
+      83              master = MasterVisual.model_validate(raw)
+      84              if not _coverage_ok(master, parsed.sections):
+      85                  raise ValueError("master does not cover all pri
+          mary sections")
+      80 -            return master                                      
+      86 +            return MasterPlanResult(master=master)             
+      87          except Exception:  # noqa: BLE001 - master 失败必须降级
+      88              logger.warning("master planner failed; fallback to 
+          section map", exc_info=True)
+      83 -            return fallback_master(parsed)                     
+      89 +            return MasterPlanResult(                           
+      90 +                master=fallback_master(parsed),                
+      91 +                warnings=["master planner failed; fallback appl
+         +ied"],                                                         
+      92 +            )                                                  
+      93  
+      94  
+      86 -__all__ = ["MasterPlanner", "fallback_master"]                 
+      95 +__all__ = ["MasterPlanResult", "MasterPlanner", "fallback_maste
+         +r"]                                                            
+
+  Thought for 3s (ctrl+o to expand)
+
+● Update(visual_minutes\pipeline.py)
+  ⎿  Added 4 lines, removed 1 line
+      2  from __future__ import annotations
+      3  
+      4  import asyncio
+      5 +import logging                                                  
+      6  from pathlib import Path
+      7  from typing import Optional
+      8  
+     ...
+      11  from .extractor import VisualExtractor
+      12  from .ir import VisualDocumentIR
+      13  from .llm import VisualLLM
+      13 -from .master import MasterPlanner                              
+      14 +from .master import MasterPlanner, fallback_master             
+      15  from .parser import parse_minutes
+      16  from .planner import SectionPlanner
+      17  from .retrieval import retrieve_transcript
+      18  from .validator import validate_document
+      19  
+      20 +logger = logging.getLogger(__name__)                           
+      21  
+      22 +                                                               
+      23  async def build_visual_ir(
+      24      minutes_markdown: str,
+      25      meeting_transcript: str,
+
+● Update(visual_minutes\pipeline.py)  ⎿  Added 51 lines, removed 31 lines
+      28  ) -> VisualDocumentIR:
+      29      """执行 Parser → Planner → Extractor/Master → Validator。""
+          "
+      30      parsed = parse_minutes(minutes_markdown)
+      31 -    client = llm or VisualLLM()                                
+      31 +    if not parsed.sections:                                    
+      32 +        return VisualDocumentIR(master=fallback_master(parsed),
+         + sections=[])                                                  
+      33  
+      33 -    planner = SectionPlanner(client)                           
+      34 -    plan = await planner.plan(parsed.sections)                 
+      35 -    decisions = plan.sections                                  
+      34 +    try:                                                       
+      35 +        client = llm or VisualLLM()                            
+      36  
+      37 -    master_planner = MasterPlanner(client)                     
+      38 -    extractor = VisualExtractor(client)                        
+      39 -    semaphore = asyncio.Semaphore(MAX_EXTRACT_CONCURRENCY)     
+      37 +        planner = SectionPlanner(client)                       
+      38 +        plan = await planner.plan(parsed.sections)             
+      39 +        decisions = plan.sections                              
+      40 +        warnings = list(plan.warnings)                         
+      41  
+      41 -    async def _extract(decision):                              
+      42 -        if decision.visual == "none":                          
+      43 -            return None                                        
+      44 -        section = next(                                        
+      45 -            (s for s in parsed.sections if s.section_id == deci
+         -sion.section_id),                                              
+      46 -            None,                                              
+      47 -        )                                                      
+      48 -        if section is None:                                    
+      49 -            return None                                        
+      50 -        transcript = retrieve_transcript(section.plain_text, me
+         -eting_transcript)                                              
+      51 -        async with semaphore:                                  
+      52 -            return await extractor.extract(section, decision, t
+         -ranscript)                                                     
+      42 +        master_planner = MasterPlanner(client)                 
+      43 +        extractor = VisualExtractor(client)                    
+      44 +        semaphore = asyncio.Semaphore(MAX_EXTRACT_CONCURRENCY) 
+      45 +        planned = [d for d in decisions if d.visual != "none"] 
+      46  
+      54 -    master_task = asyncio.create_task(master_planner.plan(parse
+         -d, decisions))                                                 
+      55 -    extract_tasks = [                                          
+      56 -        asyncio.create_task(_extract(d))                       
+      57 -        for d in decisions                                     
+      58 -        if d.visual != "none"                                  
+      59 -    ]                                                          
+      60 -    results = await asyncio.gather(master_task, *extract_tasks)
+      61 -    master = results[0]                                        
+      62 -    extracted = results[1:]                                    
+      63 -    visuals = [item for item in extracted if item is not None a
+         -nd item.visual is not None]                                    
+      64 -    ir = VisualDocumentIR(master=master, sections=visuals)     
+      65 -    return validate_document(ir, parsed)                       
+      47 +        async def _extract(decision):                          
+      48 +            section = next(                                    
+      49 +                (s for s in parsed.sections if s.section_id == 
+         +decision.section_id),                                          
+      50 +                None,                                          
+      51 +            )                                                  
+      52 +            if section is None:                                
+      53 +                return None                                    
+      54 +            transcript = retrieve_transcript(section.plain_text
+         +, meeting_transcript)                                          
+      55 +            async with semaphore:                              
+      56 +                return await extractor.extract(section, decisio
+         +n, transcript)                                                 
+      57  
+      58 +        master_task = asyncio.create_task(master_planner.plan(p
+         +arsed, decisions))                                             
+      59 +        extract_tasks = [asyncio.create_task(_extract(d)) for d
+         + in planned]                                                   
+      60 +        results = await asyncio.gather(master_task, *extract_ta
+         +sks)                                                           
+      61 +        master_result = results[0]                             
+      62 +        extracted = results[1:]                                
+      63 +        warnings.extend(master_result.warnings)                
+      64  
+      65 +        for decision, item in zip(planned, extracted):         
+      66 +            if item is None or item.visual is None:            
+      67 +                warnings.append(f"visual extraction failed: {de
+         +cision.section_id}")                                           
+      68 +                                                               
+      69 +        visuals = [                                            
+      70 +            item for item in extracted if item is not None and 
+         +item.visual is not None                                        
+      71 +        ]                                                      
+      72 +        ir = VisualDocumentIR(                                 
+      73 +            master=master_result.master,                       
+      74 +            sections=visuals,                                  
+      75 +            warnings=warnings,                                 
+      76 +        )                                                      
+      77 +        return validate_document(ir, parsed)                   
+      78 +    except Exception:  # noqa: BLE001 - 视觉链路整体失败时退回 
+         +纯纪要                                                         
+      79 +        logger.exception("visual pipeline failed; minutes-only 
+         +fallback")                                                     
+      80 +        ir = VisualDocumentIR(                                 
+      81 +            master=fallback_master(parsed),                    
+      82 +            sections=[],                                       
+      83 +            warnings=["visual pipeline failed; minutes-only fal
+         +lback"],                                                       
+      84 +        )                                                      
+      85 +        return validate_document(ir, parsed)                   
+      86 +                                                               
+      87 +                                                               
+      88  async def agenerate_visual_minutes(
+      89      minutes_markdown: str,
+      90      meeting_transcript: str,
+
+  Thought for 8s, ran 3 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\compositor.py)
+  ⎿  Added 1 line, removed 1 line
+      77                  f"{section_html}{visual_html}</section>"
+      78              )
+      79  
+      80 -        body = "\n".join(parts)                                
+      80 +        body = "".join(parts)                                  
+      81          html = f"""<!DOCTYPE html>
+      82  <html lang="zh-CN">
+      83  <head>
+
+  Thought for 27s, read 9 files, ran 1 shell command (ctrl+o to expand)
+
+● Update(visual_minutes\parser.py)
+  ⎿  Added 16 lines
+      58      return out
+      59  
+      60  
+      61 +def _heading_paths(                                            
+      62 +    headings: list[tuple[int, int, str]],                      
+      63 +    primary_level: int,                                        
+      64 +) -> dict[int, list[str]]:                                     
+      65 +    """按标题层级推导每个主 section 的祖先路径。"""            
+      66 +    stack: list[tuple[int, str]] = []                          
+      67 +    paths: dict[int, list[str]] = {}                           
+      68 +    for line, level, title in headings:                        
+      69 +        while stack and stack[-1][0] >= level:                 
+      70 +            stack.pop()                                        
+      71 +        if level == primary_level:                             
+      72 +            paths[line] = [t for _, t in stack if t] + [title] 
+      73 +        stack.append((level, title))                           
+      74 +    return paths                                               
+      75 +                                                               
+      76 +                                                               
+      77  def parse_minutes(markdown: str) -> ParsedMinutes:
+      78      """解析出主章节（存在 h2 时以 h2 为主，否则使用最浅标题）。
+      79  
+
+● Update(visual_minutes\parser.py)
+  ⎿  Added 1 line
+      118      )
+      119      first_primary_line = primary[0][0] if primary else heading
+           s[0][0]
+      120      preamble = "\n".join(lines[:first_primary_line]).strip()
+      121 +    paths = _heading_paths(headings, primary_level)           
+      122  
+      123      sections: List[SectionNode] = []
+      124      for order, (start, level, title) in enumerate(primary):
+
+● Update(visual_minutes\parser.py)
+  ⎿  Added 1 line, removed 1 line
+      129                  section_id=f"s{order + 1}",
+      130                  heading=title,
+      131                  level=level,
+      132 -                path=[title],                                 
+      132 +                path=paths.get(start, [title]),               
+      133                  order=order,
+      134                  markdown=raw,
+      135                  plain_text=_plain_text(raw),
+
+● Update(visual_minutes\retrieval.py)
+  ⎿  Added 1 line, removed 1 line
+      50      for score, idx, block in sorted(scored, key=lambda x: (-x[0
+          ], x[1])):
+      51          if score <= 0:
+      52              continue
+      53 -        if used + len(block) > budget and selected:            
+      53 +        if used + len(block) > budget:                         
+      54              continue
+      55          selected.append((idx, block))
+      56          used += len(block)
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\prompts.py)
+  ⎿  Added 3 lines, removed 2 lines
+      55  3. 数据不足时不要编造。
+      56  4. 每个节点、行、指标尽量给出 evidence。
+      57  5. evidence 必须来自输入文本，不能是总结。
+      58 -6. 不输出 Markdown，不输出 Emoji，不输出解释。                 
+      59 -7. 只输出 JSON 对象。                                          
+      58 +6. 数据不足以支撑指定 kind 时，输出 {"kind": "none", "reason": 
+         +"string"}，不要编造。                                          
+      59 +7. 不输出 Markdown，不输出 Emoji，不输出解释。                 
+      60 +8. 只输出 JSON 对象。                                          
+      61  
+      62  按 kind 输出 data：
+      63  
+
+● Update(visual_minutes\extractor.py)
+  ⎿  Added 2 lines
+      41                  label="visual_minutes/extractor",
+      42              )
+      43              kind = str(raw.get("kind") or "").strip()
+      44 +            if kind == "none":                                 
+      45 +                return None                                    
+      46              if kind != decision.visual:
+      47                  raise ValueError(f"kind mismatch: {kind!r} != {
+          decision.visual!r}")
+      48              visual_payload = {
+
+  Thought for 5s (ctrl+o to expand)
+
+● Update(visual_minutes\renderer\flow.py)
+  ⎿  Added 90 lines, removed 12 lines
+        1  """流程 / 因果 / 循环渲染器。"""
+        2  from __future__ import annotations
+        3  
+        4 -from visual_minutes.ir import FlowVisual                      
+        4 +from typing import Dict, List, Optional, Tuple                
+        5 +                                                              
+        6 +from visual_minutes.ir import FlowEdge, FlowNode, FlowVisual  
+        7  from .base import escape
+        8  
+        9  
+       10 +def _linear_order(                                            
+       11 +    nodes: List[FlowNode],                                    
+       12 +    edges: List[FlowEdge],                                    
+       13 +) -> Tuple[List[FlowNode], bool]:                             
+       14 +    """若图是一条链，返回链顺序；否则按入度稳定排序并标记为非 
+          +链。"""                                                       
+       15 +    ids = [n.node_id for n in nodes]                          
+       16 +    id_set = set(ids)                                         
+       17 +    valid = [e for e in edges if e.source in id_set and e.targ
+          +et in id_set]                                                 
+       18 +    out: Dict[str, List[str]] = {i: [] for i in ids}          
+       19 +    indeg: Dict[str, int] = {i: 0 for i in ids}               
+       20 +    for edge in valid:                                        
+       21 +        out[edge.source].append(edge.target)                  
+       22 +        indeg[edge.target] += 1                               
+       23 +                                                              
+       24 +    sources = [i for i in ids if indeg[i] == 0]               
+       25 +    is_chain = (                                              
+       26 +        len(valid) == len(nodes) - 1                          
+       27 +        and len(sources) == 1                                 
+       28 +        and all(len(out[i]) <= 1 for i in ids)                
+       29 +        and all(indeg[i] <= 1 for i in ids)                   
+       30 +    )                                                         
+       31 +    if is_chain:                                              
+       32 +        order_ids: list[str] = []                             
+       33 +        cur: Optional[str] = sources[0]                       
+       34 +        while cur is not None and cur not in order_ids:       
+       35 +            order_ids.append(cur)                             
+       36 +            cur = out[cur][0] if out[cur] else None           
+       37 +        if len(order_ids) == len(nodes):                      
+       38 +            by_id = {n.node_id: n for n in nodes}             
+       39 +            return [by_id[i] for i in order_ids], True        
+       40 +                                                              
+       41 +    # 非链式：Kahn 拓扑排序，同层按输入顺序，保证结果确定。   
+       42 +    remaining = list(ids)                                     
+       43 +    ordered: list[str] = []                                   
+       44 +    while remaining:                                          
+       45 +        ready = [i for i in remaining if indeg[i] == 0]       
+       46 +        if not ready:                                         
+       47 +            ordered.extend(remaining)                         
+       48 +            break                                             
+       49 +        for i in ready:                                       
+       50 +            ordered.append(i)                                 
+       51 +            remaining.remove(i)                               
+       52 +            for target in out[i]:                             
+       53 +                indeg[target] -= 1                            
+       54 +    by_id = {n.node_id: n for n in nodes}                     
+       55 +    return [by_id[i] for i in ordered if i in by_id], False   
+       56 +                                                              
+       57 +                                                              
+       58 +def _arrow(label: str = "") -> str:                           
+       59 +    svg = (                                                   
+       60 +        '<svg class="vm-flow-arrow" width="34" height="14" vie
+          +wBox="0 0 34 14" '                                            
+       61 +        'aria-hidden="true"><path d="M1 7h27" fill="none" stro
+          +ke="currentColor" '                                           
+       62 +        'stroke-width="1.5" stroke-linecap="round"/><path d="M
+          +23 2.5 29 7l-6 4.5" '                                         
+       63 +        'fill="none" stroke="currentColor" stroke-width="1.5" 
+          +stroke-linecap="round" '                                      
+       64 +        'stroke-linejoin="round"/></svg>'                     
+       65 +    )                                                         
+       66 +    if label:                                                 
+       67 +        return (                                              
+       68 +            f'<span class="vm-flow-arrow-wrap">{svg}'         
+       69 +            f'<span class="vm-flow-arrow-label">{escape(label)
+          +}</span></span>'                                              
+       70 +        )                                                     
+       71 +    return f'<span class="vm-flow-arrow-wrap">{svg}</span>'   
+       72 +                                                              
+       73 +                                                              
+       74  def render_flow(model: FlowVisual) -> str:
+       75      nodes = model.data.nodes
+       76      if not nodes:
+       77          return ""
+       12 -    cards = []                                                
+       13 -    for idx, node in enumerate(nodes):                        
+       78 +    edges = model.data.edges                                  
+       79 +    ordered, is_chain = _linear_order(nodes, edges)           
+       80 +    edge_by_pair = {(e.source, e.target): e for e in edges}   
+       81 +                                                              
+       82 +    cards: list[str] = []                                     
+       83 +    for idx, node in enumerate(ordered):                      
+       84          if idx:
+       15 -            cards.append('<span class="vm-flow-arrow" aria-hid
+          -den="true">→</span>')                                         
+       85 +            prev = ordered[idx - 1]                           
+       86 +            edge = edge_by_pair.get((prev.node_id, node.node_i
+          +d))                                                           
+       87 +            if is_chain and edge is not None:                 
+       88 +                cards.append(_arrow(edge.label))              
+       89          cards.append(
+       90              f'<div class="vm-flow-node">'
+       91              f'<div class="vm-flow-node-title">{escape(node.tit
+           le)}</div>'
+       92              + (f'<div class="vm-flow-node-detail">{escape(node
+           .detail)}</div>' if node.detail else "")
+       93              + "</div>"
+       94          )
+       22 -    edge_lines = "".join(                                     
+       23 -        f'<div>{escape(e.source)} → {escape(e.target)}'       
+       24 -        + (f'：{escape(e.label)}' if e.label else "")         
+       25 -        + "</div>"                                            
+       26 -        for e in model.data.edges                             
+       27 -    )                                                         
+       28 -    edges = f'<div class="vm-flow-edges">{edge_lines}</div>' i
+          -f edge_lines else ""                                          
+       95 +                                                              
+       96 +    edge_lines = ""                                           
+       97 +    if not is_chain and edges:                                
+       98 +        titles = {n.node_id: n.title for n in nodes}          
+       99 +        edge_lines = '<div class="vm-flow-edges">' + "".join( 
+      100 +            f'<div class="vm-flow-edge"><span>{escape(titles.g
+          +et(e.source, e.source))}</span>'                              
+      101 +            f'<span class="vm-flow-edge-arrow" aria-hidden="tr
+          +ue">→</span>'                                                 
+      102 +            f'<span>{escape(titles.get(e.target, e.target))}</
+          +span>'                                                        
+      103 +            + (f'<span class="vm-flow-edge-label">{escape(e.la
+          +bel)}</span>' if e.label else "")                             
+      104 +            + "</div>"                                        
+      105 +            for e in edges                                    
+      106 +        ) + "</div>"                                          
+      107      return f"""
+      108  <div class="vm-visual">
+      109    <div class="vm-visual-title">{escape(model.title)}</div>
+      110    <div class="vm-flow">{''.join(cards)}</div>
+       33 -  {edges}                                                     
+      111 +  {edge_lines}                                                
+      112  </div>
+      113  """
+      114  
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\renderer\base.py)
+  ⎿  Added 6 lines, removed 2 lines
+      138  .vm-flow-node { flex: 1 1 180px; background: var(--vm-tone-sto
+           ne-light); border-radius: var(--vm-radius); padding: 15px 16px
+           ; border: 1px solid var(--vm-border); }
+      139  .vm-flow-node-title { font-size: 14px; font-weight: 700; color
+           : var(--vm-ink-title); margin-bottom: 5px; }
+      140  .vm-flow-node-detail { font-size: 12.5px; color: var(--vm-ink-
+           muted); line-height: 1.55; }
+      141 -.vm-flow-arrow { align-self: center; color: var(--vm-ink-faint
+          -); font-size: 18px; padding: 0 2px; }                         
+      142 -.vm-flow-edges { margin-top: 12px; font-size: 12px; color: var
+          -(--vm-ink-subtle); line-height: 1.6; }                        
+      141 +.vm-flow-arrow-wrap { align-self: center; display: flex; flex-
+          +direction: column; align-items: center; gap: 2px; color: var(-
+          +-vm-ink-faint); }                                             
+      142 +.vm-flow-arrow-label { font-size: 10.5px; color: var(--vm-ink-
+          +subtle); line-height: 1.3; text-align: center; max-width: 84px
+          +; }                                                           
+      143 +.vm-flow-edges { margin-top: 14px; padding-top: 12px; border-t
+          +op: 1px solid var(--vm-border); display: flex; flex-direction:
+          + column; gap: 6px; font-size: 12.5px; color: var(--vm-ink-subt
+          +le); line-height: 1.5; }                                      
+      144 +.vm-flow-edge { display: flex; flex-wrap: wrap; align-items: b
+          +aseline; gap: 6px; }                                          
+      145 +.vm-flow-edge-arrow { color: var(--vm-ink-faint); }           
+      146 +.vm-flow-edge-label { color: var(--vm-ink-faint); font-size: 1
+          +1.5px; }                                                      
+      147  .vm-tree, .vm-tree ul { list-style: none; margin: 0; padding-l
+           eft: 20px; }
+      148  .vm-tree { padding-left: 0; }
+      149  .vm-tree li { position: relative; padding: 5px 0 5px 16px; bor
+           der-left: 1px solid var(--vm-border); }
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\renderer\base.py)
+  ⎿  Added 1 line, removed 1 line
+      163    .vm-master-card { padding: 22px 18px; }
+      164    .vm-master-grid.vm-cols-2, .vm-master-grid.vm-cols-3, .vm-ma
+           ster-grid.vm-cols-4, .vm-master-grid.vm-cols-5 { grid-template
+           -columns: 1fr; }
+      165    .vm-master-grid.vm-flow { display: grid; }
+      166 -  .vm-flow-arrow { display: none; }                           
+      166 +  .vm-flow-arrow-wrap { display: none; }                      
+      167  }
+      168  """
+      169  
+
+  Thought for 15s, ran 6 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\ir.py)
+  ⎿  Added 1 line, removed 1 line
+      65      model_config = ConfigDict(extra="ignore", populate_by_name=
+          True)
+      66  
+      67      source: str = Field(alias="from")
+      68 -    target: str                                                
+      68 +    target: str = Field(alias="to")                            
+      69      label: str = ""
+      70  
+      71  
+
+  Thought for 12s, read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Update(visual_minutes\compositor.py)
+  ⎿  Added 1 line, removed 1 line
+      41  
+      42  class DocumentCompositor:
+      43      def __init__(self) -> None:
+      44 -        self.md = MarkdownIt("commonmark")                     
+      44 +        self.md = MarkdownIt("commonmark").enable("table").enab
+         +le("strikethrough")                                            
+      45  
+      46      def _render_section(self, section: SectionNode) -> str:
+      47          tokens = self.md.parse(section.markdown)
+
+● Update(visual_minutes\renderer\base.py)
+  ⎿  Added 1 line, removed 1 line
+      135  .vm-table tr:last-child td { border-bottom: 0; }
+      136  .vm-table td:first-child { font-weight: 600; color: var(--vm-i
+           nk-title); background: var(--vm-tone-stone-light); }
+      137  .vm-flow { display: flex; flex-wrap: wrap; gap: 10px; align-it
+           ems: stretch; }
+      138 -.vm-flow-node { flex: 1 1 180px; background: var(--vm-tone-sto
+          -ne-light); border-radius: var(--vm-radius); padding: 15px 16px
+          -; border: 1px solid var(--vm-border); }                       
+      138 +.vm-flow-node { flex: 1 1 140px; min-width: 0; background: var
+          +(--vm-tone-stone-light); border-radius: var(--vm-radius); padd
+          +ing: 15px 16px; border: 1px solid var(--vm-border); }         
+      139  .vm-flow-node-title { font-size: 14px; font-weight: 700; color
+           : var(--vm-ink-title); margin-bottom: 5px; }
+      140  .vm-flow-node-detail { font-size: 12.5px; color: var(--vm-ink-
+           muted); line-height: 1.55; }
+      141  .vm-flow-arrow-wrap { align-self: center; display: flex; flex-
+           direction: column; align-items: center; gap: 2px; color: var(-
+           -vm-ink-faint); }
+
+  Thought for 2s (ctrl+o to expand)
+
+● Write(visual_minutes\_preview_gen.py)
+  ⎿  Wrote 165 lines to visual_minutes\_preview_gen.py
+       1 """本地预览生成脚本，验证后删除。"""
+       2 import asyncio
+       3 import re
+       4 from pathlib import Path
+       5 
+       6 from visual_minutes.pipeline import agenerate_visual_minutes
+       7 
+       8 MINUTES = """# 数据平台季度评审
+       9 
+      10 本次评审覆盖平台建设进展、方案取舍、风险与下一阶段安排。
+     … +155 lines (ctrl+o to expand)
+
+  Thought for 24s, read 3 files, ran 4 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\renderer\base.py)  ⎿  Added 2 lines, removed 1 line
+      163    .vm-master-card { padding: 22px 18px; }
+      164    .vm-master-grid.vm-cols-2, .vm-master-grid.vm-cols-3, .vm-ma
+           ster-grid.vm-cols-4, .vm-master-grid.vm-cols-5 { grid-template
+           -columns: 1fr; }
+      165    .vm-master-grid.vm-flow { display: grid; }
+      166 -  .vm-flow-arrow-wrap { display: none; }                      
+      166 +  .vm-flow { flex-wrap: nowrap; overflow-x: auto; padding-bott
+          +om: 8px; }                                                    
+      167 +  .vm-flow-node { flex: 0 0 150px; }                          
+      168  }
+      169  """
+      170  
+
+  Thought for 2s (ctrl+o to expand)
+
+● Update(visual_minutes\compositor.py)
+  ⎿  Added 1 line, removed 1 line
+      23  .markdown-body blockquote { margin: 18px 0; padding: 10px 16px;
+           background: var(--vm-tone-stone); border-left: 3px solid var(-
+          -vm-accent-blue); color: var(--vm-ink-muted); }
+      24  .markdown-body code { font-family: var(--vm-font-mono); font-si
+          ze: 85%; background: var(--vm-tone-stone); padding: .15em .35em
+          ; border-radius: 4px; }
+      25  .markdown-body pre { overflow-x: auto; padding: 16px; backgroun
+          d: var(--vm-tone-stone); border-radius: var(--vm-radius); }
+      26 -.markdown-body table { width: 100%; border-collapse: collapse; 
+         -}                                                              
+      26 +.markdown-body table { width: 100%; border-collapse: collapse; 
+         +table-layout: fixed; word-break: break-word; }                 
+      27  .markdown-body th, .markdown-body td { border: 1px solid var(--
+          vm-border); padding: 8px 10px; }
+      28  .markdown-body img { max-width: 100%; height: auto; }
+      29  """
+
+  Thought for 7s, searched for 1 pattern (ctrl+o to expand)
+
+● Update(visual_minutes\pipeline.py)
+  ⎿  Added 2 lines, removed 1 line
+       3  
+       4  import asyncio
+       5  import logging
+       6 +from dataclasses import dataclass                              
+       7  from pathlib import Path
+       7 -from typing import Optional                                    
+       8 +from typing import List, Optional                              
+       9  
+      10  from .compositor import DocumentCompositor
+      11  from .config import MAX_EXTRACT_CONCURRENCY
+
+● Update(visual_minutes\pipeline.py)
+  ⎿  Added 12 lines
+      21  logger = logging.getLogger(__name__)
+      22  
+      23  
+      24 +@dataclass                                                     
+      25 +class VisualMinutesResult:                                     
+      26 +    """独立流水线的完整输出。"""                               
+      27 +                                                               
+      28 +    html: str                                                  
+      29 +    ir: VisualDocumentIR                                       
+      30 +                                                               
+      31 +    @property                                                  
+      32 +    def warnings(self) -> List[str]:                           
+      33 +        return self.ir.warnings                                
+      34 +                                                               
+      35 +                                                               
+      36  async def build_visual_ir(
+      37      minutes_markdown: str,
+      38      meeting_transcript: str,
+
+● Update(visual_minutes\pipeline.py)
+  ⎿  Added 2 lines, removed 2 lines
+      104      output_path: Optional[str] = None,
+      105      *,
+      106      llm: VisualLLM | None = None,
+      107 -) -> tuple[str, VisualDocumentIR]:                            
+      107 +) -> VisualMinutesResult:                                     
+      108      """异步执行端到端流水线。"""
+      109      ir = await build_visual_ir(minutes_markdown, meeting_trans
+           cript, llm=llm)
+      110      parsed = parse_minutes(minutes_markdown)
+     ...
+      113          out = Path(output_path)
+      114          out.parent.mkdir(parents=True, exist_ok=True)
+      115          out.write_text(html, encoding="utf-8")
+      116 -    return html, ir                                           
+      116 +    return VisualMinutesResult(html=html, ir=ir)              
+      117  
+      118  
+      119  def generate_visual_minutes(
+
+● Update(visual_minutes\pipeline.py)
+  ⎿  Added 8 lines, removed 4 lines
+      122      output_path: Optional[str] = None,
+      123      *,
+      124      llm: VisualLLM | None = None,
+      125 -) -> str:                                                     
+      125 +) -> VisualMinutesResult:                                     
+      126      """同步阻塞入口。"""
+      127 -    html, _ = asyncio.run(                                    
+      127 +    return asyncio.run(                                       
+      128          agenerate_visual_minutes(
+      129              minutes_markdown,
+      130              meeting_transcript,
+     ...
+      132              llm=llm,
+      133          )
+      134      )
+      135 -    return html                                               
+      135  
+      136  
+      138 -__all__ = ["agenerate_visual_minutes", "build_visual_ir", "gen
+          -erate_visual_minutes"]                                        
+      137 +__all__ = [                                                   
+      138 +    "VisualMinutesResult",                                    
+      139 +    "agenerate_visual_minutes",                               
+      140 +    "build_visual_ir",                                        
+      141 +    "generate_visual_minutes",                                
+      142 +]                                                             
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\__init__.py)
+  ⎿  Added 2 lines
+       4  from visual_minutes.ir import VisualDocumentIR
+       5  from visual_minutes.parser import ParsedMinutes, parse_minutes
+       6  from visual_minutes.pipeline import (
+       7 +    VisualMinutesResult,                                       
+       8      agenerate_visual_minutes,
+       9      build_visual_ir,
+      10      generate_visual_minutes,
+     ...
+      15      "ParsedMinutes",
+      16      "VisualDocumentIR",
+      17      "VisualMinutesAgent",
+      18 +    "VisualMinutesResult",                                     
+      19      "agenerate_visual_minutes",
+      20      "build_visual_ir",
+      21      "generate_visual_minutes",
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\_preview_gen.py)
+  ⎿  Added 5 lines, removed 5 lines
+      151  
+      152  
+      153  async def main() -> None:
+      154 -    html, ir = await agenerate_visual_minutes(                
+      154 +    result = await agenerate_visual_minutes(                  
+      155          MINUTES,
+      156          "会议讨论了背景、方案、流程、风险和指标。" * 10,
+      157          llm=FakeLLM(),
+      158      )
+      159 -    Path("visual_minutes/_preview.html").write_text(html, enco
+          -ding="utf-8")                                                 
+      160 -    print("charts:", [(s.section_id, s.visual.kind) for s in i
+          -r.sections])                                                  
+      161 -    print("warnings:", ir.warnings)                           
+      162 -    print("html:", len(html))                                 
+      159 +    Path("visual_minutes/_preview.html").write_text(result.htm
+          +l, encoding="utf-8")                                          
+      160 +    print("charts:", [(s.section_id, s.visual.kind) for s in r
+          +esult.ir.sections])                                           
+      161 +    print("warnings:", result.warnings)                       
+      162 +    print("html:", len(result.html))                          
+      163  
+      164  
+      165  asyncio.run(main())
+
+  Thought for 2s (ctrl+o to expand)
+
+● Update(visual_minutes\prompts.py)
+  ⎿  Added 2 lines, removed 1 line
+      30  5. 不要求每个 section 都有视觉。
+      31  6. 不为凑图而规划。
+      32  7. 不输出 Markdown，不输出 Emoji，不输出解释。
+      33 -8. 只输出 JSON 对象。                                          
+      33 +8. 如果章节本身已经用完整 Markdown 表格表达了同样数据，且没有额
+         +外关系需要呈现，默认 none。                                    
+      34 +9. 只输出 JSON 对象。                                          
+      35  
+      36  输出结构：
+      37  {
+
+  Thought for 4s (ctrl+o to expand)
+
+● Update(visual_minutes\master.py)
+  ⎿  Added 2 lines
+      81                  label="visual_minutes/master",
+      82              )
+      83              master = MasterVisual.model_validate(raw)
+      84 +            if not master.headline.strip():                    
+      85 +                raise ValueError("master headline is empty")   
+      86              if not _coverage_ok(master, parsed.sections):
+      87                  raise ValueError("master does not cover all pri
+          mary sections")
+      88              return MasterPlanResult(master=master)
+
+● Update(visual_minutes\validator.py)
+  ⎿  Added 5 lines, removed 1 line
+      107      known = {s.section_id for s in parsed.sections}
+      108  
+      109      master = ir.master
+      110 -    if not master.blocks or not _coverage_ok(master, parsed.se
+          -ctions):                                                      
+      110 +    if (                                                      
+      111 +        not master.headline.strip()                           
+      112 +        or not master.blocks                                  
+      113 +        or not _coverage_ok(master, parsed.sections)          
+      114 +    ):                                                        
+      115          warnings.append("master coverage invalid; fallback app
+           lied")
+      116          master = fallback_master(parsed)
+      117      master.metrics = [m for m in master.metrics if m.evidence.
+           strip()]
+
+  Thought for 5s, read 1 file (ctrl+o to expand)
+
+● Update(visual_minutes\planner.py)
+  ⎿  Added 13 lines, removed 1 line
+      59                  decision = SectionDecision.model_validate(item)
+      60              except Exception:  # noqa: BLE001 - 单条非法只影响
+          该条
+      61                  logger.warning("invalid planner decision ignore
+          d: %r", item)
+      62 -                warnings.append("invalid planner decision ignor
+         -ed")                                                           
+      62 +                sid = item.get("section_id") if isinstance(item
+         +, dict) else None                                              
+      63 +                warnings.append(f"invalid planner decision igno
+         +red: {sid}")                                                   
+      64                  continue
+      65 +            if decision.section_id in by_id:                   
+      66 +                warnings.append(                               
+      67 +                    f"duplicate planner decision ignored: {deci
+         +sion.section_id}"                                              
+      68 +                )                                              
+      69 +                continue                                       
+      70              by_id[decision.section_id] = decision
+      71  
+      72 +        known = {s.section_id for s in sections}               
+      73 +        for sid in by_id:                                      
+      74 +            if sid not in known:                               
+      75 +                warnings.append(f"unknown planner section ignor
+         +ed: {sid}")                                                    
+      76 +                                                               
+      77          normalized: list[SectionDecision] = []
+      78          for section in sections:
+      79              decision = by_id.get(section.section_id)
+      80              if decision is None:
+      81 +                warnings.append(f"missing planner decision: {se
+         +ction.section_id}")                                            
+      82                  decision = SectionDecision(
+      83                      section_id=section.section_id,
+      84                      visual="none",
+
+  Thought for 16s, read 2 files, ran 3 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\renderer\base.py)
+  ⎿  Added 4 lines, removed 2 lines
+      163    .vm-master-card { padding: 22px 18px; }
+      164    .vm-master-grid.vm-cols-2, .vm-master-grid.vm-cols-3, .vm-ma
+           ster-grid.vm-cols-4, .vm-master-grid.vm-cols-5 { grid-template
+           -columns: 1fr; }
+      165    .vm-master-grid.vm-flow { display: grid; }
+      166 -  .vm-flow { flex-wrap: nowrap; overflow-x: auto; padding-bott
+          -om: 8px; }                                                    
+      167 -  .vm-flow-node { flex: 0 0 150px; }                          
+      166 +  .vm-flow { flex-direction: column; }                        
+      167 +  .vm-flow-node { flex: none; width: 100%; }                  
+      168 +  .vm-flow-arrow-wrap { flex-direction: row; align-self: flex-
+          +start; padding-left: 12px; }                                  
+      169 +  .vm-flow-arrow-wrap svg { transform: rotate(90deg); }       
+      170  }
+      171  """
+      172  
+
+  Thought for 3s, searched for 1 pattern (ctrl+o to expand)
+
+● Update(visual_minutes\renderer\base.py)
+  ⎿  Added 1 line, removed 1 line
+      172  
+      173  
+      174  def escape(value: Any) -> str:
+      175 -    return html.escape(str(value or ""), quote=False)         
+      175 +    return html.escape(str(value or ""), quote=True)          
+      176  
+      177  
+      178  __all__ = ["TASTE_CSS", "escape"]
+
+  Thought for 12s, read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md)
+  ⎿  Added 32 lines
+       69  
+       70  ---
+       71  
+       72 +## 实施状态（2026-10-30）                                     
+       73 +                                                              
+       74 +已完成：                                                      
+       75 +                                                              
+       76 +- `ir.py`：5 个通用视觉原语 + discriminated union + master/sec
+          +tion IR；                                                     
+       77 +- `parser.py`：Markdown section tree、稳定 `section_id`、标题 
+          +路径；                                                        
+       78 +- `retrieval.py`：section 级原文检索与预算控制；              
+       79 +- `llm.py`：统一走 `infra.llm.LLMClient`，不保存 API Key；    
+       80 +- `planner.py` / `extractor.py` / `master.py`：三个 LLM Agent 
+          +；                                                            
+       81 +- `validator.py`：section 覆盖、evidence、密度、table/flow/tre
+          +e/stats 完整性校验；                                          
+       82 +- `renderer/`：master + 5 个通用原语，确定性 HTML/CSS + inline
+          + SVG；                                                        
+       83 +- `compositor.py`：按 `section_id` 精确插入，正文不变性已验证 
+          +；                                                            
+       84 +- `pipeline.py`：`VisualMinutesResult(html, ir)`，`warnings`  
+          +从 `ir.warnings` 读取；                                       
+       85 +- `agent.py`：保留旧 `VisualMinutesAgent` 调用方式。          
+       86 +                                                              
+       87 +已验证：                                                      
+       88 +                                                              
+       89 +- 五种原语的渲染、转义、移动端布局；                          
+       90 +- master 覆盖失败 → 程序 fallback；                           
+       91 +- planner / extractor / master 单点失败隔离与 warning；       
+       92 +- 空纪要、无 heading、非法 section_id、非法 visual、重复决策；
+       93 +- 纪要正文 HTML 不变性（含 GFM 表格）；                       
+       94 +- fake LLM 全链路；真实部署模型调用路径已成功返回一次（未做质 
+          +量验收）。                                                    
+       95 +                                                              
+       96 +未做：                                                        
+       97 +                                                              
+       98 +- 未接入 `minutes` / `app` / `domains/meeting` / `core` / acti
+          +ons / calendar；                                              
+       99 +- 缓存未实现（清单中为可选项）；                              
+      100 +- 真实模型的多种纪要质量回归尚未建立。                        
+      101 +                                                              
+      102 +---                                                           
+      103 +                                                              
+      104  ## 一、当前实现的主要问题
+      105  
+      106  ### 1. 单 Agent 承担全部职责
+
+  Thought for 7s, read 2 files, ran 2 shell commands (ctrl+o to expand)
+● Update(visual_minutes\planner.py)
+  ⎿  Added 4 lines, removed 1 line
+      54          by_id: dict[str, SectionDecision] = {}
+      55          warnings: list[str] = []
+      56          raw_sections = raw.get("sections") if isinstance(raw, d
+          ict) else None
+      57 -        for item in raw_sections or []:                        
+      57 +        if not isinstance(raw_sections, list):                 
+      58 +            warnings.append("planner response missing sections"
+         +)                                                              
+      59 +            raw_sections = []                                  
+      60 +        for item in raw_sections:                              
+      61              try:
+      62                  decision = SectionDecision.model_validate(item)
+      63              except Exception:  # noqa: BLE001 - 单条非法只影响
+          该条
+
+  Thought for 2s (ctrl+o to expand)
+
+● Update(visual_minutes\VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md)
+  ⎿  Added 5 lines, removed 1 line
+      831    minutes_markdown,
+      832    meeting_transcript,
+      833    output_path=None
+      834 -) -> final_html / visual_ir / warnings                        
+      834 +) -> VisualMinutesResult(                                     
+      835 +  html,                                                       
+      836 +  ir,                                                         
+      837 +  warnings,  # result.warnings                                
+      838 +)                                                             
+      839  ```
+      840  
+      841  本包不负责：
+
+  Thought for 5s, listed 1 directory, ran 1 shell command (ctrl+o to expand)
+
+● Update(visual_minutes\VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md)
+  ⎿  Added 2 lines, removed 2 lines
+       91  - planner / extractor / master 单点失败隔离与 warning；
+       92  - 空纪要、无 heading、非法 section_id、非法 visual、重复决策；
+       93  - 纪要正文 HTML 不变性（含 GFM 表格）；
+       94 -- fake LLM 全链路；真实部署模型调用路径已成功返回一次（未做质 
+          -量验收）。                                                    
+       94 +- fake LLM 全链路。                                           
+       95  
+       96  未做：
+       97  
+       98  - 未接入 `minutes` / `app` / `domains/meeting` / `core` / acti
+           ons / calendar；
+       99  - 缓存未实现（清单中为可选项）；
+      100 -- 真实模型的多种纪要质量回归尚未建立。                        
+      100 +- 真实模型的视觉规划质量与多种纪要回归尚未验收，当前验证均使用
+          + fake LLM。                                                   
+      101  
+      102  ---
+      103  
+
+  Thought for 4s (ctrl+o to expand)
+
+● Update(visual_minutes\master.py)
+  ⎿  Added 1 line
+      18          "section_id": section.section_id,
+      19          "heading": section.heading,
+      20          "level": section.level,
+      21 +        "path": section.path,                                  
+      22          "text": section.plain_text[:800],
+      23      }
+      24  
+
+  Thought for 7s, ran 2 shell commands (ctrl+o to expand)
+
+● visual_minutes 已按清单完成重构，改动全部限制在 visual_minutes/ 内，没有接入
+  minutes、app、domains/meeting、core、actions 或 calendar。
+
+  已完成
+
+  三个 Agent
+
+  - Section Planner：visual_minutes/planner.py
+  - Visual Extractor：visual_minutes/extractor.py
+  - Master Visual Planner：visual_minutes/master.py
+
+  三个 Agent 均只通过 infra.llm.LLMClient 调用，不带自己的 Key，不读取
+  visual_minutes 私有配置。
+
+  通用 IR 与原语
+
+  visual_minutes/ir.py 提供：
+  - timeline
+  - table
+  - flow
+  - tree
+  - stats
+
+  Pydantic discriminated union 强绑定 kind 与 data schema，不再有固定业务组件。
+
+  程序模块
+
+  - parser.py：Markdown AST 解析，稳定 section_id，标题路径
+  - retrieval.py：section 级原文检索与预算控制
+  - validator.py：section、evidence、密度、table/flow/tree/stats 完整性校验
+  - renderer/：确定性 HTML/CSS + inline SVG
+  - compositor.py：按 section_id 精确插入，master 永远置顶
+  - pipeline.py：独立端到端入口
+
+  输出契约
+
+  result = generate_visual_minutes(minutes_markdown, meeting_transcript)
+  result.html
+  result.ir
+  result.warnings
+
+  generate_visual_minutes / agenerate_visual_minutes 现在返回
+  VisualMinutesResult，同时保留 build_visual_ir 供只取 IR 的场景使用。
+
+  稳定性处理
+
+  - Planner 失败 → 全部 section none，继续生成 fallback master
+  - Planner 单条非法 / 重复 / 缺失 / 未知 section → 忽略并记录 warning
+  - Extractor 失败或返回 kind=none → 只丢弃该 section 视觉，保留正文
+  - Master 覆盖失败或 headline 为空 → 程序 fallback master
+  - 单图校验失败 → 丢弃该图，不影响正文
+  - 视觉链路整体异常 → 返回纪要-only HTML
+  - 超过全局视觉密度 → 按 necessity 排序，丢弃项记录 warning
+
+  渲染修正
+
+  - 修复 FlowEdge 的 from / to alias 问题
+  - Flow 链式结构使用 inline SVG 箭头；分支结构展示关系列表
+  - 移动端 Flow 改为纵向排列并显示向下箭头
+  - 原始 Markdown 表格已启用 GFM table 渲染
+  - Compositor 正文不变性已验证，包括列表、引用、代码块和表格
+  - <title> 和所有视觉文本均已转义
+
+  验证结果
+
+  已通过：
+  - 语法与导入检查
+  - 五种原语渲染、转义、响应式截图检查
+  - fake LLM 全链路
+  - master fallback、非法 visual、非法 section_id、重复决策
+  - 空纪要、无 heading
+  - 正文 HTML 不变性
+  - 渲染预览已在 1280px 和 500px 宽度下检查
+
+  未做
+
+  - 未接入任何外部任务线或页面
+  - 缓存未实现，清单中本来就是可选项
+  - 真实模型的视觉规划质量与多类型纪要回归尚未验收，目前验证均使用 fake LLM
+
+  执行状态已同步写入 visual_minutes/VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md。
+
+✻ Churned for 11m 36s · done 星期五15:45
+
+❯ 平台建设节奏                                                                  
+  2026-07                                                                       
+  现状调研                                                                      
+  完成系统与需求盘点                                                            
+  2026-08                                                                       
+  确定边界                                                                      
+  明确平台范围                                                                  
+  2026-09                                                                       
+  第一期上线                                                                    
+  完成首期交付                                                                  
+  我看你的这个，类似的时间节点展示，是不是横着比较好啊，你现在是竖着的？？      
+
+  Thought for 10s (ctrl+o to expand)
+
+● 横排更适合这种少量、连续的时间节点。现在这类时间线会变成横向步骤轴；节点多时横
+  向滚动，不会挤成竖排。
+
+● Update(visual_minutes\renderer\base.py)
+  ⎿  Added 6 lines, removed 4 lines
+      119  .vm-master-metric { min-width: 140px; flex: 1; }
+      120  .vm-master-metric-value { display: block; font-size: 20px; fon
+           t-weight: 700; color: var(--vm-ink-title); font-variant-numeri
+           c: tabular-nums; }
+      121  .vm-master-metric-label { display: block; font-size: 12px; col
+           or: var(--vm-ink-subtle); margin-top: 3px; }
+      122 -.vm-timeline { display: flex; flex-direction: column; gap: 0; 
+          -border-left: 2px solid var(--vm-border); margin-left: 8px; pad
+          -ding-left: 22px; }                                            
+      123 -.vm-timeline-item { position: relative; padding: 0 0 22px; }  
+      122 +.vm-timeline { display: flex; align-items: stretch; gap: 8px; 
+          +position: relative; padding: 18px 2px 2px; overflow-x: auto; }
+      123 +.vm-timeline::before { content: ""; position: absolute; left: 
+          +7px; right: 7px; top: 8px; height: 1px; background: var(--vm-b
+          +order); }                                                     
+      124 +.vm-timeline-item { position: relative; flex: 1 0 170px; min-w
+          +idth: 170px; padding: 22px 14px 4px 0; }                      
+      125  .vm-timeline-item::before {
+      125 -  content: ""; position: absolute; left: -28px; top: 5px; widt
+          -h: 10px; height: 10px;                                        
+      126 +  content: ""; position: absolute; left: 0; top: 3px; width: 1
+          +0px; height: 10px;                                            
+      127    border-radius: 50%; background: var(--vm-accent-blue); borde
+           r: 2px solid var(--vm-tone-card);
+      128 +  box-shadow: 0 0 0 1px var(--vm-accent-blue);                
+      129  }
+      128 -.vm-timeline-time { font-size: 12px; font-weight: 700; color: 
+          -var(--vm-accent-blue); margin-bottom: 4px; }                  
+      130 +.vm-timeline-time { font-size: 12px; font-weight: 700; color: 
+          +var(--vm-accent-blue); margin-bottom: 6px; }                  
+      131  .vm-timeline-title { font-size: 14.5px; font-weight: 700; colo
+           r: var(--vm-ink-title); line-height: 1.4; }
+      132  .vm-timeline-detail { font-size: 12.5px; color: var(--vm-ink-m
+           uted); line-height: 1.6; margin-top: 5px; }
+      133  .vm-table-wrap { overflow-x: auto; border: 1px solid var(--vm-
+           border); border-radius: var(--vm-radius-lg); background: var(-
+           -vm-tone-card); }
+
+  Thought for 2s (ctrl+o to expand)
+
+● Update(visual_minutes\renderer\base.py)
+  ⎿  Added 1 line
+      165    .vm-master-card { padding: 22px 18px; }
+      166    .vm-master-grid.vm-cols-2, .vm-master-grid.vm-cols-3, .vm-ma
+           ster-grid.vm-cols-4, .vm-master-grid.vm-cols-5 { grid-template
+           -columns: 1fr; }
+      167    .vm-master-grid.vm-flow { display: grid; }
+      168 +  .vm-timeline-item { flex: 0 0 150px; min-width: 150px; }    
+      169    .vm-flow { flex-direction: column; }
+      170    .vm-flow-node { flex: none; width: 100%; }
+      171    .vm-flow-arrow-wrap { flex-direction: row; align-self: flex-
+           start; padding-left: 12px; }
+
+  Thought for 10s, read 2 files, ran 2 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\renderer\base.py)
+  ⎿  Added 1 line, removed 1 line
+      165    .vm-master-card { padding: 22px 18px; }
+      166    .vm-master-grid.vm-cols-2, .vm-master-grid.vm-cols-3, .vm-ma
+           ster-grid.vm-cols-4, .vm-master-grid.vm-cols-5 { grid-template
+           -columns: 1fr; }
+      167    .vm-master-grid.vm-flow { display: grid; }
+      168 -  .vm-timeline-item { flex: 0 0 150px; min-width: 150px; }    
+      168 +  .vm-timeline-item { flex: 1 0 110px; min-width: 110px; }    
+      169    .vm-flow { flex-direction: column; }
+      170    .vm-flow-node { flex: none; width: 100%; }
+      171    .vm-flow-arrow-wrap { flex-direction: row; align-self: flex-
+           start; padding-left: 12px; }
+
+  Thought for 5s, read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● 对，这种少量、连续的时间节点横排更直观。已把 timeline 改成横向步骤轴：
+
+  - 时间节点横向排列
+  - 圆点 + 时间在上，标题和说明在下
+  - 3 个节点会自动铺满宽度
+  - 节点较多时横向滚动，不压缩文字
+  - 移动端保持横排，3 个节点可直接放下
+
+  只改了 visual_minutes/renderer/base.py 的 timeline 样式，IR
+  和数据结构没有变。已用 1280px 和 500px 宽度实际渲染检查过。
+
+✻ Sautéed for 45s · done 星期五15:48
+
+❯ D:\study\demo\visual_minutes，整理一下这个文件下的文件，现在基本都是单文件放  
+  在这个文件夹下，不严谨也不符合规范，应该有效整理一下                          
+
+  Thought for 24s, read 3 files, ran 2 shell commands (ctrl+o to expand)
+
+● Write(visual_minutes\models\__init__.py)
+  ⎿  Added 7 lines, removed 3 lines
+      1 -"""兼容入口：旧代码从 visual_minutes.models 导入。              
+      1 +"""视觉 IR 数据模型。                                           
+      2  
+      3 -新实现统一使用 visual_minutes.ir。                              
+      3 +旧代码仍可从 ``visual_minutes.models`` 导入；                   
+      4 +新代码建议直接使用 ``visual_minutes.models.ir``。               
+      5  """
+      5 -from visual_minutes.ir import *  # noqa: F401,F403              
+      6 +from .ir import *  # noqa: F401,F403                            
+      7 +from .ir import __all__                                         
+      8 +                                                                
+      9 +__all__ = list(__all__)                                         
+
+● Write(visual_minutes\agents\__init__.py)
+  ⎿  Wrote 12 lines to visual_minutes\agents\__init__.py
+       1 """三个视觉 Agent。"""
+       2 from .extractor import VisualExtractor
+       3 from .master import MasterPlanResult, MasterPlanner, fallback_ma
+         ster
+       4 from .planner import SectionPlanner
+       5 
+       6 __all__ = [
+       7     "MasterPlanResult",
+       8     "MasterPlanner",
+       9     "SectionPlanner",
+     … +3 lines (ctrl+o to expand)
+
+● Write(visual_minutes\parsing\__init__.py)
+  ⎿  Wrote 10 lines to visual_minutes\parsing\__init__.py
+       1 """纪要解析与原文检索。"""
+       2 from .parser import ParsedMinutes, SectionNode, parse_minutes
+       3 from .retrieval import retrieve_transcript
+       4 
+       5 __all__ = [
+       6     "ParsedMinutes",
+       7     "SectionNode",
+       8     "parse_minutes",
+       9     "retrieve_transcript",
+      10 ]
+
+● Write(visual_minutes\validation\__init__.py)
+  ⎿  Wrote 4 lines to visual_minutes\validation\__init__.py
+      1 """视觉 IR 校验。"""
+      2 from .validator import validate_document
+      3 
+      4 __all__ = ["validate_document"]
+
+● Write(visual_minutes\rendering\__init__.py)
+  ⎿  Wrote 11 lines to visual_minutes\rendering\__init__.py
+       1 """纪要合成与确定性渲染。"""
+       2 from .compositor import DocumentCompositor
+       3 from .renderer import TASTE_CSS, escape, render_master, render_v
+         isual
+       4 
+       5 __all__ = [
+       6     "DocumentCompositor",
+       7     "TASTE_CSS",
+       8     "escape",
+       9     "render_master",
+     … +2 lines (ctrl+o to expand)
+  Thought for 2s (ctrl+o to expand)
+
+● Update(visual_minutes\agents\planner.py)
+  ⎿  Added 3 lines, removed 3 lines
+       4  import logging
+       5  from typing import List
+       6  
+       7 -from .ir import PlannerResponse, SectionDecision               
+       8 -from .llm import VisualLLM                                     
+       9 -from .parser import SectionNode                                
+       7 +from ..llm import VisualLLM                                    
+       8 +from ..models.ir import PlannerResponse, SectionDecision       
+       9 +from ..parsing.parser import SectionNode                       
+      10  from .prompts import PLANNER_SYSTEM_PROMPT, build_planner_user_
+          prompt
+      11  
+      12  logger = logging.getLogger(__name__)
+
+● Update(visual_minutes\agents\extractor.py)
+  ⎿  Added 3 lines, removed 3 lines
+       4  import logging
+       5  from typing import Optional
+       6  
+       7 -from .ir import SectionDecision, SectionVisual                 
+       8 -from .llm import VisualLLM                                     
+       9 -from .parser import SectionNode                                
+       7 +from ..llm import VisualLLM                                    
+       8 +from ..models.ir import SectionDecision, SectionVisual         
+       9 +from ..parsing.parser import SectionNode                       
+      10  from .prompts import EXTRACTOR_SYSTEM_PROMPT, build_extractor_u
+          ser_prompt
+      11  
+      12  logger = logging.getLogger(__name__)
+
+● Update(visual_minutes\agents\master.py)
+  ⎿  Added 3 lines, removed 3 lines
+       5  from dataclasses import dataclass, field
+       6  from typing import List
+       7  
+       8 -from .ir import MasterBlock, MasterVisual, SectionDecision     
+       9 -from .llm import VisualLLM                                     
+      10 -from .parser import ParsedMinutes, SectionNode                 
+       8 +from ..llm import VisualLLM                                    
+       9 +from ..models.ir import MasterBlock, MasterVisual, SectionDecis
+         +ion                                                            
+      10 +from ..parsing.parser import ParsedMinutes, SectionNode        
+      11  from .prompts import MASTER_SYSTEM_PROMPT, build_master_user_pr
+          ompt
+      12  
+      13  logger = logging.getLogger(__name__)
+
+● Update(visual_minutes\parsing\retrieval.py)
+  ⎿  Added 1 line, removed 1 line
+       7  import re
+       8  from typing import List
+       9  
+      10 -from .config import TRANSCRIPT_CHAR_BUDGET                     
+      10 +from ..config import TRANSCRIPT_CHAR_BUDGET                    
+      11  
+      12  
+      13  def _grams(text: str) -> set[str]:
+
+● Update(visual_minutes\validation\validator.py)
+  ⎿  Added 1 line, removed 1 line
+      3  
+      4  from typing import Iterable, List
+      5  
+      6 -from .config import (                                           
+      6 +from ..config import (                                          
+      7      MAX_SECTION_VISUALS,
+      8      MIN_FLOW_EDGES,
+      9      MIN_FLOW_NODES,
+
+● Update(visual_minutes\validation\validator.py)
+  ⎿  Added 3 lines, removed 3 lines
+      13      MIN_TIMELINE_EVENTS,
+      14      MIN_TREE_NODES,
+      15  )
+      16 -from .ir import SectionVisual, VisualDocumentIR                
+      17 -from .master import _coverage_ok, fallback_master              
+      18 -from .parser import ParsedMinutes, SectionNode                 
+      16 +from ..agents.master import _coverage_ok, fallback_master      
+      17 +from ..models.ir import SectionVisual, VisualDocumentIR        
+      18 +from ..parsing.parser import ParsedMinutes, SectionNode        
+      19  
+      20  
+      21  def _evidence_of(visual: SectionVisual) -> list[str]:
+
+● Update(visual_minutes\rendering\compositor.py)
+  ⎿  Added 2 lines, removed 2 lines
+       8  
+       9  from markdown_it import MarkdownIt
+      10  
+      11 -from .ir import SectionVisual, VisualDocumentIR                
+      12 -from .parser import ParsedMinutes, SectionNode, parse_minutes  
+      11 +from ..models.ir import SectionVisual, VisualDocumentIR        
+      12 +from ..parsing.parser import ParsedMinutes, SectionNode, parse_
+         +minutes                                                        
+      13  from .renderer import TASTE_CSS, escape, render_master, render_
+          visual
+      14  
+      15  MARKDOWN_BODY_CSS = """
+
+● Update(visual_minutes\rendering\renderer\__init__.py)
+  ⎿  Added 1 line, removed 1 line
+      1  """Visual Minutes 确定性渲染器入口。"""
+      2  from __future__ import annotations
+      3  
+      4 -from visual_minutes.ir import VisualUnion                       
+      4 +from ...models.ir import VisualUnion                            
+      5  from .base import TASTE_CSS, escape
+      6  from .flow import render_flow
+      7  from .master import render_master
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\rendering\renderer\flow.py)
+  ⎿  Added 1 line, removed 1 line
+      3  
+      4  from typing import Dict, List, Optional, Tuple
+      5  
+      6 -from visual_minutes.ir import FlowEdge, FlowNode, FlowVisual    
+      6 +from ...models.ir import FlowEdge, FlowNode, FlowVisual         
+      7  from .base import escape
+      8  
+      9  
+
+● Update(visual_minutes\rendering\renderer\master.py)
+  ⎿  Added 1 line, removed 1 line
+      1  """开篇通览图渲染器。"""
+      2  from __future__ import annotations
+      3  
+      4 -from visual_minutes.ir import MasterVisual                      
+      4 +from ...models.ir import MasterVisual                           
+      5  from .base import escape
+      6  
+      7  
+
+● Update(visual_minutes\rendering\renderer\stats.py)
+  ⎿  Added 1 line, removed 1 line
+      1  """指标卡渲染器。"""
+      2  from __future__ import annotations
+      3  
+      4 -from visual_minutes.ir import StatsVisual                       
+      4 +from ...models.ir import StatsVisual                            
+      5  from .base import escape
+      6  
+      7  
+
+● Update(visual_minutes\rendering\renderer\table.py)
+  ⎿  Added 1 line, removed 1 line
+      1  """通用表格渲染器。"""
+      2  from __future__ import annotations
+      3  
+      4 -from visual_minutes.ir import TableVisual                       
+      4 +from ...models.ir import TableVisual                            
+      5  from .base import escape
+      6  
+      7  
+
+● Update(visual_minutes\rendering\renderer\timeline.py)
+  ⎿  Added 1 line, removed 1 line
+      1  """时间轴渲染器。"""
+      2  from __future__ import annotations
+      3  
+      4 -from visual_minutes.ir import TimelineVisual                    
+      4 +from ...models.ir import TimelineVisual                         
+      5  from .base import escape
+      6  
+      7  
+
+● Update(visual_minutes\rendering\renderer\tree.py)
+  ⎿  Added 1 line, removed 1 line
+      1  """层级树渲染器。"""
+      2  from __future__ import annotations
+      3  
+      4 -from visual_minutes.ir import TreeVisual                        
+      4 +from ...models.ir import TreeVisual                             
+      5  from .base import escape
+      6  
+      7  
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\pipeline.py)
+  ⎿  Added 8 lines, removed 8 lines
+       7  from pathlib import Path
+       8  from typing import List, Optional
+       9  
+      10 -from .compositor import DocumentCompositor                     
+      10 +from .agents.extractor import VisualExtractor                  
+      11 +from .agents.master import MasterPlanner, fallback_master      
+      12 +from .agents.planner import SectionPlanner                     
+      13  from .config import MAX_EXTRACT_CONCURRENCY
+      12 -from .extractor import VisualExtractor                         
+      13 -from .ir import VisualDocumentIR                               
+      14  from .llm import VisualLLM
+      15 -from .master import MasterPlanner, fallback_master             
+      16 -from .parser import parse_minutes                              
+      17 -from .planner import SectionPlanner                            
+      18 -from .retrieval import retrieve_transcript                     
+      19 -from .validator import validate_document                       
+      15 +from .models.ir import VisualDocumentIR                        
+      16 +from .parsing.parser import parse_minutes                      
+      17 +from .parsing.retrieval import retrieve_transcript             
+      18 +from .rendering.compositor import DocumentCompositor           
+      19 +from .validation.validator import validate_document            
+      20  
+      21  logger = logging.getLogger(__name__)
+      22  
+
+● Update(visual_minutes\agent.py)
+  ⎿  Added 1 line, removed 1 line
+       7  
+       8  import asyncio
+       9  
+      10 -from .ir import VisualDocumentIR                               
+      10  from .llm import VisualLLM
+      11 +from .models.ir import VisualDocumentIR                        
+      12  from .pipeline import build_visual_ir
+      13  
+      14  
+
+● Update(visual_minutes\__init__.py)
+  ⎿  Added 2 lines, removed 3 lines
+      1  """Visual Minutes (图文智能纪要) 核心包。"""
+      2  from visual_minutes.agent import VisualMinutesAgent
+      3 -from visual_minutes.compositor import DocumentCompositor        
+      4 -from visual_minutes.ir import VisualDocumentIR                  
+      5 -from visual_minutes.parser import ParsedMinutes, parse_minutes  
+      3 +from visual_minutes.models.ir import VisualDocumentIR           
+      4 +from visual_minutes.parsing.parser import ParsedMinutes, parse_m
+        +inutes                                                          
+      5  from visual_minutes.pipeline import (
+      6      VisualMinutesResult,
+      7      agenerate_visual_minutes,
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\__init__.py)
+  ⎿  Added 1 line
+      2  from visual_minutes.agent import VisualMinutesAgent
+      3  from visual_minutes.models.ir import VisualDocumentIR
+      4  from visual_minutes.parsing.parser import ParsedMinutes, parse_m
+         inutes
+      5 +from visual_minutes.rendering.compositor import DocumentComposit
+        +or                                                              
+      6  from visual_minutes.pipeline import (
+      7      VisualMinutesResult,
+      8      agenerate_visual_minutes,
+  Thought for 11s, searched for 3 patterns, read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● Update(visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md)
+  ⎿  Added 7 lines, removed 7 lines
+      73  
+      74  已完成：
+      75  
+      76 -- `ir.py`：5 个通用视觉原语 + discriminated union + master/sect
+         -ion IR；                                                       
+      77 -- `parser.py`：Markdown section tree、稳定 `section_id`、标题路
+         -径；                                                           
+      78 -- `retrieval.py`：section 级原文检索与预算控制；               
+      76 +- `models/ir.py`：5 个通用视觉原语 + discriminated union + mast
+         +er/section IR；                                                
+      77 +- `parsing/parser.py`：Markdown section tree、稳定 `section_id`
+         +、标题路径；                                                   
+      78 +- `parsing/retrieval.py`：section 级原文检索与预算控制；       
+      79  - `llm.py`：统一走 `infra.llm.LLMClient`，不保存 API Key；
+      80 -- `planner.py` / `extractor.py` / `master.py`：三个 LLM Agent；
+      81 -- `validator.py`：section 覆盖、evidence、密度、table/flow/tree
+         -/stats 完整性校验；                                            
+      82 -- `renderer/`：master + 5 个通用原语，确定性 HTML/CSS + inline 
+         -SVG；                                                          
+      83 -- `compositor.py`：按 `section_id` 精确插入，正文不变性已验证；
+      80 +- `agents/planner.py` / `agents/extractor.py` / `agents/master.
+         +py`：三个 LLM Agent；                                          
+      81 +- `validation/validator.py`：section 覆盖、evidence、密度、tabl
+         +e/flow/tree/stats 完整性校验；                                 
+      82 +- `rendering/renderer/`：master + 5 个通用原语，确定性 HTML/CSS
+         + + inline SVG；                                                
+      83 +- `rendering/compositor.py`：按 `section_id` 精确插入，正文不变
+         +性已验证；                                                     
+      84  - `pipeline.py`：`VisualMinutesResult(html, ir)`，`warnings` 从
+           `ir.warnings` 读取；
+      85  - `agent.py`：保留旧 `VisualMinutesAgent` 调用方式。
+      86  
+
+● Update(visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md)
+  ⎿  Added 36 lines, removed 22 lines
+       964  
+       965  ```text
+       966  visual_minutes/
+       967 -├── __init__.py                                              
+       967 +├── __init__.py            # 公共 API                        
+       968 +├── agent.py               # 兼容执行入口                    
+       969  ├── config.py              # 仅保留视觉参数，不保存 Key
+       970  ├── llm.py                 # infra.llm.LLMClient 适配
+       970 -├── parser.py              # Markdown → section tree         
+       971 -├── retrieval.py           # section → transcript 片段       
+       972 -├── planner.py             # Agent 1                         
+       973 -├── extractor.py           # Agent 2                         
+       974 -├── master.py              # Agent 3                         
+       975 -├── ir.py                  # 通用视觉 IR                     
+       976 -├── validator.py           # schema / evidence / coverage    
+       977 -├── compositor.py          # section_id 精确合成             
+       971  ├── pipeline.py            # 独立端到端入口
+       979 -└── renderer/                                                
+       980 -    ├── __init__.py                                          
+       981 -    ├── base.py                                              
+       982 -    ├── master.py                                            
+       983 -    ├── timeline.py                                          
+       984 -    ├── table.py                                             
+       985 -    ├── flow.py                                              
+       986 -    ├── tree.py                                              
+       987 -    └── stats.py                                             
+       972 +├── models/                                                  
+       973 +│   ├── __init__.py        # 兼容 re-export                  
+       974 +│   └── ir.py              # 通用视觉 IR                     
+       975 +├── parsing/                                                 
+       976 +│   ├── __init__.py                                          
+       977 +│   ├── parser.py          # Markdown → section tree         
+       978 +│   └── retrieval.py       # section → transcript 片段       
+       979 +├── agents/                                                  
+       980 +│   ├── __init__.py                                          
+       981 +│   ├── planner.py         # Agent 1                         
+       982 +│   ├── extractor.py       # Agent 2                         
+       983 +│   ├── master.py          # Agent 3                         
+       984 +│   └── prompts.py         # 三个 Agent 的 Prompt            
+       985 +├── validation/                                              
+       986 +│   ├── __init__.py                                          
+       987 +│   └── validator.py       # schema / evidence / coverage    
+       988 +├── rendering/                                               
+       989 +│   ├── __init__.py                                          
+       990 +│   ├── compositor.py      # section_id 精确合成             
+       991 +│   └── renderer/                                            
+       992 +│       ├── __init__.py                                      
+       993 +│       ├── base.py                                          
+       994 +│       ├── master.py                                        
+       995 +│       ├── timeline.py                                      
+       996 +│       ├── table.py                                         
+       997 +│       ├── flow.py                                          
+       998 +│       ├── tree.py                                          
+       999 +│       └── stats.py                                         
+      1000 +└── docs/                                                    
+      1001 +    └── VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md            
+      1002  ```
+      1003  
+      1004  旧文件处理：
+      1005  
+       992 -- `agent.py`：拆分为 planner / extractor / master / pipeline 
+           -；                                                           
+       993 -- `models.py`：改造成 `ir.py` 的通用原语；                   
+       994 -- `prompts.py`：拆成三个 Agent 的 Prompt；                   
+       995 -- `renderer/*`：用通用原语渲染器替换固定业务渲染器；         
+      1006 +- `agent.py`：保留兼容入口，内部调用 `pipeline`；            
+      1007 +- `models.py`：改为 `models/__init__.py` 兼容 re-export，实际
+           +模型在 `models/ir.py`；                                      
+      1008 +- `prompts.py`：移入 `agents/prompts.py`；                   
+      1009 +- `renderer/*`：移入 `rendering/renderer/*`，用通用原语渲染器
+           +替换固定业务渲染器；                                         
+      1010  - `config.py`：删除 API Key；
+      1011  - `pipeline.py`：改为独立入口，保留可缓存与失败隔离，但不接入
+            会议流程。
+      1012  
+
+  Thought for 9s, searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● 已把 visual_minutes 从“根目录一堆单文件”整理成分层包结构，功能逻辑没有变化。
+
+  整理后结构
+
+  visual_minutes/
+  ├── __init__.py            # 公共 API
+  ├── agent.py               # 兼容执行入口
+  ├── config.py              # 视觉参数配置
+  ├── llm.py                 # infra.llm 适配
+  ├── pipeline.py            # 独立端到端入口
+  │
+  ├── models/
+  │   ├── __init__.py        # 兼容 re-export
+  │   └── ir.py              # 通用视觉 IR
+  │
+  ├── parsing/
+  │   ├── __init__.py
+  │   ├── parser.py          # Markdown → section tree
+  │   └── retrieval.py       # section → 原文片段
+  │
+  ├── agents/
+  │   ├── __init__.py
+  │   ├── planner.py         # Agent 1
+  │   ├── extractor.py       # Agent 2
+  │   ├── master.py          # Agent 3
+  │   └── prompts.py         # 三个 Agent 的 Prompt
+  │
+  ├── validation/
+  │   ├── __init__.py
+  │   └── validator.py       # IR / evidence / 密度校验
+  │
+  ├── rendering/
+  │   ├── __init__.py
+  │   ├── compositor.py      # section_id 精确合成
+  │   └── renderer/
+  │       ├── __init__.py
+  │       ├── base.py
+  │       ├── master.py
+  │       ├── timeline.py
+  │       ├── table.py
+  │       ├── flow.py
+  │       ├── tree.py
+  │       └── stats.py
+  │
+  └── docs/
+      └── VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md
+
+  对应关系
+
+  ┌───────────────┬──────────────────────────────────────┐
+  │    原文件     │                新位置                │
+  ├───────────────┼──────────────────────────────────────┤
+  │ ir.py         │ models/ir.py                         │
+  ├───────────────┼──────────────────────────────────────┤
+  │ models.py     │ models/__init__.py（兼容 re-export） │
+  ├───────────────┼──────────────────────────────────────┤
+  │ parser.py     │ parsing/parser.py                    │
+  ├───────────────┼──────────────────────────────────────┤
+  │ retrieval.py  │ parsing/retrieval.py                 │
+  ├───────────────┼──────────────────────────────────────┤
+  │ planner.py    │ agents/planner.py                    │
+  ├───────────────┼──────────────────────────────────────┤
+  │ extractor.py  │ agents/extractor.py                  │
+  ├───────────────┼──────────────────────────────────────┤
+  │ master.py     │ agents/master.py                     │
+  ├───────────────┼──────────────────────────────────────┤
+  │ prompts.py    │ agents/prompts.py                    │
+  ├───────────────┼──────────────────────────────────────┤
+  │ validator.py  │ validation/validator.py              │
+  ├───────────────┼──────────────────────────────────────┤
+  │ compositor.py │ rendering/compositor.py              │
+  ├───────────────┼──────────────────────────────────────┤
+  │ renderer/     │ rendering/renderer/                  │
+  ├───────────────┼──────────────────────────────────────┤
+  │ 清单 md       │ docs/                                │
+  └───────────────┴──────────────────────────────────────┘
+
+  兼容性
+
+  - 根包公共 API 保持可用：
+
+  from visual_minutes import (
+      VisualMinutesAgent,
+      DocumentCompositor,
+      VisualMinutesResult,
+      generate_visual_minutes,
+      build_visual_ir,
+      parse_minutes,
+  )
+
+  - 旧的 visual_minutes.models 导入仍然可用。
+  - 内部相对导入、包 __init__.py、文档中的路径说明都已同步更新。
+
+  验证
+
+  已通过：
+  - 所有 Python 文件语法检查
+  - 根包及子包导入检查
+  - fake LLM 全链路
+  - 五种视觉原语渲染
+  - 纪要正文不变性检查
+
+  没有修改 visual_minutes 以外的代码。
+
+✻ Brewed for 1m 29s · done 星期五15:52
+
+❯ 这个visual_minutes是不是可以整体移动到D:\study\demo\domains\shared下？？或者  
+  还需要微调什么包导入吗？移到D:\study\demo\domains\shared可行吗？回答我即可    
+
+  Thought for 22s, searched for 1 pattern, listed 1 directory, ran 3 shell commands (ctrl+o to expand)
+
+● 可行，而且放到 domains/shared/visual_minutes/
+  在语义上是合理的：它是一个通用的、可复用的图文纪要能力。
+
+  但不是纯移动文件夹就结束，需要微调 2 个地方：
+
+  1. 必须改 PROJECT_ROOT
+
+  当前 visual_minutes/config.py：
+
+  PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+  现在它指向 D:\study\demo，移动后：
+
+  config.py 的 parents[1] → domains/shared
+
+  会导致 .env 查找位置变成 domains/shared/.env，链路会拿不到项目根目录配置。
+
+  移到：
+
+  D:\study\demo\domains\shared\visual_minutes\config.py
+
+  后应改成：
+
+  PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+  或者更稳妥地向上查找 .env。
+
+  2. 外部导入路径要改
+
+  移动后包名从：
+
+  visual_minutes
+
+  变成：
+
+  domains.shared.visual_minutes
+
+  例如：
+
+  from domains.shared.visual_minutes import generate_visual_minutes
+
+  不过目前生产代码里没有外部引用
+  visual_minutes，所以实际需要改的调用点很少，主要是以后接入 minutes
+  时使用新路径。
+
+  不需要改的部分
+
+  包内部的相对导入基本都能原样工作，例如：
+
+  from ..models.ir import ...
+  from ..parsing.parser import ...
+  from .renderer import ...
+
+  这些仍然成立。
+
+  llm.py 里的：
+
+  from infra.llm import LLMClient
+
+  是项目根绝对导入，移动后也没问题。
+
+  可选项
+
+  domains/shared 当前没有 __init__.py，但实际作为 namespace package
+  可以正常导入。为了规范，可以补一个：
+
+  domains/shared/__init__.py
+
+  不是必须，但建议补上。
+
+  结论
+
+  可以整体移动到：
+
+  D:\study\demo\domains\shared\visual_minutes
+
+  需要同步修改的核心只有：
+
+  1. config.py 的 PROJECT_ROOT
+  2. 未来外部调用方的导入路径
+  3. 文档里的路径引用
+
+  如果希望旧路径继续可用，可以额外保留一个根目录 visual_minutes
+  薄兼容层；但如果目标是彻底整理，不建议保留。
+
+✻ Crunched for 30s · done 星期五15:53
+
+❯ 现在的visual_minutes整体的agent，我还是希望和根目录里配置的。env中的LLM一样， 
+  遵循。env中的配置项，不论是api-key还是vllm还是其他的都可以使用，你懂我意思吗  
+  ？先调整这个                                                                  
+
+  Thought for 32s, read 2 files, ran 4 shell commands (ctrl+o to expand)
+
+● 我会把 visual_minutes 的 LLM 接入改成完全由根目录 .env 和 infra.llm
+  决定：不绑定 DeepSeek Key、不写死 vLLM/WebSocket 地址，也不强行覆盖 .env
+  里的温度和 token 配置。
+
+  Thought for 1s, read 1 file (ctrl+o to expand)
+
+● Update(visual_minutes\config.py)
+  ⎿  Added 11 lines, removed 2 lines
+      28  MIN_TREE_NODES = 3
+      29  MIN_STATS_METRICS = 2
+      30  
+      31 -# 项目根（visual_minutes 的父目录）                            
+      32 -PROJECT_ROOT = Path(__file__).resolve().parents[1]             
+      31 +def _find_project_root(start: Path) -> Path:                   
+      32 +    """从当前包向上寻找项目根，兼容 visual_minutes 被移动到 dom
+         +ains/shared。"""                                               
+      33 +    for parent in (start, *start.parents):                     
+      34 +        if (parent / ".env").exists() or (parent / "infra" / "l
+         +lm").is_dir():                                                 
+      35 +            return parent                                      
+      36 +    return start.parents[1] if len(start.parents) > 1 else star
+         +t                                                              
+      37  
+      38  
+      39 +# 项目根：根目录 .env 与 infra.llm 所在位置                    
+      40 +PROJECT_ROOT = _find_project_root(Path(__file__).resolve().pare
+         +nt)                                                            
+      41 +ENV_FILE = PROJECT_ROOT / ".env"                               
+      42 +                                                               
+      43 +                                                               
+      44  __all__ = [
+      45      "MAX_EXTRACT_CONCURRENCY",
+      46      "MAX_SECTION_VISUALS",
+
+● Update(visual_minutes\config.py)
+  ⎿  Added 1 line
+      42  
+      43  
+      44  __all__ = [
+      45 +    "ENV_FILE",                                                
+      46      "MAX_EXTRACT_CONCURRENCY",
+      47      "MAX_SECTION_VISUALS",
+      48      "MIN_FLOW_EDGES",
+
+  Thought for 2s (ctrl+o to expand)
+
+● Update(visual_minutes\llm.py)
+  ⎿  Added 1 line, removed 1 line
+       8  from infra.llm import LLMClient
+       9  from infra.llm.config import load_env
+      10  
+      11 -from .config import PROJECT_ROOT, VISUAL_LLM_LABEL             
+      11 +from .config import ENV_FILE, VISUAL_LLM_LABEL                 
+      12  
+      13  
+      14  def extract_json_object(text: str) -> dict[str, Any]:
+
+● Update(visual_minutes\llm.py)
+  ⎿  Added 10 lines, removed 5 lines
+      31  
+      32  
+      33  class VisualLLM:
+      34 -    """把部署版 LLMClient 适配成 Visual Minutes 的 JSON 调用。"
+         -""                                                             
+      34 +    """把部署版 LLMClient 适配成 Visual Minutes 的 JSON 调用。 
+      35  
+      36 +    连接方式、API Key、模型、温度、max_tokens 等全部由根目录 .e
+         +nv                                                             
+      37 +    与 ``infra.llm.LLMClient`` 决定；本适配层不绑定任何供应商。
+      38 +    """                                                        
+      39 +                                                               
+      40      def __init__(self, client: LLMClient | None = None) -> None
+          :
+      41          if client is None:
+      38 -            load_env(PROJECT_ROOT / ".env")                    
+      42 +            load_env(ENV_FILE)                                 
+      43          self.client = client or LLMClient()
+      44  
+      45      async def json_call(
+     ...
+      48          user_prompt: str,
+      49          *,
+      50          label: str = VISUAL_LLM_LABEL,
+      47 -        max_tokens: int = 4096,                                
+      51 +        temperature: float | None = None,                      
+      52 +        max_tokens: int | None = None,                         
+      53      ) -> dict[str, Any]:
+      54          try:
+      55              content = await self.client.text(
+      56                  system_prompt,
+      57                  user_prompt,
+      58                  json_mode=True,
+      54 -                temperature=0.1,                               
+      59 +                temperature=temperature,                       
+      60                  max_tokens=max_tokens,
+      61                  label=label,
+      62              )
+     ...
+      68                  system_prompt,
+      69                  user_prompt,
+      70                  json_mode=False,
+      66 -                temperature=0.1,                               
+      71 +                temperature=temperature,                       
+      72                  max_tokens=max_tokens,
+      73                  label=label,
+      74              )
+
+  Thought for 9s, ran 1 shell command (ctrl+o to expand)
+
+● Update(visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md)
+  ⎿  Added 1 line, removed 1 line
+      76  - `models/ir.py`：5 个通用视觉原语 + discriminated union + mast
+          er/section IR；
+      77  - `parsing/parser.py`：Markdown section tree、稳定 `section_id`
+          、标题路径；
+      78  - `parsing/retrieval.py`：section 级原文检索与预算控制；
+      79 -- `llm.py`：统一走 `infra.llm.LLMClient`，不保存 API Key；     
+      79 +- `llm.py`：统一走 `infra.llm.LLMClient`；HTTP / WebSocket / vL
+         +LM、API Key、模型、温度、max_tokens 全部由根目录 `.env` 决定， 
+         +不保存任何 Key；                                               
+      80  - `agents/planner.py` / `agents/extractor.py` / `agents/master.
+          py`：三个 LLM Agent；
+      81  - `validation/validator.py`：section 覆盖、evidence、密度、tabl
+          e/flow/tree/stats 完整性校验；
+      82  - `rendering/renderer/`：master + 5 个通用原语，确定性 HTML/CSS
+           + inline SVG；
+
+  Thought for 5s, ran 1 shell command (ctrl+o to expand)
+
+● Update(visual_minutes\config.py)
+  ⎿  Added 8 lines, removed 2 lines
+      29  MIN_STATS_METRICS = 2
+      30  
+      31  def _find_project_root(start: Path) -> Path:
+      32 -    """从当前包向上寻找项目根，兼容 visual_minutes 被移动到 dom
+         -ains/shared。"""                                               
+      32 +    """从当前包向上寻找项目根，兼容 visual_minutes 被移动到 dom
+         +ains/shared。                                                  
+      33 +                                                               
+      34 +    优先用 infra/llm 目录定位项目根，避免子目录里的 .env 抢先命
+         +中。                                                           
+      35 +    """                                                        
+      36      for parent in (start, *start.parents):
+      34 -        if (parent / ".env").exists() or (parent / "infra" / "l
+         -lm").is_dir():                                                 
+      37 +        if (parent / "infra" / "llm").is_dir():                
+      38              return parent
+      39 +    for parent in (start, *start.parents):                     
+      40 +        if (parent / ".env").exists():                         
+      41 +            return parent                                      
+      42      return start.parents[1] if len(start.parents) > 1 else star
+          t
+      43  
+      44  
+
+  Thought for 8s, ran 2 shell commands (ctrl+o to expand)
+
+● 已调整。现在 visual_minutes 的 LLM 接入完全跟随根目录 .env，不再绑定 DeepSeek
+  API Key，也不会写死 vLLM / WebSocket 地址。
+
+  改动
+
+  visual_minutes/config.py
+
+  - 不再假设 visual_minutes 一定在项目根目录下。
+  - 优先通过 infra/llm 目录定位项目根。
+  - 增加 ENV_FILE = PROJECT_ROOT / ".env"。
+  - 移动到 domains/shared/visual_minutes 后仍能找到根目录 .env。
+
+  visual_minutes/llm.py
+
+  - 统一从根目录 .env 加载配置。
+  - 使用 infra.llm.LLMClient() 自动读取：
+
+  LLM_BACKEND=http / websocket / vllm
+  DEEPSEEK_API_KEY ...
+  LLM_WS_* ...
+  LLM_VLLM_* ...
+  LLM_TIMEOUT / LLM_MAX_RETRIES / LLM_CONTEXT_LENGTH
+
+  - 删除了写死的 temperature=0.1 和 max_tokens=4096。
+  - 默认完全使用 .env / LLMClient 的配置。
+  - 调用方确实需要覆盖时，才显式传 temperature / max_tokens。
+
+  Agent 共用同一个 Client
+
+  pipeline 只创建一个 VisualLLM，Planner、Extractor、Master 都复用它，因此三个
+  Agent 使用同一套 .env 配置和同一个监控 label 体系。
+
+  已验证
+
+  - 当前 .env：
+
+  LLM_BACKEND=http
+  DEEPSEEK_MODEL=deepseek-chat
+
+  切换到模拟的 vLLM 配置后，VisualLLM 自动变成 vLLM。
+
+  - 切换到模拟的 WebSocket 配置后，自动变成 WebSocket。
+  - 注入自定义 client 时不会被 .env 覆盖，方便测试。
+  - fake LLM 全链路仍正常。
+
+  注意：.env 是在进程启动时读取的，修改 .env 后需要重启进程才会生效。
+
+✻ Cooked for 1m 21s · done 星期五15:56
+
+❯ 我觉得针对这个visual_minutes是不是tempeture是不是可以调成0.2？                
+
+  Thought for 15s (ctrl+o to expand)
+
+● 可以。针对视觉 JSON 抽取，0.2 比 0.1
+  略稳一点，也比全局高点温度更适合结构化输出。我会给 visual_minutes
+  一个独立的默认温度 0.2，同时保留 .env 覆盖能力。
+
+  Thought for 2s, read 1 file (ctrl+o to expand)
+
+● Update(visual_minutes\config.py)
+  ⎿  Added 4 lines
+      10  # 与 infra.llm 监控 label 对齐
+      11  VISUAL_LLM_LABEL = "visual_minutes"
+      12  
+      13 +# Visual Minutes 专用温度；未配置时默认 0.2，可由 .env 覆盖    
+      14 +VISUAL_LLM_TEMPERATURE_ENV = "VISUAL_LLM_TEMPERATURE"          
+      15 +DEFAULT_VISUAL_TEMPERATURE = 0.2                               
+      16 +                                                               
+      17  # 单个 section 送给 Extractor 的原文预算
+      18  TRANSCRIPT_CHAR_BUDGET = 5000
+      19  
+● Update(visual_minutes\config.py)
+  ⎿  Added 1 line
+      32  MIN_TREE_NODES = 3
+      33  MIN_STATS_METRICS = 2
+      34  
+      35 +                                                               
+      36  def _find_project_root(start: Path) -> Path:
+      37      """从当前包向上寻找项目根，兼容 visual_minutes 被移动到 dom
+          ains/shared。
+      38  
+
+● Update(visual_minutes\config.py)
+  ⎿  Added 1 line
+      53  
+      54  
+      55  __all__ = [
+      56 +    "DEFAULT_VISUAL_TEMPERATURE",                              
+      57      "ENV_FILE",
+      58      "MAX_EXTRACT_CONCURRENCY",
+      59      "MAX_SECTION_VISUALS",
+
+● Update(visual_minutes\config.py)
+  ⎿  Added 1 line
+      67      "PROJECT_ROOT",
+      68      "TRANSCRIPT_CHAR_BUDGET",
+      69      "VISUAL_LLM_LABEL",
+      70 +    "VISUAL_LLM_TEMPERATURE_ENV",                              
+      71  ]
+
+  Thought for 2s (ctrl+o to expand)
+
+● Update(visual_minutes\llm.py)
+  ⎿  Added 7 lines, removed 1 line
+       2  from __future__ import annotations
+       3  
+       4  import json
+       5 +import os                                                      
+       6  import re
+       7  from typing import Any
+       8  
+       9  from infra.llm import LLMClient
+      10  from infra.llm.config import load_env
+      11  
+      11 -from .config import ENV_FILE, VISUAL_LLM_LABEL                 
+      12 +from .config import (                                          
+      13 +    DEFAULT_VISUAL_TEMPERATURE,                                
+      14 +    ENV_FILE,                                                  
+      15 +    VISUAL_LLM_LABEL,                                          
+      16 +    VISUAL_LLM_TEMPERATURE_ENV,                                
+      17 +)                                                              
+      18  
+      19  
+      20  def extract_json_object(text: str) -> dict[str, Any]:
+
+● Update(visual_minutes\llm.py)
+  ⎿  Added 1 line
+      47          if client is None:
+      48              load_env(ENV_FILE)
+      49          self.client = client or LLMClient()
+      50 +        self.temperature = _resolve_temperature()              
+      51  
+      52      async def json_call(
+      53          self,
+
+● Update(visual_minutes\llm.py)
+  ⎿  Added 2 lines, removed 1 line
+      58          temperature: float | None = None,
+      59          max_tokens: int | None = None,
+      60      ) -> dict[str, Any]:
+      61 +        temp = self.temperature if temperature is None else flo
+         +at(temperature)                                                
+      62          try:
+      63              content = await self.client.text(
+      64                  system_prompt,
+      65                  user_prompt,
+      66                  json_mode=True,
+      66 -                temperature=temperature,                       
+      67 +                temperature=temp,                              
+      68                  max_tokens=max_tokens,
+      69                  label=label,
+      70              )
+
+● Update(visual_minutes\llm.py)
+  ⎿  Added 1 line, removed 1 line
+      76                  system_prompt,
+      77                  user_prompt,
+      78                  json_mode=False,
+      79 -                temperature=temperature,                       
+      79 +                temperature=temp,                              
+      80                  max_tokens=max_tokens,
+      81                  label=label,
+      82              )
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(visual_minutes\llm.py)
+  ⎿  Added 13 lines
+      36      return value
+      37  
+      38  
+      39 +def _resolve_temperature() -> float:                           
+      40 +    """视觉任务默认 0.2；.env 中的 VISUAL_LLM_TEMPERATURE 可覆 
+         +盖。"""                                                        
+      41 +    raw = os.getenv(VISUAL_LLM_TEMPERATURE_ENV, "").strip()    
+      42 +    if not raw:                                                
+      43 +        return DEFAULT_VISUAL_TEMPERATURE                      
+      44 +    try:                                                       
+      45 +        return float(raw)                                      
+      46 +    except ValueError as exc:                                  
+      47 +        raise ValueError(                                      
+      48 +            f"{VISUAL_LLM_TEMPERATURE_ENV} 必须是数字，当前为：
+         +{raw!r}"                                                       
+      49 +        ) from exc                                             
+      50 +                                                               
+      51 +                                                               
+      52  class VisualLLM:
+      53      """把部署版 LLMClient 适配成 Visual Minutes 的 JSON 调用。
+      54  
+
+  Thought for 5s, ran 1 shell command (ctrl+o to expand)
+
+● Update(visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLIST.md)
+  ⎿  Added 1 line, removed 1 line
+      76  - `models/ir.py`：5 个通用视觉原语 + discriminated union + mast
+          er/section IR；
+      77  - `parsing/parser.py`：Markdown section tree、稳定 `section_id`
+          、标题路径；
+      78  - `parsing/retrieval.py`：section 级原文检索与预算控制；
+      79 -- `llm.py`：统一走 `infra.llm.LLMClient`；HTTP / WebSocket / vL
+         -LM、API Key、模型、温度、max_tokens 全部由根目录 `.env` 决定， 
+         -不保存任何 Key；                                               
+      79 +- `llm.py`：统一走 `infra.llm.LLMClient`；HTTP / WebSocket / vL
+         +LM、API Key、模型、max_tokens 全部由根目录 `.env` 决定，不保存 
+         +任何 Key；视觉温度默认 0.2，可用 `VISUAL_LLM_TEMPERATURE` 覆盖 
+         +；                                                             
+      80  - `agents/planner.py` / `agents/extractor.py` / `agents/master.
+          py`：三个 LLM Agent；
+      81  - `validation/validator.py`：section 覆盖、evidence、密度、tabl
+          e/flow/tree/stats 完整性校验；
+      82  - `rendering/renderer/`：master + 5 个通用原语，确定性 HTML/CSS
+           + inline SVG；
+
+  Thought for 6s, ran 1 shell command (ctrl+o to expand)
+
+● 可以，已经调成 0.2 了。
+
+  现在的温度优先级是：
+
+  1. 调用时显式传入 temperature=...
+  2. 根目录 .env 中的 VISUAL_LLM_TEMPERATURE
+  3. 默认值 0.2
+
+  代码位置：
+
+  - visual_minutes/config.py
+    - DEFAULT_VISUAL_TEMPERATURE = 0.2
+    - VISUAL_LLM_TEMPERATURE_ENV = "VISUAL_LLM_TEMPERATURE"
+  - visual_minutes/llm.py
+    - VisualLLM 初始化时解析温度
+    - json_call 默认使用 self.temperature
+
+  当前不配置任何新变量时，visual_minutes 实际请求温度就是 0.2。
+
+  如果以后想单独调整，只需在根目录 .env 加一行：
+
+  env
+  VISUAL_LLM_TEMPERATURE=0.2
+
+  已验证：
+  - 默认温度为 0.2
+  - .env 覆盖生效
+  - 单次调用显式覆盖生效
+  - 不影响 API Key、vLLM、WebSocket 等其它 .env 配置
+
+✻ Churned for 44s · done 星期五15:58
+
+❯ 现在把 visual_minutes 整体移到                                                
+  domains/shared，保证可用，涉及到导出导入的逻辑调整一下                        
+
+  Thought for 14s, read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\__init__.py)
+  ⎿  Added 5 lines, removed 5 lines
+      1  """Visual Minutes (图文智能纪要) 核心包。"""
+      2 -from visual_minutes.agent import VisualMinutesAgent             
+      3 -from visual_minutes.models.ir import VisualDocumentIR           
+      4 -from visual_minutes.parsing.parser import ParsedMinutes, parse_m
+        -inutes                                                          
+      5 -from visual_minutes.rendering.compositor import DocumentComposit
+        -or                                                              
+      6 -from visual_minutes.pipeline import (                           
+      2 +from .agent import VisualMinutesAgent                           
+      3 +from .models.ir import VisualDocumentIR                         
+      4 +from .parsing.parser import ParsedMinutes, parse_minutes        
+      5 +from .rendering.compositor import DocumentCompositor            
+      6 +from .pipeline import (                                         
+      7      VisualMinutesResult,
+      8      agenerate_visual_minutes,
+      9      build_visual_ir,
+
+  Thought for 3s, searched for 2 patterns (ctrl+o to expand)
+
+● Write(domains\shared\__init__.py)
+  ⎿  Wrote 1 line to domains\shared\__init__.py
+      1 """跨业务领域复用的共享能力。"""
+
+  Thought for 7s, searched for 1 pattern, read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLI
+        ST.md)
+  ⎿  Added 1 line, removed 1 line
+      28  本次只允许修改：
+      29  
+      30  ```text
+      31 -visual_minutes/                                                
+      31 +domains/shared/visual_minutes/                                 
+      32  ```
+      33  
+      34  明确不做：
+
+● Update(domains\shared\visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLI
+        ST.md)
+  ⎿  Added 1 line, removed 1 line
+      105  
+      106  ### 1. 单 Agent 承担全部职责
+      107  
+      108 -当前 `visual_minutes/agent.py`：                              
+      108 +当前 `domains/shared/visual_minutes/agent.py`：               
+      109  
+      110  ```text
+      111  markdown + transcript
+
+● Update(domains\shared\visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLI
+        ST.md)
+  ⎿  Added 1 line, removed 1 line
+      206  
+      207  ### 8. 没有接入 infra.llm
+      208  
+      209 -`visual_minutes/config.py` 仍维护自己的 Key 与 HTTP 客户端。  
+      209 +`domains/shared/visual_minutes/config.py` 仍维护自己的 Key 与 
+          +HTTP 客户端。                                                 
+      210  
+      211  应统一：
+      212  
+
+● Update(domains\shared\visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLI
+        ST.md)
+  ⎿  Added 1 line, removed 1 line
+      963  ## 十五、代码结构建议
+      964  
+      965  ```text
+      966 -visual_minutes/                                               
+      966 +domains/shared/visual_minutes/                                
+      967  ├── __init__.py            # 公共 API
+      968  ├── agent.py               # 兼容执行入口
+      969  ├── config.py              # 仅保留视觉参数，不保存 Key
+● Update(domains\shared\visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLI
+        ST.md)
+  ⎿  Added 6 lines
+      1010  - `config.py`：删除 API Key；
+      1011  - `pipeline.py`：改为独立入口，保留可缓存与失败隔离，但不接入
+            会议流程。
+      1012  
+      1013 +包导入路径：                                                 
+      1014 +                                                             
+      1015 +```python                                                    
+      1016 +from domains.shared.visual_minutes import generate_visual_min
+           +utes                                                         
+      1017 +```                                                          
+      1018 +                                                             
+      1019  ---
+      1020  
+      1021  ## 十六、执行顺序
+
+● Update(domains\shared\visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLI
+        ST.md)
+  ⎿  Added 1 line, removed 1 line
+      1037  
+      1038  ### Phase 2：LLM 接入
+      1039  
+      1040 -- [ ] 新增 `visual_minutes/llm.py`；                         
+      1040 +- [ ] 新增 `domains/shared/visual_minutes/llm.py`；          
+      1041  - [ ] 删除自有 API Key / DeepSeekClient；
+      1042  - [ ] 统一走 `infra.llm.LLMClient.text(json_mode=True)`；
+      1043  - [ ] 增加 JSON 解析与校验。
+
+● Update(domains\shared\visual_minutes\docs\VISUAL_MINUTES_AGENT_REBUILD_CHECKLI
+        ST.md)
+  ⎿  Added 1 line, removed 1 line
+      1150  
+      1151  ### 17.6 改动边界
+      1152  
+      1153 -- [ ] 只修改 `visual_minutes/`；                             
+      1153 +- [ ] 只修改 `domains/shared/visual_minutes/`；              
+      1154  - [ ] 不修改 `minutes`；
+      1155  - [ ] 不修改 `app`；
+      1156  - [ ] 不修改 `domains/meeting`；
+
+  Thought for 9s, searched for 1 pattern, ran 2 shell commands (ctrl+o to expand)
+
+● 已整体移动并验证可用。
+
+  新位置
+
+  D:\study\demo\domains\shared\visual_minutes
+
+  旧路径 D:\study\demo\visual_minutes 已不存在。
+
+  导入逻辑调整
+
+  根包 __init__.py 已改成相对导入：
+
+  from .agent import VisualMinutesAgent
+  from .models.ir import VisualDocumentIR
+  from .parsing.parser import ParsedMinutes, parse_minutes
+  from .rendering.compositor import DocumentCompositor
+  from .pipeline import ...
+
+  其他子包内部原本就是相对导入，移动后不需要改。
+
+  新调用方式
+
+  from domains.shared.visual_minutes import (
+      VisualMinutesAgent,
+      DocumentCompositor,
+      VisualMinutesResult,
+      generate_visual_minutes,
+      agenerate_visual_minutes,
+      build_visual_ir,
+      parse_minutes,
+  )
+
+  子模块：
+
+  from domains.shared.visual_minutes.models import TimelineVisual
+  from domains.shared.visual_minutes.agents import SectionPlanner
+  from domains.shared.visual_minutes.rendering import render_visual
+
+  其他调整
+
+  - 新增 domains/shared/__init__.py，让 shared 成为规范包。
+  - config.py 的项目根查找已适配新位置，仍能正确找到：
+
+  D:\study\demo\.env
+  D:\study\demo\infra\llm
+
+  - VISUAL_LLM_TEMPERATURE 默认仍为 0.2。
+  - infra.llm.LLMClient 仍按根目录 .env 决定 HTTP / WebSocket /
+    vLLM、Key、模型等。
+  - 清单文档中的路径已同步更新。
+
+  验证
+
+  已通过：
+
+  - domains.shared.visual_minutes 公共 API 导入
+  - 所有子包导入
+  - fake LLM 全链路
+  - 五种视觉原语渲染
+  - VisualLLM 的 .env 配置读取
+  - PROJECT_ROOT 与 ENV_FILE 定位
+  - 全仓已无 from visual_minutes / import visual_minutes 旧引用
+
+✻ Worked for 56s · done 星期五16:00
+
+❯ 现在你在整个项目根目录写一个test文件，我传纪要md的地址以及会议文本txt的地址， 
+  直接调用visual_minutes给我一份图文纪要，懂我意思吗                            
+
+  Thought for 10s (ctrl+o to expand)
+
+● Write(test_visual_minutes.py)
+  ⎿  Wrote 90 lines to test_visual_minutes.py
+       1 #!/usr/bin/env python
+       2 """本地调用 visual_minutes 生成图文纪要。
+       3 
+       4 用法：
+       5     python test_visual_minutes.py 纪要.md 会议文本.txt
+       6     python test_visual_minutes.py 纪要.md 会议文本.txt -o 输出.h
+         tml
+       7 
+       8 不传输出路径时，默认在纪要同目录生成 ``<纪要文件名>_visual.html`
+         `。
+     … +82 lines (ctrl+o to expand)
+
+  Thought for 11s, ran 2 shell commands (ctrl+o to expand)
+
+● 已在项目根目录创建：
+
+  D:\study\demo\test_visual_minutes.py
+
+  直接传纪要 Markdown 和会议文本路径即可：
+
+  python test_visual_minutes.py 会议纪要.md 会议文本.txt
+
+  默认输出到纪要同目录：
+
+  会议纪要_visual.html
+
+  也可以指定输出路径：
+
+  python test_visual_minutes.py 会议纪要.md 会议文本.txt -o output/图文纪要.html
+
+  脚本会：
+
+  1. 读取两个文件（兼容 UTF-8 BOM）
+  2. 调用 domains.shared.visual_minutes.generate_visual_minutes
+  3. 生成完整自包含 HTML
+  4. 打印实际生成的视觉类型
+  5. 打印 warnings
+
+  已用真实 LLM 跑通一次，输出正常：
+
+  正文视觉：s1:timeline
+  HTML 字符数：12493
+  警告：无
+
+  LLM 的连接方式、API Key、模型、vLLM / WebSocket 等仍然全部由根目录 .env 决定。
+
+✻ Cogitated for 35s · done 星期五16:01
+
+❯ 现在是能保证图文纪要的文字内容是原始纪要不动吧，图是结合纪要和原文生成的，回  
+  答我即可                                                                      
+
+  Thought for 5s (ctrl+o to expand)
+
+● 对，正文文字保证是原始纪要，不改写。
+
+  具体是：
+
+  - Compositor 直接渲染原始 Markdown；
+  - 视觉块只作为正文的兄弟节点插入，不替换、不重写正文；
+  - LLM 只输出视觉 IR，不输出最终正文；
+  - 唯一额外改动是给主标题加稳定 id="sX" 锚点，文字内容不变。
+
+  需要说明一个边界：
+
+  - 正文 section 图：结合「当前 section 纪要 + 检索到的相关会议原文」生成；
+  - 开篇 master 通览图：主要基于纪要的 section 结构、标题和摘要生成，不读取整篇
+    transcript。
+
+  所以整体上：正文原文不动，图是增强层。
+
+✻ Worked for 6s · done 星期五16:02
+
+❯ 在干嘛啊。。输出的html甚至是两份纪要重复了                                    
+  全文摘要之后甚至又打印一份全文摘要。。。检查一下                              
+
+  Thought for 33s, searched for 2 patterns, read 3 files, ran 5 shell commands (ctrl+o to expand)
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ 我把服务器执行的内容拉取了，你分析一下。其中general是md和txt，是不是md解析有  
+  问题还是怎么样，以及我应该怎么用这个test文件，都排查一下                      
+
+  Thought for 46s, searched for 2 patterns, read 1 file, ran 5 shell commands (ctrl+o to expand)
+
+● Update(test_visual_minutes.py)
+  ⎿  Added 9 lines
+      27      return minutes_path.with_name(f"{minutes_path.stem}_visual.
+          html")
+      28  
+      29  
+      30 +def _looks_like_duplicated_minutes(text: str) -> bool:         
+      31 +    """检测纪要前后两半完全相同；用于提前发现上游重复写入。""" 
+      32 +    normalized = (text or "").strip()                          
+      33 +    if len(normalized) < 200 or len(normalized) % 2:           
+      34 +        return False                                           
+      35 +    middle = len(normalized) // 2                              
+      36 +    return normalized[:middle].strip() == normalized[middle:].s
+         +trip()                                                         
+      37 +                                                               
+      38 +                                                               
+      39  def main(argv: list[str] | None = None) -> int:
+      40      parser = argparse.ArgumentParser(
+      41          description="读取纪要 Markdown 与会议文本，调用 visual_
+          minutes 生成图文纪要 HTML。",
+
+● Update(test_visual_minutes.py)
+  ⎿  Added 6 lines
+      66      minutes_markdown = _read_text(minutes_path, "纪要文件")
+      67      meeting_transcript = _read_text(transcript_path, "会议文本"
+          )
+      68  
+      69 +    if _looks_like_duplicated_minutes(minutes_markdown):       
+      70 +        print(                                                 
+      71 +            "警告：纪要 Markdown 前后两半完全相同，疑似被重复写
+         +入。"                                                          
+      72 +            "visual_minutes 不会改写正文，因此重复内容也会原样 
+         +进入 HTML。"                                                   
+      73 +        )                                                      
+      74 +                                                               
+      75      result = generate_visual_minutes(
+      76          minutes_markdown,
+      77          meeting_transcript,
+
+  Thought for 32s, ran 3 shell commands (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\config.py)
+  ⎿  Added 5 lines
+      23  # 全局正文视觉密度软上限；超过时按 necessity 排序，不静默截断
+      24  MAX_SECTION_VISUALS = 8
+      25  
+      26 +# 开篇通览图只做概览，不展开正文细节                           
+      27 +MAX_MASTER_BLOCK_SUMMARY_CHARS = 120                           
+      28 +MAX_MASTER_BLOCK_KEY_POINTS = 3                                
+      29 +MAX_MASTER_KEY_POINT_CHARS = 60                                
+      30 +                                                               
+      31  # 允许的最小视觉数据阈值
+      32  MIN_TIMELINE_EVENTS = 3
+      33  MIN_TABLE_ROWS = 2
+
+● Update(domains\shared\visual_minutes\config.py)
+  ⎿  Added 3 lines
+      61      "DEFAULT_VISUAL_TEMPERATURE",
+      62      "ENV_FILE",
+      63      "MAX_EXTRACT_CONCURRENCY",
+      64 +    "MAX_MASTER_BLOCK_KEY_POINTS",                             
+      65 +    "MAX_MASTER_BLOCK_SUMMARY_CHARS",                          
+      66 +    "MAX_MASTER_KEY_POINT_CHARS",                              
+      67      "MAX_SECTION_VISUALS",
+      68      "MIN_FLOW_EDGES",
+      69      "MIN_FLOW_NODES",
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\agents\prompts.py)
+  ⎿  Added 4 lines, removed 2 lines
+      111  4. block 标题、summary、key_points 必须来自对应 section。
+      112  5. metrics 只使用输入中明确存在的硬指标；没有则为空数组。
+      113  6. 不引入输入之外的事实、数字、人物或结论。
+      114 -7. 不输出 Markdown，不输出 Emoji，不输出解释。                
+      115 -8. 只输出 JSON 对象。                                         
+      114 +7. 通览图只做概览，不复述正文细节：每个 block 的 summary 尽量 
+          +一句话，key_points 最多 3 条。                                
+      115 +8. 如果某个 section 本身承担全篇摘要作用，其 block 只保留一句 
+          +结论，不再展开 key_points。                                   
+      116 +9. 不输出 Markdown，不输出 Emoji，不输出解释。                
+      117 +10. 只输出 JSON 对象。                                        
+      118  
+      119  布局选择：
+      120  - 独立并列章节 → grid
+
+  Thought for 2s (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\validation\validator.py)
+  ⎿  Added 3 lines
+       4  from typing import Iterable, List
+       5  
+       6  from ..config import (
+       7 +    MAX_MASTER_BLOCK_KEY_POINTS,                               
+       8 +    MAX_MASTER_BLOCK_SUMMARY_CHARS,                            
+       9 +    MAX_MASTER_KEY_POINT_CHARS,                                
+      10      MAX_SECTION_VISUALS,
+      11      MIN_FLOW_EDGES,
+      12      MIN_FLOW_NODES,
+● Update(domains\shared\visual_minutes\validation\validator.py)
+  ⎿  Added 19 lines
+       85      return False
+       86  
+       87  
+       88 +def _truncate(text: str, limit: int) -> str:                  
+       89 +    value = (text or "").strip()                              
+       90 +    if len(value) <= limit:                                   
+       91 +        return value                                          
+       92 +    return value[: limit - 1].rstrip("，,。.;；、 ") + "…"    
+       93 +                                                              
+       94 +                                                              
+       95 +def _compact_master(master):                                  
+       96 +    """通览图只保留概览信息，避免变成第二份正文。"""          
+       97 +    for block in master.blocks:                               
+       98 +        block.summary = _truncate(block.summary, MAX_MASTER_BL
+          +OCK_SUMMARY_CHARS)                                            
+       99 +        block.key_points = [                                  
+      100 +            _truncate(point, MAX_MASTER_KEY_POINT_CHARS)      
+      101 +            for point in block.key_points[:MAX_MASTER_BLOCK_KE
+          +Y_POINTS]                                                     
+      102 +            if point.strip()                                  
+      103 +        ]                                                     
+      104 +    return master                                             
+      105 +                                                              
+      106 +                                                              
+      107  def _limit_visuals(
+      108      visuals: List[SectionVisual],
+      109      warnings: List[str],
+
+● Update(domains\shared\visual_minutes\validation\validator.py)
+  ⎿  Added 1 line
+      136      ):
+      137          warnings.append("master coverage invalid; fallback app
+           lied")
+      138          master = fallback_master(parsed)
+      139 +    master = _compact_master(master)                          
+      140      master.metrics = [m for m in master.metrics if m.evidence.
+           strip()]
+      141  
+      142      valid_visuals: List[SectionVisual] = []
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\validation\validator.py)
+  ⎿  Added 1 line, removed 1 line
+      17      MIN_TREE_NODES,
+      18  )
+      19  from ..agents.master import _coverage_ok, fallback_master
+      20 -from ..models.ir import SectionVisual, VisualDocumentIR        
+      20 +from ..models.ir import MasterVisual, SectionVisual, VisualDocu
+         +mentIR                                                         
+      21  from ..parsing.parser import ParsedMinutes, SectionNode
+      22  
+      23  
+
+● Update(domains\shared\visual_minutes\validation\validator.py)
+  ⎿  Added 1 line, removed 1 line
+      92      return value[: limit - 1].rstrip("，,。.;；、 ") + "…"
+      93  
+      94  
+      95 -def _compact_master(master):                                   
+      95 +def _compact_master(master: MasterVisual) -> MasterVisual:     
+      96      """通览图只保留概览信息，避免变成第二份正文。"""
+      97      for block in master.blocks:
+      98          block.summary = _truncate(block.summary, MAX_MASTER_BLO
+          CK_SUMMARY_CHARS)
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(test_visual_minutes.py)
+  ⎿  Added 1 line
+      70          print(
+      71              "警告：纪要 Markdown 前后两半完全相同，疑似被重复写
+          入。"
+      72              "visual_minutes 不会改写正文，因此重复内容也会原样
+          进入 HTML。"
+      73 +            "请检查上游纪要写入逻辑，或只保留前半段后重新生成。
+         +"                                                              
+      74          )
+      75  
+      76      result = generate_visual_minutes(
+
+  Thought for 18s, ran 3 shell commands (ctrl+o to expand)
+
+● 查清了：不是 visual_minutes 的 Markdown 解析有问题，是 general.md 
+  本身就是两份完全相同的纪要拼在一起。
+
+  1. 根因
+
+  D:\study\demo\general.md 前后两半完全一致：
+
+  前半段：3447 字符
+  后半段：3447 字符
+  两半内容完全相同
+
+  边界在：
+
+  ...PP并行负载不均...实现负载均衡。## 全文摘要
+
+  第二份 ## 全文摘要 直接粘在上一行末尾，前面没有换行。Markdown 规范要求标题必须
+  从行首开始，所以解析器不会把它识别成标题，而是当成正文里的普通文本。
+
+  于是解析结果变成：
+
+  - 全文摘要
+  - 要点梳理
+  - 结论定调
+  - 要点梳理（第二份）
+  - 结论定调（第二份）
+
+  当前 general_visual.html 里：
+
+  正文 h2 数量：5
+  全文摘要出现次数：3
+
+  分别是：
+
+  1. master 通览图里的概览块
+  2. 正文第一份全文摘要
+  3. 正文第二份重复的全文摘要
+
+  所以视觉层没有复制正文，它只是把重复的源文件原样渲染了。
+
+  2. 为什么第二份 ## 全文摘要 没被识别
+
+  因为源文件是：
+
+  - **PP并行负载不均**：...实现负载均衡。## 全文摘要
+
+  不是：
+
+  - **PP并行负载不均**：...实现负载均衡。
+
+  ## 全文摘要
+
+  这是上游纪要写入时把两段内容直接拼接了，中间少了换行。需要检查上游写 
+  general.md 的逻辑，尤其是是否 append 了两次。
+
+  3. test 文件正确用法
+
+  在项目根目录执行：
+
+  python test_visual_minutes.py general.md general.txt
+
+  默认输出：
+
+  general_visual.html
+
+  指定输出：
+
+  python test_visual_minutes.py general.md general.txt -o general_visual_2.html
+
+  如果服务器上运行，必须从项目根目录运行，保证能导入：
+
+  domains.shared.visual_minutes
+
+  并读到根目录 .env。
+
+  4. 用清洗后的 md 重新生成
+
+  先只保留前半段：
+
+  python - <<'PY'
+  from pathlib import Path
+
+  p = Path("general.md")
+  text = p.read_text(encoding="utf-8-sig")
+
+  first = text.find("## 全文摘要")
+  second = text.find("## 全文摘要", first + 1)
+  assert first >= 0 and second > first
+
+  Path("general_clean.md").write_text(
+      text[:second].rstrip() + "\n",
+      encoding="utf-8",
+  )
+  PY
+
+  再生成：
+
+  python test_visual_minutes.py general_clean.md general.txt -o
+  general_clean_visual.html
+
+  我用清洗后的文件实际跑过：
+
+  正文 h2：3
+  正文全文摘要：1
+  警告：无
+
+  正文重复消失。
+
+  5. 顺手做的两个改进
+
+  test 文件增加重复检测
+
+  如果纪要前后两半完全相同，现在会直接警告：
+
+  警告：纪要 Markdown 前后两半完全相同，疑似被重复写入。
+  visual_minutes 不会改写正文，因此重复内容也会原样进入 HTML。
+  请检查上游纪要写入逻辑，或只保留前半段后重新生成。
+
+  限制 master 通览图的展开程度
+
+  之前 master 会把每个栏目的要点都展开，看起来像第二份纪要。现在已限制：
+
+  - 每个 block summary 最多 120 字
+  - 每个 block key_points 最多 3 条
+  - 每条 key point 最多 60 字
+
+  清洗后重新生成，master 从 1600 多字符降到约 521
+  字符，只保留概览，不再展开成正文。
+
+✻ Brewed for 2m 38s · done 星期五16:16
+
+❯ 我知道了，是我的md有问题                                                      
+
+  Thought for 2s (ctrl+o to expand)
+
+● 对，根源就是 general.md 本身重复了，visual_minutes 只是按原文渲染。
+
+  现在已经补了两点：
+
+  - test_visual_minutes.py 会检测“前后两半完全相同”的 md，并提前警告；
+  - master 通览图已限制 summary 和 key points，不再展开成第二份纪要。
+
+  用清洗后的 md 重新跑即可：
+
+  python test_visual_minutes.py general_clean.md general.txt -o
+  general_clean_visual.html
+
+  建议顺便查一下上游写纪要文件时，为什么同一份内容被连续写了两遍，而且中间没加换
+  行。
+
+✻ Brewed for 3s · done 星期五16:18
+
+❯ 但是现在生图也太差了吧。。。基本就只能加一个最开始的图，内容也差排版也差，根  
+  本就没法用                                                                    
+
+  Thought for 37s, searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● 我看到了：不是图“少”这么简单，是 Planner 对“段落型纪要”过于保守，Extractor
+  又把 要点梳理 抽成了一棵 18 节点的巨树，结果就是正文只有一张大图，而且可读性差
+  。我会从三层一起改：规划更积极、抽取有上限、树状图改成可读的分栏结构。
+
+● Update(domains\shared\visual_minutes\config.py)
+  ⎿  Added 9 lines
+      37  MIN_TREE_NODES = 3
+      38  MIN_STATS_METRICS = 2
+      39  
+      40 +# 单个视觉的数据上限，避免把整篇正文塞进一张图                 
+      41 +MAX_TIMELINE_EVENTS = 10                                       
+      42 +MAX_TABLE_ROWS = 10                                            
+      43 +MAX_TABLE_COLUMNS = 6                                          
+      44 +MAX_FLOW_NODES = 10                                            
+      45 +MAX_FLOW_EDGES = 16                                            
+      46 +MAX_TREE_NODES = 12                                            
+      47 +MAX_STATS_METRICS = 6                                          
+      48  
+      49 +                                                               
+      50  def _find_project_root(start: Path) -> Path:
+      51      """从当前包向上寻找项目根，兼容 visual_minutes 被移动到 dom
+          ains/shared。
+      52  
+
+● Update(domains\shared\visual_minutes\config.py)
+  ⎿  Error editing file
+
+  Thought for 1s, read 1 file (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\config.py)
+  ⎿  Added 7 lines
+      70      "DEFAULT_VISUAL_TEMPERATURE",
+      71      "ENV_FILE",
+      72      "MAX_EXTRACT_CONCURRENCY",
+      73 +    "MAX_FLOW_EDGES",                                          
+      74 +    "MAX_FLOW_NODES",                                          
+      75      "MAX_MASTER_BLOCK_KEY_POINTS",
+      76      "MAX_MASTER_BLOCK_SUMMARY_CHARS",
+      77      "MAX_MASTER_KEY_POINT_CHARS",
+      78      "MAX_SECTION_VISUALS",
+      79 +    "MAX_STATS_METRICS",                                       
+      80 +    "MAX_TABLE_COLUMNS",                                       
+      81 +    "MAX_TABLE_ROWS",                                          
+      82 +    "MAX_TIMELINE_EVENTS",                                     
+      83 +    "MAX_TREE_NODES",                                          
+      84      "MIN_FLOW_EDGES",
+      85      "MIN_FLOW_NODES",
+      86      "MIN_STATS_METRICS",
+
+  Thought for 1s (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\agents\prompts.py)
+  ⎿  Added 2 lines, removed 2 lines
+      17  可选视觉原语：
+      18  - none：不需要视觉
+      19  - timeline：存在至少 3 个明确时间节点，适合表达时间演进
+      20 -- table：存在至少 2 个对象、且每个对象至少有 2 个可比维度      
+      20 +- table：存在可枚举的事项清单，或至少 2 个对象、每个对象至少有 
+         +2 个可比字段                                                   
+      21  - flow：存在至少 3 个节点，且至少有 2 条明确关系或边
+      22 -- tree：存在至少 2 层、至少 3 个节点，适合表达层级/分类/结构   
+      22 +- tree：存在至少 2 层、至少 3 个节点，适合表达层级/分类/结构； 
+         +不要求穷举全部节点                                             
+      23  - stats：存在至少 2 个明确硬指标
+      24  
+      25  判断规则：
+
+● Update(domains\shared\visual_minutes\agents\prompts.py)
+  ⎿  Added 2 lines, removed 1 line
+      31  6. 不为凑图而规划。
+      32  7. 不输出 Markdown，不输出 Emoji，不输出解释。
+      33  8. 如果章节本身已经用完整 Markdown 表格表达了同样数据，且没有额
+          外关系需要呈现，默认 none。
+      34 -9. 只输出 JSON 对象。                                          
+      34 +9. 不要因为正文是段落就默认 none；存在可枚举清单、可对比对象、 
+         +可分层结构或量化指标时，应给出视觉。                           
+      35 +10. 只输出 JSON 对象。                                         
+      36  
+      37  输出结构：
+      38  {
+
+● Update(domains\shared\visual_minutes\agents\prompts.py)
+  ⎿  Added 4 lines, removed 2 lines
+      58  4. 每个节点、行、指标尽量给出 evidence。
+      59  5. evidence 必须来自输入文本，不能是总结。
+      60  6. 数据不足以支撑指定 kind 时，输出 {"kind": "none", "reason": 
+          "string"}，不要编造。
+      61 -7. 不输出 Markdown，不输出 Emoji，不输出解释。                 
+      62 -8. 只输出 JSON 对象。                                          
+      61 +7. 只保留最有信息量的数据，不穷举原文：timeline 3-8 个事件；tab
+         +le 2-8 行；flow 3-8 个节点；tree 3-12 个节点、最多 3 层；stats 
+         +2-6 个指标。                                                   
+      62 +8. detail 用短句，不整段复制原文。                             
+      63 +9. 不输出 Markdown，不输出 Emoji，不输出解释。                 
+      64 +10. 只输出 JSON 对象。                                         
+      65  
+      66  按 kind 输出 data：
+      67  
+
+  Thought for 5s, read 1 file (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\validation\validator.py)
+  ⎿  Added 7 lines
+       4  from typing import Iterable, List
+       5  
+       6  from ..config import (
+       7 +    MAX_FLOW_EDGES,                                            
+       8 +    MAX_FLOW_NODES,                                            
+       9      MAX_MASTER_BLOCK_KEY_POINTS,
+      10      MAX_MASTER_BLOCK_SUMMARY_CHARS,
+      11      MAX_MASTER_KEY_POINT_CHARS,
+      12      MAX_SECTION_VISUALS,
+      13 +    MAX_STATS_METRICS,                                         
+      14 +    MAX_TABLE_COLUMNS,                                         
+      15 +    MAX_TABLE_ROWS,                                            
+      16 +    MAX_TIMELINE_EVENTS,                                       
+      17 +    MAX_TREE_NODES,                                            
+      18      MIN_FLOW_EDGES,
+      19      MIN_FLOW_NODES,
+      20      MIN_STATS_METRICS,
+
+● Update(domains\shared\visual_minutes\validation\validator.py)  ⎿  Added 50 lines
+      111      return master
+      112  
+      113  
+      114 +def _trim_tree_nodes(nodes, limit: int):                      
+      115 +    """按层级保留前 N 个节点，保证被保留节点的父节点仍然存在。
+          +"""                                                           
+      116 +    selected = []                                             
+      117 +    selected_ids: set[str] = set()                            
+      118 +    remaining = list(nodes)                                   
+      119 +    while remaining and len(selected) < limit:                
+      120 +        added = False                                         
+      121 +        for node in list(remaining):                          
+      122 +            if node.parent_id is None or node.parent_id in sel
+          +ected_ids:                                                    
+      123 +                selected.append(node)                         
+      124 +                selected_ids.add(node.node_id)                
+      125 +                remaining.remove(node)                        
+      126 +                added = True                                  
+      127 +                if len(selected) >= limit:                    
+      128 +                    break                                     
+      129 +        if not added:                                         
+      130 +            break                                             
+      131 +    return selected                                           
+      132 +                                                              
+      133 +                                                              
+      134 +def _compact_visual(visual: SectionVisual) -> SectionVisual:  
+      135 +    """限制单个视觉的数据量，避免把整篇正文塞进一张图。"""    
+      136 +    data = visual.visual                                      
+      137 +    if data is None:                                          
+      138 +        return visual                                         
+      139 +    if data.kind == "timeline":                               
+      140 +        data.data.events = data.data.events[:MAX_TIMELINE_EVEN
+          +TS]                                                           
+      141 +    elif data.kind == "table":                                
+      142 +        columns = data.data.columns[:MAX_TABLE_COLUMNS]       
+      143 +        data.data.columns = columns                           
+      144 +        data.data.rows = data.data.rows[:MAX_TABLE_ROWS]      
+      145 +        for row in data.data.rows:                            
+      146 +            row.cells = row.cells[: len(columns)]             
+      147 +    elif data.kind == "flow":                                 
+      148 +        nodes = data.data.nodes[:MAX_FLOW_NODES]              
+      149 +        data.data.nodes = nodes                               
+      150 +        ids = {node.node_id for node in nodes}                
+      151 +        edges = [                                             
+      152 +            edge                                              
+      153 +            for edge in data.data.edges                       
+      154 +            if edge.source in ids and edge.target in ids      
+      155 +        ]                                                     
+      156 +        data.data.edges = edges[:MAX_FLOW_EDGES]              
+      157 +    elif data.kind == "tree":                                 
+      158 +        data.data.nodes = _trim_tree_nodes(data.data.nodes, MA
+          +X_TREE_NODES)                                                 
+      159 +    elif data.kind == "stats":                                
+      160 +        data.data.metrics = data.data.metrics[:MAX_STATS_METRI
+          +CS]                                                           
+      161 +    return visual                                             
+      162 +                                                              
+      163 +                                                              
+      164  def _limit_visuals(
+      165      visuals: List[SectionVisual],
+      166      warnings: List[str],
+
+● Update(domains\shared\visual_minutes\validation\validator.py)
+  ⎿  Added 1 line, removed 1 line
+      208              warnings.append(f"invalid visual dropped: {item.se
+           ction_id}")
+      209              continue
+      210          seen.add(item.section_id)
+      211 -        valid_visuals.append(item)                            
+      211 +        valid_visuals.append(_compact_visual(item))           
+      212  
+      213      valid_visuals = _limit_visuals(valid_visuals, warnings)
+      214      return VisualDocumentIR(
+
+  Thought for 2s (ctrl+o to expand)
+
+● Write(domains\shared\visual_minutes\rendering\renderer\tree.py)
+  ⎿  Added 62 lines, removed 20 lines
+       1 -"""层级树渲染器。"""                                           
+       1 +"""层级树渲染器。                                              
+       2 +                                                               
+       3 +顶层使用卡片分栏，深层内容用紧凑子列表，避免长树变成一整屏缩进 
+         +。                                                             
+       4 +"""                                                            
+       5  from __future__ import annotations
+       6  
+       4 -from ...models.ir import TreeVisual                            
+       7 +from typing import List, Set                                   
+       8 +                                                               
+       9 +from ...models.ir import TreeNode, TreeVisual                  
+      10  from .base import escape
+      11  
+      12  
+       8 -def _render_nodes(nodes, parent_id=None) -> str:               
+       9 -    children = [n for n in nodes if n.parent_id == parent_id]  
+      13 +def _children(nodes: List[TreeNode], parent_id: str | None) -> 
+         +List[TreeNode]:                                                
+      14 +    return [node for node in nodes if node.parent_id == parent_
+         +id]                                                            
+      15 +                                                               
+      16 +                                                               
+      17 +def _render_subtree(                                           
+      18 +    nodes: List[TreeNode],                                     
+      19 +    parent_id: str,                                            
+      20 +    seen: Set[str],                                            
+      21 +) -> str:                                                      
+      22 +    children = [node for node in _children(nodes, parent_id) if
+         + node.node_id not in seen]                                     
+      23      if not children:
+      24          return ""
+      12 -    items = []                                                 
+      25 +    items: list[str] = []                                      
+      26      for node in children:
+      14 -        inner = _render_nodes(nodes, node.node_id)             
+      27 +        seen.add(node.node_id)                                 
+      28 +        inner = _render_subtree(nodes, node.node_id, seen)     
+      29          items.append(
+      16 -            f"<li><div class=\"vm-tree-title\">{escape(node.tit
+         -le)}</div>"                                                    
+      30 +            f'<li><div class="vm-tree-title">{escape(node.title
+         +)}</div>'                                                      
+      31              + (f'<div class="vm-tree-detail">{escape(node.detai
+          l)}</div>' if node.detail else "")
+      18 -            + (f"<ul>{inner}</ul>" if inner else "")           
+      32 +            + (f'<ul class="vm-tree-subtree">{inner}</ul>' if i
+         +nner else "")                                                  
+      33              + "</li>"
+      34          )
+      21 -    return "".join(items)                                      
+      35 +    return f'<ul class="vm-tree-subtree">{"".join(items)}</ul>'
+      36  
+      37  
+      38 +def _render_branch(nodes: List[TreeNode], node: TreeNode, seen:
+         + Set[str]) -> str:                                             
+      39 +    seen.add(node.node_id)                                     
+      40 +    inner = _render_subtree(nodes, node.node_id, seen)         
+      41 +    return (                                                   
+      42 +        '<div class="vm-tree-branch">'                         
+      43 +        f'<div class="vm-tree-branch-title">{escape(node.title)
+         +}</div>'                                                       
+      44 +        + (f'<div class="vm-tree-detail">{escape(node.detail)}<
+         +/div>' if node.detail else "")                                 
+      45 +        + inner                                                
+      46 +        + "</div>"                                             
+      47 +    )                                                          
+      48 +                                                               
+      49 +                                                               
+      50  def render_tree(model: TreeVisual) -> str:
+      51      nodes = model.data.nodes
+      52      if not nodes:
+      53          return ""
+      28 -    roots = [n for n in nodes if n.parent_id is None or n.paren
+         -t_id not in {x.node_id for x in nodes}]                        
+      54 +    ids = {node.node_id for node in nodes}                     
+      55 +    roots = [                                                  
+      56 +        node                                                   
+      57 +        for node in nodes                                      
+      58 +        if node.parent_id is None or node.parent_id not in ids 
+      59 +    ]                                                          
+      60      if not roots:
+      61          return ""
+      31 -    items = []                                                 
+      32 -    for node in roots:                                         
+      33 -        inner = _render_nodes(nodes, node.node_id)             
+      34 -        items.append(                                          
+      35 -            f"<li><div class=\"vm-tree-title\">{escape(node.tit
+         -le)}</div>"                                                    
+      36 -            + (f'<div class="vm-tree-detail">{escape(node.detai
+         -l)}</div>' if node.detail else "")                             
+      37 -            + (f"<ul>{inner}</ul>" if inner else "")           
+      38 -            + "</li>"                                          
+      62 +                                                               
+      63 +    seen: Set[str] = set()                                     
+      64 +    sections: list[str] = []                                   
+      65 +    for root in roots:                                         
+      66 +        if root.node_id in seen:                               
+      67 +            continue                                           
+      68 +        seen.add(root.node_id)                                 
+      69 +        branches = [                                           
+      70 +            node                                               
+      71 +            for node in _children(nodes, root.node_id)         
+      72 +            if node.node_id not in seen                        
+      73 +        ]                                                      
+      74 +        branch_html = "".join(_render_branch(nodes, node, seen)
+         + for node in branches)                                         
+      75 +        sections.append(                                       
+      76 +            '<div class="vm-tree-root">'                       
+      77 +            f'<div class="vm-tree-root-title">{escape(root.titl
+         +e)}</div>'                                                     
+      78 +            + (f'<div class="vm-tree-detail">{escape(root.detai
+         +l)}</div>' if root.detail else "")                             
+      79 +            + (f'<div class="vm-tree-branches">{branch_html}</d
+         +iv>' if branch_html else "")                                   
+      80 +            + "</div>"                                         
+      81          )
+      40 -    body = "".join(items)                                      
+      82 +                                                               
+      83      return f"""
+      84  <div class="vm-visual">
+      85    <div class="vm-visual-title">{escape(model.title)}</div>
+      44 -  <ul class="vm-tree">{body}</ul>                              
+      86 +  <div class="vm-tree">{''.join(sections)}</div>               
+      87  </div>
+      88  """
+      89  
+
+  Thought for 2s (ctrl+o to expand)
+
+● Update(domains\shared\visual_minutes\rendering\renderer\base.py)
+  ⎿  Added 10 lines, removed 7 lines
+      146  .vm-flow-edge { display: flex; flex-wrap: wrap; align-items: b
+           aseline; gap: 6px; }
+      147  .vm-flow-edge-arrow { color: var(--vm-ink-faint); }
+      148  .vm-flow-edge-label { color: var(--vm-ink-faint); font-size: 1
+           1.5px; }
+      149 -.vm-tree, .vm-tree ul { list-style: none; margin: 0; padding-l
+          -eft: 20px; }                                                  
+      150 -.vm-tree { padding-left: 0; }                                 
+      151 -.vm-tree li { position: relative; padding: 5px 0 5px 16px; bor
+          -der-left: 1px solid var(--vm-border); }                       
+      152 -.vm-tree > li { border-left: 0; padding-left: 0; }            
+      153 -.vm-tree li::before { content: ""; position: absolute; left: 0
+          -; top: 17px; width: 10px; height: 1px; background: var(--vm-bo
+          -rder); }                                                      
+      154 -.vm-tree > li::before { display: none; }                      
+      155 -.vm-tree-title { font-size: 13.5px; font-weight: 700; color: v
+          -ar(--vm-ink-title); }                                         
+      149 +.vm-tree { display: flex; flex-direction: column; gap: 14px; }
+      150 +.vm-tree-root { background: var(--vm-tone-card); border: 1px s
+          +olid var(--vm-border); border-radius: var(--vm-radius-lg); pad
+          +ding: 18px 20px; }                                            
+      151 +.vm-tree-root-title { font-size: 15px; font-weight: 700; color
+          +: var(--vm-ink-title); line-height: 1.4; }                    
+      152 +.vm-tree-branches { display: grid; grid-template-columns: repe
+          +at(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 14px;
+          + }                                                            
+      153 +.vm-tree-branch { background: var(--vm-tone-stone-light); bord
+          +er: 1px solid var(--vm-border); border-radius: var(--vm-radius
+          +); padding: 14px 15px; }                                      
+      154 +.vm-tree-branch-title { font-size: 13.5px; font-weight: 700; c
+          +olor: var(--vm-ink-title); line-height: 1.4; }                
+      155 +.vm-tree-title { font-size: 13px; font-weight: 600; color: var
+          +(--vm-ink-body); line-height: 1.45; }                         
+      156  .vm-tree-detail { font-size: 12.5px; color: var(--vm-ink-muted
+           ); line-height: 1.55; margin-top: 3px; }
+      157 +.vm-tree-subtree { list-style: none; margin: 9px 0 0; padding:
+          + 0; display: flex; flex-direction: column; gap: 7px; }        
+      158 +.vm-tree-subtree li { padding-left: 11px; border-left: 1px sol
+          +id var(--vm-border); }                                        
+      159 +.vm-tree-subtree .vm-tree-subtree { margin-top: 6px; margin-le
+          +ft: 2px; gap: 5px; }                                          
+      160  .vm-stats { display: grid; grid-template-columns: repeat(auto-
+           fit, minmax(160px, 1fr)); gap: 14px; }
+      161  .vm-stat { background: var(--vm-tone-stone-light); border-radi
+           us: var(--vm-radius); padding: 18px; }
+      162  .vm-stat-value { font-size: 24px; font-weight: 700; color: var
+           (--vm-ink-title); font-variant-numeric: tabular-nums; }
+
+  Thought for 3m 20s, read 2 files, ran 6 shell commands (ctrl+o to expand)
+
+❯ 你现在在做什么？？？                                                          
+
+  Thought for 4s (ctrl+o to expand)
+
+● 我在排查并改 visual_minutes
+  的出图质量，刚才是在截取新生成结果的树状图和表格区域，检查排版。
+
+  目前已经定位到的问题和改动：
+
+  - Planner 太保守，结论定调 明明是可枚举决策，却返回 none；已放宽规则，现在会出
+    table。
+  - Extractor 把 要点梳理 抽成了 18 个节点的巨树；已加节点上限，最多 12 个。
+  - Tree 渲染原来是超长缩进列表；已改成“根节点 + 主题分栏卡片 + 紧凑子项”。
+  - Master 会展开成第二份纪要；已限制 summary 和 key points 数量。
+  - test_visual_minutes.py 已增加重复纪要检测。
+
+  刚才用清洗后的 general_clean.md 跑出来是：
+
+  正文视觉：s2:tree, s3:table
+
+  也就是 master + 一张结构树 + 一张决策表，不再是只有开头一张图。
+
+  根目录的 general_visual.html
+  还是旧输入生成的，仍带重复内容；要看新效果需要用清洗后的 md
+  重新跑。现在还没完全验收完，下一步是看完树和表格的裁图后继续调版式。
+
+✻ Baked for 6s · done 星期五16:29
+
+※ recap: We’re improving visual_minutes output quality after the duplicated-input issue; I just regenerated clean sample output with one tree and one table visual. Next I’ll inspect the tree/table layout screenshot and adjust the styling before rerunning.

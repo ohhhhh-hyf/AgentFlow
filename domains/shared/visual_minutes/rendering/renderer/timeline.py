@@ -1,8 +1,8 @@
-"""时序里程碑演进路线渲染器（Timeline Flow Renderer - 新拟物软质触感版）。"""
+"""时序里程碑演进路线渲染器（Timeline Flow Renderer - 轴线贯穿与顶置刻度版）。"""
 from __future__ import annotations
 
 from ...models.ir import TimelineVisual
-from .base import NEU_5_COLORS, SVG_ICON_TIMELINE, escape, render_figure_caption
+from .base import NEU_5_COLORS, escape, render_figure_caption
 
 
 def render_timeline(model: TimelineVisual, in_master: bool = False) -> str:
@@ -10,7 +10,7 @@ def render_timeline(model: TimelineVisual, in_master: bool = False) -> str:
     if not events:
         return ""
 
-    cards = []
+    cols = []
     for idx, ev in enumerate(events):
         color, bg, border = NEU_5_COLORS[idx % len(NEU_5_COLORS)]
         detail_html = (
@@ -18,21 +18,23 @@ def render_timeline(model: TimelineVisual, in_master: bool = False) -> str:
             if ev.detail
             else ""
         )
-        cards.append(
-            f'<div class="vm-timeline-item" style="--event-accent: {color}; --event-accent-bg: {bg}; --event-accent-border: {border};">'
-            f'  <div class="vm-timeline-item-header">'
-            f'    <div class="vm-timeline-time">{escape(ev.time_label)}</div>'
-            f'    <span class="vm-timeline-dot" style="background: {color};"></span>'
+        cols.append(
+            f'<div class="vm-timeline-col" style="--event-accent: {color}; --event-accent-bg: {bg}; --event-accent-border: {border};">'
+            f'  <div class="vm-timeline-time-label">{escape(ev.time_label)}</div>'
+            f'  <div class="vm-timeline-node">'
+            f'    <span class="vm-timeline-dot"></span>'
             f'  </div>'
-            f'  <div class="vm-timeline-title">{escape(ev.title)}</div>'
-            f'  {detail_html}'
+            f'  <div class="vm-timeline-card">'
+            f'    <div class="vm-timeline-title">{escape(ev.title)}</div>'
+            f'    {detail_html}'
+            f'  </div>'
             f'</div>'
         )
 
     timeline_canvas_html = f"""
   <div class="vm-timeline-canvas">
     <div class="vm-timeline-track">
-      {''.join(cards)}
+      {''.join(cols)}
     </div>
   </div>
 """

@@ -20,8 +20,9 @@ from .prompts import MASTER_SYSTEM_PROMPT, build_master_user_prompt
 
 logger = logging.getLogger(__name__)
 
-# 结构性过滤停用词（严禁作为通览大图的 block 标题）
+# 结构性过滤词：用于过滤非业务议题的结构/通用栏目，确保通览立柱聚焦实质研讨
 META_STRUCTURAL_HEADINGS = {
+    # 概括与总结类
     "全文摘要",
     "摘要",
     "要点梳理",
@@ -31,9 +32,31 @@ META_STRUCTURAL_HEADINGS = {
     "结论",
     "会议结论",
     "后续安排",
+    "待办事项",
+    "待办清单",
+    "行动项",
+    # 金句引语类（正文原生引用块呈现）
+    "金句总结",
+    "金句时刻",
+    "金句",
+    "经典语录",
+    "名言金句",
+    "人物金句",
+    "定调金句",
+    # 问答对话类（正文原生问答列表呈现）
+    "问答",
+    "现场问答",
+    "问答环节",
+    "关键问答",
+    "互动答疑",
+    "答疑",
+    "qa",
+    "q&a",
+    # 英文通用词
     "summary",
     "overview",
     "conclusion",
+    "action items",
 }
 
 
@@ -48,7 +71,7 @@ def _section_payload(section: SectionNode) -> dict:
 
 
 def fallback_master(parsed: ParsedMinutes) -> MasterVisual:
-    """保证 master 永远存在，智能筛选实质性议题，严禁照抄结构词。"""
+    """保证 master 稳定可用，优先遴选实质性研讨议题作为立柱标题。"""
     substantive = [
         s
         for s in parsed.sections

@@ -780,14 +780,14 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   6. 【时序图谱】Timeline 时间演进
+   6. 【时序图谱】Timeline 时间演进（轴线贯穿 + 顶置时间 + 纯净内容卡）
    ───────────────────────────────────────────────────────────── */
 .vm-timeline-canvas {
   background: var(--vm-neu-bg);
   box-shadow: var(--vm-neu-tray-shadow);
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 14px;
-  padding: 16px;
+  padding: 22px 18px 18px 18px;
 }
 
 .vm-timeline-track {
@@ -796,73 +796,126 @@ TASTE_CSS = """
   flex-wrap: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
-  gap: 14px;
+  gap: 16px;
   align-items: stretch;
-  padding: 6px 4px 12px 4px;
+  padding: 6px 12px 12px 12px;
   scrollbar-width: thin;
   scrollbar-color: #C9CDD4 transparent;
 }
 
-.vm-timeline-item {
+/* 纵向列容器：时间、轴线圆点、卡片纵向严格中心对齐 */
+.vm-timeline-col {
   flex: 1 1 220px;
   min-width: 200px;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+}
+
+/* 1. 顶层：时间刻度（纯净文本，无【】括号） */
+.vm-timeline-time-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: var(--vm-font-mono), var(--vm-font-sans);
+  color: var(--event-accent, var(--vm-ink-title));
+  text-align: center;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1.4;
+  user-select: none;
+  transition: transform 0.2s ease;
+}
+
+.vm-timeline-col:hover .vm-timeline-time-label {
+  transform: translateY(-1px);
+}
+
+/* 2. 中层：贯通轴线与圆点锚点 */
+.vm-timeline-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  margin-bottom: 14px;
+}
+
+/* 贯穿水平直线（向左右各延展 8px 完美弥合列间 gap: 16px） */
+.vm-timeline-node::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -8px;
+  right: -8px;
+  height: 2px;
+  background: #CBD5E1;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+/* 首末节点向外侧适度延展，形成自然贯通视感 */
+.vm-timeline-col:first-child .vm-timeline-node::before {
+  left: -14px;
+}
+.vm-timeline-col:last-child .vm-timeline-node::before {
+  right: -14px;
+}
+
+/* 轴线上的高亮圆点（立体微光） */
+.vm-timeline-dot {
+  position: relative;
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  border: 3px solid var(--event-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 0 3px var(--event-accent-bg, rgba(51, 112, 255, 0.15)), 0 2px 4px rgba(0, 0, 0, 0.08);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+
+.vm-timeline-col:hover .vm-timeline-dot {
+  transform: scale(1.3);
+  box-shadow: 0 0 0 4px var(--event-accent-bg, rgba(51, 112, 255, 0.25)), 0 0 8px var(--event-accent, var(--vm-accent-blue));
+}
+
+/* 3. 下层：纯净事件卡片（无重复时间标签） */
+.vm-timeline-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   background: var(--vm-neu-card);
   border-radius: 12px;
-  padding: 16px 18px 14px 18px;
+  padding: 16px 18px 16px 18px;
   border: 1px solid var(--vm-neu-card-border);
   box-shadow: var(--vm-neu-raised-shadow);
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
   box-sizing: border-box;
+  text-align: left;
 }
 
-.vm-timeline-item:hover {
+.vm-timeline-col:hover .vm-timeline-card {
   transform: translateY(-2px);
   box-shadow: var(--vm-neu-raised-hover);
-}
-
-.vm-timeline-item-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.vm-timeline-time {
-  font-size: 11px;
-  font-weight: 700;
-  font-family: var(--vm-font-mono);
-  color: var(--event-accent, var(--vm-accent-blue));
-  background: var(--vm-neu-bg);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: var(--vm-neu-inset-shadow);
-  padding: 2px 7px;
-  border-radius: 6px;
-  letter-spacing: 0.03em;
-}
-
-.vm-timeline-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  box-shadow: 0 0 6px var(--event-accent, var(--vm-accent-blue));
-  flex-shrink: 0;
 }
 
 .vm-timeline-title {
   font-size: 14px;
   font-weight: 700;
   color: var(--vm-ink-title);
-  line-height: 1.4;
+  line-height: 1.45;
+  margin-bottom: 6px;
 }
 
 .vm-timeline-detail {
   font-size: 12.5px;
   color: var(--vm-ink-body);
-  line-height: 1.55;
-  margin-top: 6px;
+  line-height: 1.6;
+  margin-top: 4px;
   flex: 1;
+  white-space: pre-line;
 }
 
 /* ─────────────────────────────────────────────────────────────
