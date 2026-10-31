@@ -143,16 +143,15 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   1. 【开篇统领】Master Infographic (全景通览大图 - 飞书旗舰商务版)
+   1. 【开篇统领】Master Infographic (全景通览大图 - 无外框自然融入版)
    ───────────────────────────────────────────────────────────── */
 .vm-master-card {
-  background: linear-gradient(180deg, #F4F7FE 0%, #FFFFFF 160px, #FFFFFF 100%);
-  border: 1px solid var(--vm-border);
-  border-radius: 14px;
-  padding: 30px 34px;
-  box-shadow: 0 4px 20px -2px rgba(17, 31, 44, 0.05);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
   position: relative;
-  overflow: hidden;
 }
 
 .vm-master-badge {
@@ -218,9 +217,8 @@ TASTE_CSS = """
 }
 
 .vm-master-block {
-  flex: 0 0 310px;
-  min-width: 300px;
-  max-width: 380px;
+  flex: 1 1 240px;
+  min-width: 230px;
   display: flex;
   flex-direction: column;
   background: var(--vm-neu-card);
@@ -436,9 +434,8 @@ TASTE_CSS = """
 }
 
 .vm-flow-step-card {
-  flex: 0 0 240px;
-  min-width: 240px;
-  max-width: 280px;
+  flex: 1 1 220px;
+  min-width: 200px;
   display: flex;
   flex-direction: column;
   background: var(--vm-neu-card);
@@ -732,9 +729,8 @@ TASTE_CSS = """
 }
 
 .vm-stat-card {
-  flex: 0 0 220px;
-  min-width: 200px;
-  max-width: 260px;
+  flex: 1 1 200px;
+  min-width: 180px;
   display: flex;
   flex-direction: column;
   background: var(--vm-neu-card);
@@ -808,9 +804,8 @@ TASTE_CSS = """
 }
 
 .vm-timeline-item {
-  flex: 0 0 220px;
-  min-width: 220px;
-  max-width: 260px;
+  flex: 1 1 220px;
+  min-width: 200px;
   display: flex;
   flex-direction: column;
   background: var(--vm-neu-card);

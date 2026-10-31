@@ -131,37 +131,38 @@ html {
 
 body {
   margin: 0;
-  background: #F8F9FA;
+  background: #FFFFFF;
   color: var(--vm-ink-body);
   font-family: var(--vm-font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* 飞书同款：外层双栏布局框架 (Layout Wrapper) */
+/* 飞书同款：全屏通透无界画板，纪要黄金版心优雅陈列 (900px Golden Measure) */
 .vm-layout-wrapper {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
-  gap: 28px;
-  max-width: 1360px;
-  margin: 36px auto;
-  padding: 0 24px;
+  gap: 50px;
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 24px 36px 60px 36px;
   box-sizing: border-box;
 }
 
-/* 左侧飞书导航目录栏 (TOC Sidebar) */
+/* 左侧飞书导航目录栏 (TOC Sidebar - 无边框纯净自然融入背景) */
 .vm-toc-sidebar {
-  width: 230px;
+  width: 260px;
   flex-shrink: 0;
   position: sticky;
-  top: 36px;
-  max-height: calc(100vh - 72px);
+  top: 24px;
+  max-height: calc(100vh - 48px);
   overflow-y: auto;
-  padding: 16px 14px;
-  background: #FFFFFF;
-  border: 1px solid var(--vm-border);
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   scrollbar-width: thin;
   scrollbar-color: #C9CDD4 transparent;
 }
@@ -173,9 +174,9 @@ body {
   font-size: 13px;
   font-weight: 700;
   color: var(--vm-ink-title);
-  padding-bottom: 10px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--vm-border);
+  padding: 0 8px 10px 8px;
+  margin-bottom: 4px;
+  border-bottom: none;
   letter-spacing: 0.02em;
 }
 
@@ -226,7 +227,7 @@ body {
 }
 
 .vm-toc-link:hover {
-  background-color: #F0F4FE;
+  background-color: rgba(31, 35, 41, 0.06);
   color: var(--vm-accent-blue);
 }
 
@@ -236,17 +237,18 @@ body {
   font-weight: 600;
 }
 
-/* 右侧主文档画布 (Main Document Canvas) */
+/* 右侧主文档画布：无边框自然融入背景，收束至飞书 900px 黄金版心 */
 .vm-doc {
-  flex: 1;
-  max-width: 980px;
+  flex: 0 1 900px;
+  width: 100%;
+  max-width: 900px;
   min-width: 0;
   margin: 0;
-  padding: 44px 54px;
-  background: #FFFFFF;
-  border: 1px solid var(--vm-border);
-  border-radius: 14px;
-  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.03);
+  padding: 0 12px 48px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   box-sizing: border-box;
 }
 
@@ -299,24 +301,20 @@ body {
   .vm-layout-wrapper {
     flex-direction: column;
     align-items: stretch;
-    padding: 0;
+    padding: 12px 16px;
     margin: 0;
-    gap: 0;
+    gap: 16px;
   }
   .vm-toc-sidebar {
     position: static;
     width: 100%;
     max-height: none;
-    border-radius: 0;
-    border-left: 0;
-    border-right: 0;
-    border-top: 0;
+    border-radius: 10px;
     box-shadow: none;
   }
   .vm-doc {
-    border: 0;
-    border-radius: 0;
-    padding: 24px 18px;
+    max-width: 100%;
+    padding: 12px 0 24px 0;
   }
 }
 """
