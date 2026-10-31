@@ -8,6 +8,7 @@ import asyncio
 import inspect
 import json
 import logging
+import os
 import re
 import tempfile
 import time
@@ -639,6 +640,7 @@ class _Prepared:
     template_source: str = ""
     template_id: str = ""
     template_mode: str = "normal"
+    transcript: str = ""
 
 
 def _runner_args(p: _Prepared) -> dict:
@@ -1012,7 +1014,45 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         template_source=template_source,
         template_id=template_id,
         template_mode=template_mode,
+        transcript=transcript,
     )
+
+
+async def _maybe_generate_visual_minutes(p: _Prepared, request_id: str, md_text: str) -> None:
+    if (
+        p.line == "minutes"
+        and os.getenv("VISUAL_MINUTES_ENABLED", "off").strip().lower() == "on"
+        and md_text
+    ):
+        _vm_start = time.time()
+        logger.info(
+            "[visual_minutes:start] req_id=%s md_len=%d transcript_len=%d",
+            request_id,
+            len(md_text),
+            len(p.transcript),
+        )
+        try:
+            from domains.shared.visual_minutes.pipeline import agenerate_visual_minutes
+
+            visual_html_path = p.ctx.output_dir / "visual.html"
+            await agenerate_visual_minutes(
+                minutes_markdown=md_text,
+                meeting_transcript=p.transcript,
+                output_path=str(visual_html_path),
+            )
+            _vm_dur = round(time.time() - _vm_start, 2)
+            logger.info(
+                "[visual_minutes:finish] req_id=%s output=%s dur=%.2fs status=success",
+                request_id,
+                visual_html_path,
+                _vm_dur,
+            )
+        except Exception as exc:
+            logger.warning(
+                "[visual_minutes:failed] req_id=%s error=%s status=fallback",
+                request_id,
+                exc,
+            )
 
 
 async def run_task(
@@ -1124,6 +1164,9 @@ async def _run_task_impl(
         warning = str(getattr(p, "prepare_warning", "") or "").strip()
     if warning:
         response.quality_warning = warning
+    # 自动扩展生成图文纪要 HTML（VISUAL_MINUTES_ENABLED=on 时生效）
+    await _maybe_generate_visual_minutes(p, request_id, response.data.text)
+
     logger.info(
         "[task:finish] req_id=%s dur=%.2fs total_tokens=%d status=success",
         request_id,
@@ -1349,6 +1392,7 @@ async def iter_task_events(
                     cost_seconds,
                     tokens,
                 )
+                await _maybe_generate_visual_minutes(p, request_id, md_text)
                 yield {
                     "type": "done",
                     "code": 0,

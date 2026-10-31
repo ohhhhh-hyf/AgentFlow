@@ -218,7 +218,7 @@ TASTE_CSS = """
 
 .vm-master-block {
   flex: 1 1 240px;
-  min-width: 230px;
+  min-width: 220px;
   display: flex;
   flex-direction: column;
   background: var(--vm-neu-card);

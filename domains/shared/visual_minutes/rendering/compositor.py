@@ -137,22 +137,22 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 飞书同款：全屏通透无界画板，纪要黄金版心优雅陈列 (900px Golden Measure) */
+/* 飞书同款：全屏通透无界画板，视口动态流式比例弹性自适应 (Fluid Responsive Layout) */
 .vm-layout-wrapper {
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  gap: 50px;
+  gap: clamp(24px, 2.6vw, 56px);
   width: 100%;
   min-height: 100vh;
   margin: 0;
-  padding: 24px 36px 60px 36px;
+  padding: 24px clamp(20px, 2.5vw, 48px) 60px clamp(20px, 2.5vw, 48px);
   box-sizing: border-box;
 }
 
-/* 左侧飞书导航目录栏 (TOC Sidebar - 无边框纯净自然融入背景) */
+/* 左侧飞书导航目录栏 (TOC Sidebar - 动态流式弹性自适应，无边框纯净自然融入背景) */
 .vm-toc-sidebar {
-  width: 260px;
+  width: clamp(200px, 15vw, 280px);
   flex-shrink: 0;
   position: sticky;
   top: 24px;
@@ -237,11 +237,11 @@ body {
   font-weight: 600;
 }
 
-/* 右侧主文档画布：无边框自然融入背景，收束至飞书 900px 黄金版心 */
+/* 右侧主文档画布：无边框自然融入背景，视口动态黄金版心 (780px ~ 1080px)，右侧留白弹性自适应 */
 .vm-doc {
-  flex: 0 1 900px;
+  flex: 0 1 clamp(780px, 56vw, 1080px);
   width: 100%;
-  max-width: 900px;
+  max-width: clamp(780px, 56vw, 1080px);
   min-width: 0;
   margin: 0;
   padding: 0 12px 48px 12px;

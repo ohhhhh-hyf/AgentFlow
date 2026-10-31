@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -47,15 +48,24 @@ async def build_visual_ir(
     try:
         client = llm or VisualLLM()
 
+        _t_plan_start = time.time()
         planner = SectionPlanner(client)
         plan = await planner.plan(parsed.sections)
+        _plan_dur = round(time.time() - _t_plan_start, 2)
         decisions = plan.sections
         warnings = list(plan.warnings)
+        planned = [d for d in decisions if d.visual != "none"]
+        logger.info(
+            "[visual_minutes:plan] sections=%d planned=%s dur=%.2fs",
+            len(parsed.sections),
+            ",".join(f"{d.section_id}:{d.visual}" for d in planned) or "none",
+            _plan_dur,
+        )
 
+        _t_extract_start = time.time()
         master_planner = MasterPlanner(client)
         extractor = VisualExtractor(client)
         semaphore = asyncio.Semaphore(MAX_EXTRACT_CONCURRENCY)
-        planned = [d for d in decisions if d.visual != "none"]
 
         async def _extract(decision):
             section = next(
@@ -73,6 +83,12 @@ async def build_visual_ir(
         )
         extract_tasks = [asyncio.create_task(_extract(d)) for d in planned]
         results = await asyncio.gather(master_task, *extract_tasks)
+        _extract_dur = round(time.time() - _t_extract_start, 2)
+        logger.info(
+            "[visual_minutes:extract] widgets=%d master=ok dur=%.2fs",
+            len(planned),
+            _extract_dur,
+        )
         master_result = results[0]
         extracted = results[1:]
         warnings.extend(master_result.warnings)
@@ -111,6 +127,11 @@ async def agenerate_visual_minutes(
     ir = await build_visual_ir(minutes_markdown, meeting_transcript, llm=llm)
     parsed = parse_minutes(minutes_markdown)
     html = DocumentCompositor().composite(parsed, ir)
+    logger.info(
+        "[visual_minutes:render] html_bytes=%d warnings=%d",
+        len(html.encode("utf-8")),
+        len(ir.warnings),
+    )
     if output_path:
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
