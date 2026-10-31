@@ -1018,41 +1018,134 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     )
 
 
-async def _maybe_generate_visual_minutes(p: _Prepared, request_id: str, md_text: str) -> None:
+def _is_intelligent_minutes_enabled() -> bool:
+    """是否开启智能图文纪要（含段落速览/智能章节并在 visual.html 中呈现）。"""
+    val = os.getenv("INTELLIGENT_MINUTES_ENABLED")
+    if val is None:
+        val = os.getenv("VISUAL_MINUTES_ENABLED", "off")
+    return val.strip().lower() == "on"
+
+
+def _maybe_start_section_summary_task(
+    p: _Prepared, request_id: str
+) -> asyncio.Task | None:
+    """若开启智能纪要且输入逐字稿非空，立即并发拉起段落速览（Section Summary）后台任务。"""
     if (
         p.line == "minutes"
-        and os.getenv("VISUAL_MINUTES_ENABLED", "off").strip().lower() == "on"
-        and md_text
+        and _is_intelligent_minutes_enabled()
+        and bool((p.transcript or "").strip())
     ):
-        _vm_start = time.time()
-        logger.info(
-            "[visual_minutes:start] req_id=%s md_len=%d transcript_len=%d",
-            request_id,
-            len(md_text),
-            len(p.transcript),
-        )
         try:
-            from domains.shared.visual_minutes.pipeline import agenerate_visual_minutes
+            from domains.shared.section_summary import agenerate_section_summary
 
-            visual_html_path = p.ctx.output_dir / "visual.html"
-            await agenerate_visual_minutes(
-                minutes_markdown=md_text,
-                meeting_transcript=p.transcript,
-                output_path=str(visual_html_path),
-            )
-            _vm_dur = round(time.time() - _vm_start, 2)
             logger.info(
-                "[visual_minutes:finish] req_id=%s output=%s dur=%.2fs status=success",
+                "[section_summary:start] req_id=%s transcript_len=%d",
                 request_id,
-                visual_html_path,
-                _vm_dur,
+                len(p.transcript),
             )
+            return asyncio.create_task(agenerate_section_summary(p.transcript))
         except Exception as exc:
             logger.warning(
-                "[visual_minutes:failed] req_id=%s error=%s status=fallback",
+                "[section_summary:launch_failed] req_id=%s error=%s",
                 request_id,
                 exc,
             )
+            return None
+    return None
+
+
+async def _maybe_generate_visual_minutes(
+    p: _Prepared,
+    request_id: str,
+    md_text: str,
+    *,
+    summary_task: asyncio.Task | None = None,
+) -> None:
+    if not (p.line == "minutes" and _is_intelligent_minutes_enabled() and md_text):
+        return
+
+    _vm_start = time.time()
+    logger.info(
+        "[visual_minutes:start] req_id=%s md_len=%d transcript_len=%d",
+        request_id,
+        len(md_text),
+        len(p.transcript),
+    )
+
+    md_for_visual = md_text
+
+    # 等待并发的段落速览结果，并解析追加到图文纪要 Markdown 末尾（不影响 data.text 纯净性）
+    if summary_task is not None:
+        try:
+            summary_res = await summary_task
+            sec_md = getattr(summary_res, "markdown", "").strip()
+            if sec_md:
+                md_for_visual = f"{md_text.rstrip()}\n\n## 智能章节\n\n{sec_md}\n"
+                logger.info(
+                    "[section_summary:finish] req_id=%s sections_cnt=%d sec_len=%d status=success",
+                    request_id,
+                    len(getattr(summary_res, "sections", [])),
+                    len(sec_md),
+                )
+            else:
+                logger.info(
+                    "[section_summary:empty] req_id=%s (no sections parsed)",
+                    request_id,
+                )
+        except Exception as exc:
+            logger.warning(
+                "[section_summary:failed] req_id=%s error=%s status=fallback",
+                request_id,
+                exc,
+            )
+    elif bool((p.transcript or "").strip()):
+        try:
+            from domains.shared.section_summary import agenerate_section_summary
+
+            logger.info(
+                "[section_summary:direct_start] req_id=%s transcript_len=%d",
+                request_id,
+                len(p.transcript),
+            )
+            summary_res = await agenerate_section_summary(p.transcript)
+            sec_md = getattr(summary_res, "markdown", "").strip()
+            if sec_md:
+                md_for_visual = f"{md_text.rstrip()}\n\n## 智能章节\n\n{sec_md}\n"
+                logger.info(
+                    "[section_summary:direct_finish] req_id=%s sections_cnt=%d sec_len=%d status=success",
+                    request_id,
+                    len(getattr(summary_res, "sections", [])),
+                    len(sec_md),
+                )
+        except Exception as exc:
+            logger.warning(
+                "[section_summary:direct_failed] req_id=%s error=%s status=fallback",
+                request_id,
+                exc,
+            )
+
+    try:
+        from domains.shared.visual_minutes.pipeline import agenerate_visual_minutes
+
+        visual_html_path = p.ctx.output_dir / "visual.html"
+        await agenerate_visual_minutes(
+            minutes_markdown=md_for_visual,
+            meeting_transcript=p.transcript,
+            output_path=str(visual_html_path),
+        )
+        _vm_dur = round(time.time() - _vm_start, 2)
+        logger.info(
+            "[visual_minutes:finish] req_id=%s output=%s dur=%.2fs status=success",
+            request_id,
+            visual_html_path,
+            _vm_dur,
+        )
+    except Exception as exc:
+        logger.warning(
+            "[visual_minutes:failed] req_id=%s error=%s status=fallback",
+            request_id,
+            exc,
+        )
 
 
 async def run_task(
@@ -1089,6 +1182,9 @@ async def _run_task_impl(
     p = await asyncio.to_thread(_prepare, domain, task, req, user_id)
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
+
+    # 智能纪要并发任务：若开启且为纪要任务，立即并发拉起段落速览
+    summary_task = _maybe_start_section_summary_task(p, request_id)
 
     from core.runner.runner import run
 
@@ -1164,8 +1260,14 @@ async def _run_task_impl(
         warning = str(getattr(p, "prepare_warning", "") or "").strip()
     if warning:
         response.quality_warning = warning
-    # 自动扩展生成图文纪要 HTML（VISUAL_MINUTES_ENABLED=on 时生效）
-    await _maybe_generate_visual_minutes(p, request_id, response.data.text)
+    # 自动扩展生成智能图文纪要 HTML（INTELLIGENT_MINUTES_ENABLED=on 时生效）
+    try:
+        await _maybe_generate_visual_minutes(
+            p, request_id, response.data.text, summary_task=summary_task
+        )
+    finally:
+        if summary_task is not None and not summary_task.done():
+            summary_task.cancel()
 
     logger.info(
         "[task:finish] req_id=%s dur=%.2fs total_tokens=%d status=success",
@@ -1244,6 +1346,9 @@ async def iter_task_events(
         return
     # 产物直接写入本次请求目录（data/{user_id}/output/{request_id}/），不再走根目录 output/ 归档
     p.ctx.output_dir = output_dir(user_id, request_id)
+
+    # 智能纪要并发任务：若开启且为纪要任务，立即并发拉起段落速览
+    summary_task = _maybe_start_section_summary_task(p, request_id)
 
     from core.runner.runner import _handle_done, prepare_run
 
@@ -1392,7 +1497,9 @@ async def iter_task_events(
                     cost_seconds,
                     tokens,
                 )
-                await _maybe_generate_visual_minutes(p, request_id, md_text)
+                await _maybe_generate_visual_minutes(
+                    p, request_id, md_text, summary_task=summary_task
+                )
                 yield {
                     "type": "done",
                     "code": 0,
@@ -1430,6 +1537,8 @@ async def iter_task_events(
         )
         yield {"type": "error", "code": 500, "message": f"任务运行失败：{exc}"}
     finally:
+        if summary_task is not None and not summary_task.done():
+            summary_task.cancel()
         if prep.task_monitor is not None:
             try:
                 prep.task_monitor.finish(
