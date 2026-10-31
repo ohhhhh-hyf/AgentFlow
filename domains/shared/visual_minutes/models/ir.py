@@ -109,7 +109,7 @@ class StatMetric(BaseModel):
 
     label: str
     value: str
-    evidence: str = ""
+    evidence: str = ""  # 已废弃字段：不再渲染且模型不再输出，保留默认值以完全兼容已有缓存
 
 
 class StatsData(BaseModel):

@@ -1,13 +1,13 @@
-"""流转推进管线渲染器（Process Pipeline Renderer - 飞书旗舰商务版）。
+"""流转推进管线渲染器（Process Pipeline Renderer - 新拟物软质触感版）。
 
-专注于呈现清晰、专业、高质感的先后推进步骤与交付链路，杜绝任何杂乱的堆叠文本。
+卡片无冗余序号前缀，卡片与卡片之间使用短有向箭头相连。
 """
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
 
 from ...models.ir import FlowEdge, FlowNode, FlowVisual
-from .base import SVG_ICON_FLOW, escape, render_figure_caption
+from .base import NEU_5_COLORS, SVG_ICON_FLOW, escape, render_figure_caption
 
 
 def render_flow(model: FlowVisual, in_master: bool = False) -> str:
@@ -21,14 +21,14 @@ def render_flow(model: FlowVisual, in_master: bool = False) -> str:
     for e in edges:
         forward_edges[(e.source, e.target)] = e
 
-    # 渲染推进管线卡片流（Feishu Pipeline Cards）
+    # 渲染推进管线卡片流（Neumorphism Pipeline Cards）
     step_items: list[str] = []
     num_nodes = len(nodes)
 
     for idx, node in enumerate(nodes, start=1):
-        step_tag = f"STEP {idx:02d}"
+        color, bg, border = NEU_5_COLORS[(idx - 1) % len(NEU_5_COLORS)]
 
-        # 检查是否有从当前节点流向下一个节点的顺向边
+        # 检查是否有顺向边 label
         next_edge_label = ""
         if idx < num_nodes:
             nxt = nodes[idx]
@@ -54,15 +54,28 @@ def render_flow(model: FlowVisual, in_master: bool = False) -> str:
         )
 
         step_items.append(
-            f'<div class="vm-flow-step-card">'
+            f'<div class="vm-flow-step-card" style="--step-accent: {color}; --step-accent-bg: {bg}; --step-accent-border: {border};">'
             f'  <div class="vm-step-card-header">'
-            f'    <span class="vm-flow-node-step">{step_tag}</span>'
-            f'    <div class="vm-flow-node-title">{escape(node.title)}</div>'
+            f'    <div class="vm-flow-node-title-row">'
+            f'      <span class="vm-flow-step-dot" style="background: {color};"></span>'
+            f'      <div class="vm-flow-node-title">{escape(node.title)}</div>'
+            f'    </div>'
             f'  </div>'
             f'  {detail_html}'
             f'  {delivery_html}'
             f'</div>'
         )
+
+        # 卡片之间连接的短有向箭头
+        if idx < num_nodes:
+            step_items.append(
+                f'<div class="vm-flow-connector" aria-hidden="true">'
+                f'  <svg class="vm-connector-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+                f'    <line x1="5" y1="12" x2="19" y2="12"></line>'
+                f'    <polyline points="13 6 19 12 13 18"></polyline>'
+                f'  </svg>'
+                f'</div>'
+            )
 
     flow_container_html = f"""
   <div class="vm-flow-container">

@@ -11,6 +11,16 @@ SVG_ICON_TABLE = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" strok
 SVG_ICON_TREE = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>'
 SVG_ICON_STATS = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>'
 SVG_ICON_TIMELINE = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>'
+
+# 新拟物 5 轮转色阶体系 (蓝、青、紫、绿、橙)
+NEU_5_COLORS = [
+    ("var(--vm-accent-blue)", "var(--vm-accent-blue-bg)", "var(--vm-accent-blue-border)"),
+    ("var(--vm-accent-cyan)", "var(--vm-accent-cyan-bg)", "var(--vm-accent-cyan-border)"),
+    ("var(--vm-accent-purple)", "var(--vm-accent-purple-bg)", "var(--vm-accent-purple-border)"),
+    ("var(--vm-accent-emerald)", "var(--vm-accent-emerald-bg)", "var(--vm-accent-emerald-border)"),
+    ("var(--vm-accent-amber)", "var(--vm-accent-amber-bg)", "var(--vm-accent-amber-border)"),
+]
+
 SVG_ICON_LOOP = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>'
 
 
@@ -36,6 +46,20 @@ TASTE_CSS = """
   --vm-accent-amber: #FF7D00;
   --vm-accent-amber-bg: #FFF7E8;
   --vm-accent-amber-border: #FFD591;
+
+  /* ─────────────────────────────────────────────────────────────
+     新拟物软质触感 UI 规范 (Neumorphism Tactile Tokens)
+     专用于 Flow、Timeline、Tree 三类核心图表卡片
+     ───────────────────────────────────────────────────────────── */
+  --vm-neu-bg: #EEF2F7;
+  --vm-neu-card: #F4F7FC;
+  --vm-neu-dark-shadow: rgba(166, 180, 200, 0.40);
+  --vm-neu-light-shadow: #FFFFFF;
+  --vm-neu-card-border: rgba(255, 255, 255, 0.9);
+  --vm-neu-tray-shadow: inset 3px 3px 8px var(--vm-neu-dark-shadow), inset -3px -3px 8px var(--vm-neu-light-shadow);
+  --vm-neu-raised-shadow: 4px 4px 10px var(--vm-neu-dark-shadow), -4px -4px 10px var(--vm-neu-light-shadow);
+  --vm-neu-raised-hover: 6px 6px 14px rgba(166, 180, 200, 0.52), -6px -6px 14px var(--vm-neu-light-shadow);
+  --vm-neu-inset-shadow: inset 2px 2px 4px var(--vm-neu-dark-shadow), inset -2px -2px 4px var(--vm-neu-light-shadow);
 
   /* 文字墨水规范（保持全局字体大小稳定） */
   --vm-ink-title: #1D2129;
@@ -156,17 +180,57 @@ TASTE_CSS = """
 }
 
 .vm-master-thesis {
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--vm-ink-body);
-  background: #FFFFFF;
-  border: 1px solid var(--vm-border);
-  border-left: 3.5px solid var(--vm-accent-blue);
-  border-radius: 6px;
-  padding: 12px 16px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-inset-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  padding: 13px 18px;
   margin: 0 0 24px 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-sizing: border-box;
+}
+
+.vm-thesis-lead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.vm-thesis-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--vm-accent-blue);
+  box-shadow: 0 0 6px var(--vm-accent-blue);
+  flex-shrink: 0;
+}
+
+.vm-thesis-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: var(--vm-font-mono);
+  color: var(--vm-accent-blue);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.vm-thesis-divider {
+  width: 2px;
+  height: 18px;
+  background: #DCE3EC;
+  border-right: 1px solid #FFFFFF;
+  flex-shrink: 0;
+}
+
+.vm-thesis-content {
+  font-size: 13.5px;
   font-weight: 500;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  color: var(--vm-ink-title);
+  line-height: 1.6;
+  flex: 1;
 }
 
 .vm-master-widgets-container {
@@ -198,33 +262,34 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
-  padding-bottom: 12px;
-  padding-top: 4px;
-  padding-left: 2px;
-  padding-right: 2px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 16px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 #F2F3F5;
+  scrollbar-color: #C9CDD4 transparent;
 }
 
 .vm-master-block {
-  flex: 1 0 310px;
-  min-width: 310px;
+  flex: 0 0 310px;
+  min-width: 300px;
   max-width: 380px;
   display: flex;
   flex-direction: column;
-  background: #FFFFFF;
-  border-radius: var(--vm-radius);
-  padding: 20px 20px 16px 20px;
-  border: 1px solid var(--vm-border);
-  border-top: 3.5px solid var(--block-accent, var(--vm-accent-blue));
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: var(--vm-neu-card);
+  border-radius: 12px;
+  padding: 18px 20px 16px 20px;
+  border: 1px solid var(--vm-neu-card-border);
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
   box-sizing: border-box;
+  position: relative;
 }
 
 .vm-master-block:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--vm-neu-raised-hover);
 }
 
 /* 飞书主题分色体系 */
@@ -262,17 +327,19 @@ TASTE_CSS = """
   margin-bottom: 8px;
 }
 
-.vm-block-tag {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--block-accent, var(--vm-accent-blue));
-  background: var(--block-accent-bg, var(--vm-accent-blue-bg));
-  border: 1px solid var(--block-accent-border, var(--vm-accent-blue-border));
-  padding: 2px 7px;
-  border-radius: 4px;
-  letter-spacing: 0.04em;
-  margin-bottom: 8px;
+.vm-master-block-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vm-block-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--block-accent, var(--vm-accent-blue));
+  background-color: var(--block-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
 }
 
 .vm-master-block-title {
@@ -280,7 +347,6 @@ TASTE_CSS = """
   font-weight: 700;
   color: var(--vm-ink-title);
   line-height: 1.4;
-  margin-bottom: 6px;
 }
 
 .vm-master-block-summary {
@@ -318,15 +384,17 @@ TASTE_CSS = """
   height: 4px;
   border-radius: 50%;
   background-color: var(--block-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 4px var(--block-accent, var(--vm-accent-blue));
 }
 
-/* 嵌入式专属高光底盒 */
+/* 嵌入式专属高光底盒 (Neumorphic Inset Pill) */
 .vm-master-block-highlight {
   margin-top: auto;
-  background: var(--block-accent-bg, var(--vm-accent-blue-bg));
-  border: 1px solid var(--block-accent-border, var(--vm-accent-blue-border));
-  border-radius: 6px;
-  padding: 10px 12px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-inset-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -401,6 +469,11 @@ TASTE_CSS = """
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 16px;
 }
 
 .vm-flow-track {
@@ -411,12 +484,9 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 14px;
   align-items: stretch;
-  padding-bottom: 12px;
-  padding-top: 4px;
-  padding-left: 2px;
-  padding-right: 2px;
+  padding: 6px 4px 12px 4px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 #F2F3F5;
+  scrollbar-color: #C9CDD4 transparent;
 }
 
 .vm-flow-step-card {
@@ -425,38 +495,40 @@ TASTE_CSS = """
   max-width: 280px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-tone-card);
-  border-radius: var(--vm-radius);
+  background: var(--vm-neu-card);
+  border-radius: 12px;
   padding: 16px 18px 14px 18px;
-  border: 1px solid var(--vm-border);
-  border-top: 3px solid var(--vm-accent-blue);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid var(--vm-neu-card-border);
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
   box-sizing: border-box;
+  position: relative;
 }
 
 .vm-flow-step-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(51, 112, 255, 0.08);
+  box-shadow: var(--vm-neu-raised-hover);
 }
 
 .vm-step-card-header {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   margin-bottom: 8px;
 }
 
-.vm-flow-node-step {
-  align-self: flex-start;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--vm-accent-blue);
-  background: var(--vm-accent-blue-bg);
-  border: 1px solid var(--vm-accent-blue-border);
-  padding: 1px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.05em;
+.vm-flow-node-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vm-flow-step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--step-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
 }
 
 .vm-flow-node-title {
@@ -466,19 +538,39 @@ TASTE_CSS = """
   line-height: 1.4;
 }
 
+.vm-flow-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  color: #A0ABC0;
+  user-select: none;
+}
+
+.vm-connector-arrow {
+  opacity: 0.8;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.vm-flow-track:hover .vm-connector-arrow {
+  opacity: 1;
+}
+
 .vm-flow-node-detail {
   font-size: 12.5px;
-  color: var(--vm-ink-muted);
+  color: var(--vm-ink-body);
   line-height: 1.6;
   flex: 1;
 }
 
 .vm-flow-delivery {
-  margin-top: auto;
+  margin-top: 10px;
   padding: 6px 10px;
-  background: #F7F8FA;
-  border: 1px solid var(--vm-border);
-  border-radius: 5px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-inset-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -487,7 +579,7 @@ TASTE_CSS = """
 }
 
 .vm-delivery-arrow {
-  color: var(--vm-accent-blue);
+  color: var(--step-accent, var(--vm-accent-blue));
   flex-shrink: 0;
 }
 
@@ -497,53 +589,109 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   3. 【对比矩阵】Table / Matrix 对比表 (飞书结构化表格)
+   3. 【对比矩阵】Table / Matrix 对比表 (新拟物软质触感版)
    ───────────────────────────────────────────────────────────── */
 .vm-table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--vm-border);
-  border-radius: 10px;
-  background: var(--vm-tone-card);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 14px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 transparent;
 }
 
 .vm-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 8px;
   font-size: 13px;
   min-width: 580px;
 }
 
-.vm-table th, .vm-table td {
+.vm-table th {
+  padding: 8px 14px 6px 14px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  font-size: 13px;
+  border: none;
+}
+
+.vm-th-dim {
+  width: 17%;
+  min-width: 100px;
+  color: var(--vm-ink-muted);
+}
+
+.vm-th-col {
+  /* 释放充足横向排布宽度，避免多字数挤压折行 */
+  width: auto;
+}
+
+.vm-th-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.vm-th-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vm-table-row {
+  filter: drop-shadow(0 2px 5px rgba(166, 180, 200, 0.35));
+  transition: filter 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.vm-table-row:hover {
+  filter: drop-shadow(0 4px 10px rgba(166, 180, 200, 0.48));
+}
+
+.vm-table td {
   padding: 12px 16px;
   text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--vm-border);
-  line-height: 1.6;
+  vertical-align: middle;
+  background: var(--vm-neu-card);
+  border-top: 1px solid var(--vm-neu-card-border);
+  border-bottom: 1px solid var(--vm-neu-card-border);
+  color: var(--vm-ink-body);
+  line-height: 1.55;
 }
 
-.vm-table th {
-  background: #F7F8FA;
-  color: var(--vm-ink-title);
+.vm-td-dim {
+  width: 17%;
+  min-width: 100px;
+  border-left: 1px solid var(--vm-neu-card-border);
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+.vm-dim-badge {
+  display: inline-block;
+  font-size: 11.5px;
   font-weight: 700;
+  color: var(--vm-ink-title);
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-inset-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+
+.vm-td-val {
   font-size: 13px;
-  border-bottom: 2px solid var(--vm-border);
 }
 
-.vm-table td:first-child {
-  font-weight: 700;
-  color: var(--vm-ink-title);
-  background: #FAFBFC;
-  width: 22%;
-  min-width: 130px;
-}
-
-.vm-table tr:last-child td {
-  border-bottom: 0;
-}
-
-.vm-table tr:hover td {
-  background-color: #F0F4FE;
+.vm-table tr td:last-child {
+  border-right: 1px solid var(--vm-neu-card-border);
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -552,55 +700,61 @@ TASTE_CSS = """
 .vm-tree-container {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  background: #FFFFFF;
-  border: 1px solid var(--vm-border);
-  border-radius: 12px;
+  gap: 12px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
   padding: 18px 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
 .vm-tree-layer-card {
-  background: #FAFBFC;
-  border: 1px solid var(--vm-border);
-  border-left: 4px solid var(--vm-accent-blue);
-  border-radius: 6px;
-  padding: 12px 16px;
+  background: var(--vm-neu-card);
+  border: 1px solid var(--vm-neu-card-border);
+  border-radius: 10px;
+  padding: 13px 18px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  gap: 16px;
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  box-sizing: border-box;
 }
 
 .vm-tree-layer-card:hover {
-  background: #FFFFFF;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1.5px);
+  box-shadow: var(--vm-neu-raised-hover);
 }
 
-.vm-tree-layer-badge {
+.vm-tree-layer-lead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   flex-shrink: 0;
-  font-size: 11.5px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  font-family: var(--vm-font-mono);
-  letter-spacing: 0.02em;
+  min-width: 120px;
+}
+
+.vm-tree-layer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--layer-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
 }
 
 .vm-tree-layer-title {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 700;
   color: var(--vm-ink-title);
-  min-width: 120px;
-  flex-shrink: 0;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
 }
 
 .vm-tree-layer-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--vm-border);
+  width: 2px;
+  height: 20px;
+  background: #DCE3EC;
+  border-right: 1px solid #FFFFFF;
   flex-shrink: 0;
 }
 
@@ -612,7 +766,7 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   5. 【量化成效】Stats 关键指标大卡
+   5. 【量化成效】Stats 关键指标大卡 (新拟物软质触感版)
    ───────────────────────────────────────────────────────────── */
 .vm-stats-grid {
   display: flex;
@@ -622,70 +776,76 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 14px;
   align-items: stretch;
-  padding-bottom: 12px;
-  padding-top: 4px;
-  padding-left: 2px;
-  padding-right: 2px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 16px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 #F2F3F5;
+  scrollbar-color: #C9CDD4 transparent;
 }
 
 .vm-stat-card {
   flex: 0 0 220px;
-  min-width: 220px;
+  min-width: 200px;
   max-width: 260px;
   display: flex;
   flex-direction: column;
-  background: #FFFFFF;
-  border: 1px solid var(--vm-border);
-  border-top: 3.5px solid var(--vm-accent-blue);
-  border-radius: 10px;
-  padding: 18px 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: var(--vm-neu-card);
+  border: 1px solid var(--vm-neu-card-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
   box-sizing: border-box;
 }
 
 .vm-stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--vm-neu-raised-hover);
+}
+
+.vm-stat-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.vm-stat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--stat-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
 }
 
 .vm-stat-value {
-  font-size: 24px;
+  font-size: 15.5px;
   font-weight: 700;
-  color: var(--vm-accent-blue);
+  color: var(--stat-accent, var(--vm-accent-blue));
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
 }
 
 .vm-stat-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--vm-ink-title);
-  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--vm-ink-body);
+  line-height: 1.55;
   flex: 1;
-}
-
-.vm-stat-evidence {
-  font-size: 11.5px;
-  color: var(--vm-ink-muted);
-  margin-top: auto;
-  line-height: 1.5;
-  background: #F7F8FA;
-  padding: 4px 8px;
-  border-radius: 4px;
 }
 
 /* ─────────────────────────────────────────────────────────────
    6. 【时序图谱】Timeline 时间演进
    ───────────────────────────────────────────────────────────── */
 .vm-timeline-canvas {
-  background: var(--vm-tone-stone-light);
-  border: 1px solid var(--vm-border);
-  border-radius: var(--vm-radius-lg);
-  padding: 22px 24px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 16px;
 }
 
 .vm-timeline-track {
@@ -696,12 +856,9 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 14px;
   align-items: stretch;
-  padding-bottom: 12px;
-  padding-top: 4px;
-  padding-left: 2px;
-  padding-right: 2px;
+  padding: 6px 4px 12px 4px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 #F2F3F5;
+  scrollbar-color: #C9CDD4 transparent;
 }
 
 .vm-timeline-item {
@@ -710,23 +867,50 @@ TASTE_CSS = """
   max-width: 260px;
   display: flex;
   flex-direction: column;
-  background: #FFFFFF;
-  border: 1px solid var(--vm-border);
-  border-top: 3px solid var(--vm-accent-blue);
-  border-radius: var(--vm-radius);
-  padding: 14px 16px;
+  background: var(--vm-neu-card);
+  border-radius: 12px;
+  padding: 16px 18px 14px 18px;
+  border: 1px solid var(--vm-neu-card-border);
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
   box-sizing: border-box;
 }
 
+.vm-timeline-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--vm-neu-raised-hover);
+}
+
+.vm-timeline-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
 .vm-timeline-time {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--vm-accent-blue);
-  margin-bottom: 5px;
+  font-family: var(--vm-font-mono);
+  color: var(--event-accent, var(--vm-accent-blue));
+  background: var(--vm-neu-bg);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: var(--vm-neu-inset-shadow);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.03em;
+}
+
+.vm-timeline-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--event-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
 }
 
 .vm-timeline-title {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--vm-ink-title);
   line-height: 1.4;
@@ -734,9 +918,9 @@ TASTE_CSS = """
 
 .vm-timeline-detail {
   font-size: 12.5px;
-  color: var(--vm-ink-muted);
+  color: var(--vm-ink-body);
   line-height: 1.55;
-  margin-top: 5px;
+  margin-top: 6px;
   flex: 1;
 }
 
@@ -782,6 +966,15 @@ TASTE_CSS = """
 /* 响应式精修 */
 @media (max-width: 640px) {
   .vm-master-card { padding: 20px 16px; }
+  .vm-master-thesis {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .vm-thesis-divider {
+    display: none;
+  }
   .vm-tree-layer-card {
     flex-direction: column;
     gap: 4px;
@@ -814,6 +1007,7 @@ __all__ = [
     "SVG_ICON_TABLE",
     "SVG_ICON_TIMELINE",
     "SVG_ICON_TREE",
+    "NEU_5_COLORS",
     "TASTE_CSS",
     "escape",
     "render_figure_caption",

@@ -21,7 +21,6 @@ def _render_cards_widget(widget: CardsVisual) -> str:
     cards = []
     for idx, item in enumerate(items, start=1):
         theme = THEMES[(idx - 1) % len(THEMES)]
-        tag_text = item.tag or f"议题 {idx:02d}"
         points = "".join(f"<li>{escape(p)}</li>" for p in item.key_points if p.strip())
         points_html = f'<ul class="vm-master-points">{points}</ul>' if points else ""
 
@@ -45,8 +44,10 @@ def _render_cards_widget(widget: CardsVisual) -> str:
         cards.append(
             f'<div class="vm-master-block vm-theme-{theme}">'
             f'  <div class="vm-block-header">'
-            f'    <span class="vm-block-tag">{escape(tag_text)}</span>'
-            f'    <div class="vm-master-block-title">{escape(item.title)}</div>'
+            f'    <div class="vm-master-block-title-row">'
+            f'      <span class="vm-block-dot" style="background: var(--block-accent);"></span>'
+            f'      <div class="vm-master-block-title">{escape(item.title)}</div>'
+            f'    </div>'
             f'  </div>'
             f'  <div class="vm-master-block-summary">{escape(item.summary)}</div>'
             f'  {points_html}'
@@ -94,7 +95,6 @@ def render_master(model: MasterVisual) -> str:
         blocks = []
         for idx, block in enumerate(model.blocks, start=1):
             theme = THEMES[(idx - 1) % len(THEMES)]
-            tag_text = f"议题 {idx:02d}"
             points = "".join(f"<li>{escape(p)}</li>" for p in block.key_points if p.strip())
             points_html = f'<ul class="vm-master-points">{points}</ul>' if points else ""
 
@@ -118,8 +118,10 @@ def render_master(model: MasterVisual) -> str:
             blocks.append(
                 f'<div class="vm-master-block vm-theme-{theme}">'
                 f'  <div class="vm-block-header">'
-                f'    <span class="vm-block-tag">{tag_text}</span>'
-                f'    <div class="vm-master-block-title">{escape(block.title)}</div>'
+                f'    <div class="vm-master-block-title-row">'
+                f'      <span class="vm-block-dot" style="background: var(--block-accent);"></span>'
+                f'      <div class="vm-master-block-title">{escape(block.title)}</div>'
+                f'    </div>'
                 f'  </div>'
                 f'  <div class="vm-master-block-summary">{escape(block.summary)}</div>'
                 f'  {points_html}'
@@ -134,14 +136,22 @@ def render_master(model: MasterVisual) -> str:
     headline = escape(model.headline)
     thesis = escape(model.thesis)
 
+    thesis_html = ""
+    if thesis:
+        thesis_html = f'''    <div class="vm-master-thesis">
+      <div class="vm-thesis-lead">
+        <span class="vm-thesis-dot"></span>
+        <span class="vm-thesis-badge">核心定调</span>
+      </div>
+      <div class="vm-thesis-divider"></div>
+      <div class="vm-thesis-content">{thesis}</div>
+    </div>'''
+
     return f"""
 <div class="vm-visual vm-master">
   <div class="vm-master-card">
     <h1 class="vm-master-headline">{headline}</h1>
-    <div class="vm-master-thesis">
-      <span class="vm-thesis-quote-bar"></span>
-      <div class="vm-thesis-content">{thesis}</div>
-    </div>
+{thesis_html}
     <div class="vm-master-widgets-container">
       {''.join(widgets_html)}
     </div>
