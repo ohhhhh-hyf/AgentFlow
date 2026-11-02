@@ -100,7 +100,7 @@ def test_parse_leading_bullet_headers() -> None:
         ("53:10", "发言者 2"),
     ]
     assert format_transcript_for_prompt(lines).splitlines()[0] == (
-        "52:00 [发言者 1] 内容一"
+        "52:00 内容一"
     )
 
 
@@ -117,8 +117,8 @@ def test_parse_without_timestamp_raises() -> None:
 def test_format_transcript_for_prompt() -> None:
     lines = parse_transcript(TRANSCRIPT)
     text = format_transcript_for_prompt(lines)
-    assert text.splitlines()[0] == "00:00:00 [申家坤] 今天主要三件事：版本发布、线上问题、下周排期。"
-    assert text.splitlines()[1].startswith("00:00:30 [李娜]")
+    assert text.splitlines()[0] == "00:00:00 今天主要三件事：版本发布、线上问题、下周排期。"
+    assert text.splitlines()[1].startswith("00:00:30 ")
 
 
 def test_normalize_canonicalizes_time_and_limits_fields() -> None:
@@ -246,7 +246,7 @@ def test_agent_uses_prompt_and_fake_client() -> None:
     assert "**关键词：版本发布、提测**  \n" in result.markdown
 
     system_prompt, user_prompt, kwargs = client.calls[0]
-    assert "00:00:00 [申家坤]" in system_prompt
+    assert "00:00:00 今天主要三件事" in system_prompt
     assert "{{transcript}}" not in system_prompt
     assert user_prompt
     assert kwargs["temperature"] == 0.0
@@ -265,9 +265,9 @@ def test_agent_falls_back_on_bad_json() -> None:
 
 
 def test_prompt_contains_placeholder_and_key_rules() -> None:
-    assert SECTION_SUMMARY_PROMPT.startswith("你是会议段落速览助手。")
+    assert SECTION_SUMMARY_PROMPT.startswith("你是会议智能章节提炼助手。")
     assert "{{transcript}}" in SECTION_SUMMARY_PROMPT
-    assert "R5 边界不明确时" in SECTION_SUMMARY_PROMPT
+    assert "3 ~ 8 个大章节" in SECTION_SUMMARY_PROMPT
     assert "time_start" in SECTION_SUMMARY_PROMPT
     assert "key_words" in SECTION_SUMMARY_PROMPT
 

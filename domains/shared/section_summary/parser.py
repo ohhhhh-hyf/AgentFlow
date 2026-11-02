@@ -141,15 +141,14 @@ def parse_transcript(transcript: str) -> List[TranscriptLine]:
 
 
 def format_transcript_for_prompt(lines: List[TranscriptLine]) -> str:
-    """格式化为 Prompt 要求的 ``时间戳 [发言人] 内容`` 单行文本。"""
+    """格式化为 Prompt 要求的 ``时间戳 发言内容`` 单行文本（剥离发言人代号）。"""
     formatted: List[str] = []
     for line in lines:
-        speaker = re.sub(r"[\[\]【】]", "", line.speaker or "").strip() or "未知发言人"
         text = re.sub(r"\s+", " ", line.text or "").strip()
-        entry = f"{line.timestamp} [{speaker}]"
         if text:
-            entry = f"{entry} {text}"
-        formatted.append(entry)
+            formatted.append(f"{line.timestamp} {text}")
+        else:
+            formatted.append(line.timestamp)
     return "\n".join(formatted)
 
 
