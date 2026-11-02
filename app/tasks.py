@@ -1072,20 +1072,19 @@ async def _maybe_generate_visual_minutes(
         len(p.transcript),
     )
 
-    md_for_visual = md_text
+    sec_summary_md = ""
 
-    # 等待并发的段落速览结果，并解析追加到图文纪要 Markdown 末尾（不影响 data.text 纯净性）
+    # 等待并发的段落速览结果（保持原始纪要纯净，仅在后续 HTML 渲染最末尾挂载）
     if summary_task is not None:
         try:
             summary_res = await summary_task
-            sec_md = getattr(summary_res, "markdown", "").strip()
-            if sec_md:
-                md_for_visual = f"{md_text.rstrip()}\n\n## 智能章节\n\n{sec_md}\n"
+            sec_summary_md = getattr(summary_res, "markdown", "").strip()
+            if sec_summary_md:
                 logger.info(
                     "[section_summary:finish] req_id=%s sections_cnt=%d sec_len=%d status=success",
                     request_id,
                     len(getattr(summary_res, "sections", [])),
-                    len(sec_md),
+                    len(sec_summary_md),
                 )
             else:
                 logger.info(
@@ -1108,14 +1107,13 @@ async def _maybe_generate_visual_minutes(
                 len(p.transcript),
             )
             summary_res = await agenerate_section_summary(p.transcript)
-            sec_md = getattr(summary_res, "markdown", "").strip()
-            if sec_md:
-                md_for_visual = f"{md_text.rstrip()}\n\n## 智能章节\n\n{sec_md}\n"
+            sec_summary_md = getattr(summary_res, "markdown", "").strip()
+            if sec_summary_md:
                 logger.info(
                     "[section_summary:direct_finish] req_id=%s sections_cnt=%d sec_len=%d status=success",
                     request_id,
                     len(getattr(summary_res, "sections", [])),
-                    len(sec_md),
+                    len(sec_summary_md),
                 )
         except Exception as exc:
             logger.warning(
@@ -1129,9 +1127,10 @@ async def _maybe_generate_visual_minutes(
 
         visual_html_path = p.ctx.output_dir / "visual.html"
         await agenerate_visual_minutes(
-            minutes_markdown=md_for_visual,
+            minutes_markdown=md_text,
             meeting_transcript=p.transcript,
             output_path=str(visual_html_path),
+            section_summary_markdown=sec_summary_md,
         )
         _vm_dur = round(time.time() - _vm_start, 2)
         logger.info(

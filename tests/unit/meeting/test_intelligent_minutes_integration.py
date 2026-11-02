@@ -76,7 +76,7 @@ def test_maybe_start_section_summary_task(monkeypatch):
 def test_maybe_generate_visual_minutes_appends_section_summary(
     monkeypatch, tmp_path
 ):
-    """验证 visual.html 的 Markdown 包含 ## 智能章节，且原 md_text 保持纯净。"""
+    """验证 minutes_markdown 保持绝对纯净未被提前拼接，智能章节作为独立参数传入并在 HTML 渲染阶段挂载。"""
     async def _test():
         monkeypatch.setenv("INTELLIGENT_MINUTES_ENABLED", "on")
 
@@ -126,6 +126,7 @@ def test_maybe_generate_visual_minutes_appends_section_summary(
             captured_kwargs["minutes_markdown"] = minutes_markdown
             captured_kwargs["meeting_transcript"] = meeting_transcript
             captured_kwargs["output_path"] = output_path
+            captured_kwargs.update(kwargs)
             # 写入真实测试产物验证
             Path(output_path).write_text("<html>fake visual minutes</html>", encoding="utf-8")
 
@@ -137,15 +138,15 @@ def test_maybe_generate_visual_minutes_appends_section_summary(
                 p, "req_test", original_md, summary_task=summary_task
             )
 
-        # 1. 验证传入 visual_minutes 的 Markdown 包含了 ## 智能章节 及渲染后的内容
+        # 1. 验证传入 visual_minutes 的 Markdown 保持绝对纯净，未被提前拼接智能章节
         fed_md = captured_kwargs["minutes_markdown"]
-        assert "## 智能章节" in fed_md
-        assert "01:00  启动 Q3 项目" in fed_md
-        assert "05:00  核心进展汇报" in fed_md
+        assert "## 智能章节" not in fed_md
+        assert fed_md == original_md
 
-        # 2. 验证原始 md_text 未被改动
-        assert "## 智能章节" not in original_md
-        assert original_md.startswith("# 业务研讨会纪要")
+        # 2. 验证智能章节独立作为 section_summary_markdown 参数传入
+        sec_kw = captured_kwargs.get("section_summary_markdown", "")
+        assert "01:00  启动 Q3 项目" in sec_kw
+        assert "05:00  核心进展汇报" in sec_kw
 
         # 3. 验证产物文件已生成
         assert (tmp_path / "visual.html").exists()
@@ -260,5 +261,8 @@ def test_visual_html_contains_section_summary_and_toc(monkeypatch, tmp_path):
         assert '<span class="vm-toc-text">总览</span>' in html_content
         assert '<span class="vm-toc-text">核心议题</span>' in html_content
         assert '<span class="vm-toc-text">落地成效</span>' in html_content
+
+        # 4. 验证严格隔离：智能章节绝不会生成多余的时间线或其它卡片
+        assert "关键讨论时间线" not in html_content
 
     asyncio.run(_test())

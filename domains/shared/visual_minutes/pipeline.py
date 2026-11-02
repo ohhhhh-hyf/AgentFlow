@@ -122,11 +122,16 @@ async def agenerate_visual_minutes(
     output_path: Optional[str] = None,
     *,
     llm: VisualLLM | None = None,
+    section_summary_markdown: Optional[str] = None,
 ) -> VisualMinutesResult:
     """异步执行端到端流水线。"""
     ir = await build_visual_ir(minutes_markdown, meeting_transcript, llm=llm)
     parsed = parse_minutes(minutes_markdown)
-    html = DocumentCompositor().composite(parsed, ir)
+    html = DocumentCompositor().composite(
+        parsed,
+        ir,
+        section_summary_markdown=section_summary_markdown,
+    )
     logger.info(
         "[visual_minutes:render] html_bytes=%d warnings=%d",
         len(html.encode("utf-8")),
@@ -145,6 +150,7 @@ def generate_visual_minutes(
     output_path: Optional[str] = None,
     *,
     llm: VisualLLM | None = None,
+    section_summary_markdown: Optional[str] = None,
 ) -> VisualMinutesResult:
     """同步阻塞入口。"""
     return asyncio.run(
@@ -153,6 +159,7 @@ def generate_visual_minutes(
             meeting_transcript,
             output_path,
             llm=llm,
+            section_summary_markdown=section_summary_markdown,
         )
     )
 

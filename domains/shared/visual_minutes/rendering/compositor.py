@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from markdown_it import MarkdownIt
@@ -378,6 +379,7 @@ class DocumentCompositor:
         ir: VisualDocumentIR,
         *,
         output_path: Optional[str] = None,
+        section_summary_markdown: Optional[str] = None,
     ) -> str:
         if isinstance(parsed, str):
             parsed = parse_minutes(parsed)
@@ -407,6 +409,22 @@ class DocumentCompositor:
             parts.append(
                 f'<section class="vm-section" data-section-id="{section.section_id}">'
                 f"{section_html}</section>"
+            )
+
+        # 智能章节（段落速览）：严格在所有业务章节与图表之后、HTML渲染最末尾挂载，并动态生成TOC目录项
+        sec_summary = (section_summary_markdown or "").strip()
+        already_has_summary = any("智能章节" in s.heading for s in parsed.sections)
+        if sec_summary and not already_has_summary:
+            heading_counter[0] += 1
+            hid = f"heading-{heading_counter[0]}"
+            sec_id = "sec-section-summary"
+            toc_items.append({"id": hid, "level": 2, "title": "智能章节"})
+
+            rendered_summary = self.md.render(sec_summary)
+            sec_html = f'<h2 id="{hid}">智能章节</h2>\n{rendered_summary}'
+            parts.append(
+                f'<section class="vm-section" data-section-id="{sec_id}">'
+                f"{sec_html}</section>"
             )
 
         body = "".join(parts)
@@ -510,6 +528,10 @@ document.addEventListener("DOMContentLoaded", function () {{
 </script>
 </body>
 </html>"""
+        if output_path:
+            out = Path(output_path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(html, encoding="utf-8")
         return html
 
 

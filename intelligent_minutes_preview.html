@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>华为发展历程与战略跃迁复盘研讨</title>
+<style>
+
+:root {
+  /* 飞书商务色彩系统 */
+  --vm-accent-blue: #3370FF;
+  --vm-accent-blue-bg: #F0F4FE;
+  --vm-accent-blue-border: #BED5FE;
+
+  --vm-accent-cyan: #00B5B5;
+  --vm-accent-cyan-bg: #E8FFFB;
+  --vm-accent-cyan-border: #87E8DE;
+
+  --vm-accent-purple: #722ED1;
+  --vm-accent-purple-bg: #F9F0FF;
+  --vm-accent-purple-border: #D3ADF7;
+
+  --vm-accent-emerald: #00B42A;
+  --vm-accent-emerald-bg: #E8FFEA;
+  --vm-accent-emerald-border: #AFF0B5;
+
+  --vm-accent-amber: #FF7D00;
+  --vm-accent-amber-bg: #FFF7E8;
+  --vm-accent-amber-border: #FFD591;
+
+  /* ─────────────────────────────────────────────────────────────
+     新拟物软质触感 UI 规范 (Neumorphism Tactile Tokens)
+     专用于 Flow、Timeline、Tree 三类核心图表卡片
+     ───────────────────────────────────────────────────────────── */
+  --vm-neu-bg: #EEF2F7;
+  --vm-neu-card: #F4F7FC;
+  --vm-neu-dark-shadow: rgba(166, 180, 200, 0.40);
+  --vm-neu-light-shadow: #FFFFFF;
+  --vm-neu-card-border: rgba(255, 255, 255, 0.9);
+  --vm-neu-tray-shadow: inset 3px 3px 8px var(--vm-neu-dark-shadow), inset -3px -3px 8px var(--vm-neu-light-shadow);
+  --vm-neu-raised-shadow: 4px 4px 10px var(--vm-neu-dark-shadow), -4px -4px 10px var(--vm-neu-light-shadow);
+  --vm-neu-raised-hover: 6px 6px 14px rgba(166, 180, 200, 0.52), -6px -6px 14px var(--vm-neu-light-shadow);
+  --vm-neu-inset-shadow: inset 2px 2px 4px var(--vm-neu-dark-shadow), inset -2px -2px 4px var(--vm-neu-light-shadow);
+
+  /* 文字墨水规范（保持全局字体大小稳定） */
+  --vm-ink-title: #1D2129;
+  --vm-ink-body: #4E5969;
+  --vm-ink-muted: #646A73;
+  --vm-ink-subtle: #86909C;
+  --vm-ink-faint: #C9CDD4;
+
+  /* 底色阶与边框 */
+  --vm-tone-canvas: #FAFAFA;
+  --vm-tone-card: #FFFFFF;
+  --vm-tone-stone: #F2F3F5;
+  --vm-tone-stone-light: #F7F8FA;
+  --vm-border: #E5E6EB;
+
+  /* 基础尺寸 */
+  --vm-radius: 8px;
+  --vm-radius-lg: 12px;
+  --vm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --vm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.vm-svg-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: -2.5px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.vm-visual {
+  font-family: var(--vm-font-sans);
+  color: var(--vm-ink-body);
+  margin: 30px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vm-visual * {
+  box-sizing: border-box;
+}
+
+.vm-visual-title {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  margin: 0 0 14px 0;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+/* 飞书出版物图注规范 (Figure Caption) */
+.vm-figure-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--vm-ink-subtle);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.vm-caption-prefix {
+  font-weight: 700;
+  color: var(--vm-accent-blue);
+  font-size: 11.5px;
+}
+
+.vm-caption-divider {
+  color: var(--vm-ink-faint);
+}
+
+.vm-caption-title {
+  font-weight: 600;
+  color: var(--vm-ink-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   1. 【开篇统领】Master Infographic (全景通览大图 - 无外框自然融入版)
+   ───────────────────────────────────────────────────────────── */
+.vm-master-card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  position: relative;
+}
+
+.vm-master-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--vm-accent-blue);
+  background: rgba(51, 112, 255, 0.08);
+  border: 1px solid rgba(51, 112, 255, 0.15);
+  padding: 3px 10px;
+  border-radius: 100px;
+  margin-bottom: 12px;
+  letter-spacing: 0.03em;
+}
+
+.vm-master-headline {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  margin: 0 0 12px 0;
+}
+
+.vm-master-widgets-container {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.vm-master-widget {
+  width: 100%;
+}
+
+.vm-widget-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  margin-bottom: 12px;
+}
+
+.vm-master-card .vm-visual {
+  margin: 0;
+}
+
+.vm-master-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 16px;
+  align-items: stretch;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 transparent;
+}
+
+.vm-master-block {
+  flex: 1 1 240px;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  background: var(--vm-neu-card);
+  border-radius: 12px;
+  padding: 18px 20px 16px 20px;
+  border: 1px solid var(--vm-neu-card-border);
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.vm-master-block:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--vm-neu-raised-hover);
+}
+
+/* 飞书主题分色体系 */
+.vm-theme-blue {
+  --block-accent: var(--vm-accent-blue);
+  --block-accent-bg: var(--vm-accent-blue-bg);
+  --block-accent-border: var(--vm-accent-blue-border);
+}
+
+.vm-theme-cyan {
+  --block-accent: var(--vm-accent-cyan);
+  --block-accent-bg: var(--vm-accent-cyan-bg);
+  --block-accent-border: var(--vm-accent-cyan-border);
+}
+
+.vm-theme-purple {
+  --block-accent: var(--vm-accent-purple);
+  --block-accent-bg: var(--vm-accent-purple-bg);
+  --block-accent-border: var(--vm-accent-purple-border);
+}
+
+.vm-theme-emerald {
+  --block-accent: var(--vm-accent-emerald);
+  --block-accent-bg: var(--vm-accent-emerald-bg);
+  --block-accent-border: var(--vm-accent-emerald-border);
+}
+
+.vm-theme-amber {
+  --block-accent: var(--vm-accent-amber);
+  --block-accent-bg: var(--vm-accent-amber-bg);
+  --block-accent-border: var(--vm-accent-amber-border);
+}
+
+.vm-block-header {
+  margin-bottom: 8px;
+}
+
+.vm-master-block-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vm-block-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--block-accent, var(--vm-accent-blue));
+  background-color: var(--block-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
+}
+
+.vm-master-block-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  line-height: 1.4;
+}
+
+.vm-master-block-summary {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--vm-ink-body);
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+
+.vm-master-points {
+  margin: 0 0 16px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--vm-ink-muted);
+  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.vm-master-points li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.vm-master-points li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--block-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 4px var(--block-accent, var(--vm-accent-blue));
+}
+
+/* 嵌入式专属高光底盒 (Neumorphic Inset Pill) */
+.vm-master-block-highlight {
+  margin-top: auto;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-inset-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vm-highlight-tag-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.vm-highlight-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--block-accent, var(--vm-accent-blue));
+}
+
+.vm-highlight-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--block-accent, var(--vm-accent-blue));
+  letter-spacing: 0.03em;
+}
+
+.vm-highlight-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.vm-master-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  border-top: 1px solid var(--vm-border);
+  padding-top: 20px;
+}
+
+.vm-master-metric {
+  flex: 1 1 180px;
+  background: var(--vm-tone-stone-light);
+  border-radius: var(--vm-radius);
+  padding: 12px 16px;
+  border: 1px solid var(--vm-border);
+  border-left: 3px solid var(--vm-accent-blue);
+}
+
+.vm-master-metric-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.vm-master-metric-label {
+  display: block;
+  font-size: 12px;
+  color: var(--vm-ink-subtle);
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   2. 【链路闭环】Flow & Closed Loop 渲染 (飞书旗舰流转版)
+   ───────────────────────────────────────────────────────────── */
+.vm-flow-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.vm-flow-track {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 14px;
+  align-items: stretch;
+  padding: 6px 4px 12px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 transparent;
+}
+
+.vm-flow-step-card {
+  flex: 1 1 220px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  background: var(--vm-neu-card);
+  border-radius: 12px;
+  padding: 16px 18px 14px 18px;
+  border: 1px solid var(--vm-neu-card-border);
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.vm-flow-step-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--vm-neu-raised-hover);
+}
+
+.vm-step-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.vm-flow-node-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vm-flow-step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--step-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
+}
+
+.vm-flow-node-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  line-height: 1.4;
+}
+
+.vm-flow-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  color: #A0ABC0;
+  user-select: none;
+}
+
+.vm-connector-arrow {
+  opacity: 0.8;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.vm-flow-track:hover .vm-connector-arrow {
+  opacity: 1;
+}
+
+.vm-flow-node-detail {
+  font-size: 12.5px;
+  color: var(--vm-ink-body);
+  line-height: 1.6;
+  flex: 1;
+}
+
+.vm-flow-delivery {
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-inset-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--vm-ink-body);
+}
+
+.vm-delivery-arrow {
+  color: var(--step-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
+}
+
+.vm-delivery-text {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   3. 【对比矩阵】Table / Matrix 对比表 (新拟物软质触感版)
+   ───────────────────────────────────────────────────────────── */
+.vm-table-wrap {
+  overflow-x: auto;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 14px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 transparent;
+}
+
+.vm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+  font-size: 13px;
+  min-width: 580px;
+}
+
+.vm-table th {
+  padding: 8px 14px 6px 14px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  font-size: 13px;
+  border: none;
+}
+
+.vm-th-dim {
+  width: 17%;
+  min-width: 100px;
+  color: var(--vm-ink-muted);
+}
+
+.vm-th-col {
+  /* 释放充足横向排布宽度，避免多字数挤压折行 */
+  width: auto;
+}
+
+.vm-th-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.vm-th-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vm-table-row {
+  filter: drop-shadow(0 2px 5px rgba(166, 180, 200, 0.35));
+  transition: filter 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.vm-table-row:hover {
+  filter: drop-shadow(0 4px 10px rgba(166, 180, 200, 0.48));
+}
+
+.vm-table td {
+  padding: 12px 16px;
+  text-align: left;
+  vertical-align: middle;
+  background: var(--vm-neu-card);
+  border-top: 1px solid var(--vm-neu-card-border);
+  border-bottom: 1px solid var(--vm-neu-card-border);
+  color: var(--vm-ink-body);
+  line-height: 1.55;
+}
+
+.vm-td-dim {
+  width: 17%;
+  min-width: 100px;
+  border-left: 1px solid var(--vm-neu-card-border);
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+.vm-dim-badge {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-inset-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+
+.vm-td-val {
+  font-size: 13px;
+}
+
+.vm-table tr td:last-child {
+  border-right: 1px solid var(--vm-neu-card-border);
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   4. 【分层架构】Tree / Layered Architecture (飞书旗舰分层卡)
+   ───────────────────────────────────────────────────────────── */
+.vm-tree-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.vm-tree-layer-card {
+  background: var(--vm-neu-card);
+  border: 1px solid var(--vm-neu-card-border);
+  border-radius: 10px;
+  padding: 13px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.vm-tree-layer-card:hover {
+  transform: translateY(-1.5px);
+  box-shadow: var(--vm-neu-raised-hover);
+}
+
+.vm-tree-layer-lead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  min-width: 120px;
+}
+
+.vm-tree-layer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--layer-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
+}
+
+.vm-tree-layer-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+.vm-tree-layer-divider {
+  width: 2px;
+  height: 20px;
+  background: #DCE3EC;
+  border-right: 1px solid #FFFFFF;
+  flex-shrink: 0;
+}
+
+.vm-tree-layer-detail {
+  font-size: 13px;
+  color: var(--vm-ink-body);
+  line-height: 1.6;
+  flex: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   5. 【量化成效】Stats 关键指标大卡 (新拟物软质触感版)
+   ───────────────────────────────────────────────────────────── */
+.vm-stats-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 14px;
+  align-items: stretch;
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 transparent;
+}
+
+.vm-stat-card {
+  flex: 1 1 200px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  background: var(--vm-neu-card);
+  border: 1px solid var(--vm-neu-card-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.vm-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--vm-neu-raised-hover);
+}
+
+.vm-stat-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.vm-stat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--stat-accent, var(--vm-accent-blue));
+  flex-shrink: 0;
+}
+
+.vm-stat-value {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--stat-accent, var(--vm-accent-blue));
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.vm-stat-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--vm-ink-body);
+  line-height: 1.55;
+  flex: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   6. 【时序图谱】Timeline 时间演进（轴线贯穿 + 顶置时间 + 纯净内容卡）
+   ───────────────────────────────────────────────────────────── */
+.vm-timeline-canvas {
+  background: var(--vm-neu-bg);
+  box-shadow: var(--vm-neu-tray-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+  padding: 22px 18px 18px 18px;
+}
+
+.vm-timeline-track {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 16px;
+  align-items: stretch;
+  padding: 6px 12px 12px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 transparent;
+}
+
+/* 纵向列容器：时间、轴线圆点、卡片纵向严格中心对齐 */
+.vm-timeline-col {
+  flex: 1 1 220px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+}
+
+/* 1. 顶层：时间刻度（纯净文本，无【】括号） */
+.vm-timeline-time-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: var(--vm-font-mono), var(--vm-font-sans);
+  color: var(--event-accent, var(--vm-ink-title));
+  text-align: center;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1.4;
+  user-select: none;
+  transition: transform 0.2s ease;
+}
+
+.vm-timeline-col:hover .vm-timeline-time-label {
+  transform: translateY(-1px);
+}
+
+/* 2. 中层：贯通轴线与圆点锚点 */
+.vm-timeline-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  margin-bottom: 14px;
+}
+
+/* 贯穿水平直线（向左右各延展 8px 完美弥合列间 gap: 16px） */
+.vm-timeline-node::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -8px;
+  right: -8px;
+  height: 2px;
+  background: #CBD5E1;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+/* 首末节点向外侧适度延展，形成自然贯通视感 */
+.vm-timeline-col:first-child .vm-timeline-node::before {
+  left: -14px;
+}
+.vm-timeline-col:last-child .vm-timeline-node::before {
+  right: -14px;
+}
+
+/* 轴线上的高亮圆点（立体微光） */
+.vm-timeline-dot {
+  position: relative;
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  border: 3px solid var(--event-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 0 3px var(--event-accent-bg, rgba(51, 112, 255, 0.15)), 0 2px 4px rgba(0, 0, 0, 0.08);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+
+.vm-timeline-col:hover .vm-timeline-dot {
+  transform: scale(1.3);
+  box-shadow: 0 0 0 4px var(--event-accent-bg, rgba(51, 112, 255, 0.25)), 0 0 8px var(--event-accent, var(--vm-accent-blue));
+}
+
+/* 3. 下层：纯净事件卡片（无重复时间标签） */
+.vm-timeline-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--vm-neu-card);
+  border-radius: 12px;
+  padding: 16px 18px 16px 18px;
+  border: 1px solid var(--vm-neu-card-border);
+  box-shadow: var(--vm-neu-raised-shadow);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.vm-timeline-col:hover .vm-timeline-card {
+  transform: translateY(-2px);
+  box-shadow: var(--vm-neu-raised-hover);
+}
+
+.vm-timeline-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  line-height: 1.45;
+  margin-bottom: 6px;
+}
+
+.vm-timeline-detail {
+  font-size: 12.5px;
+  color: var(--vm-ink-body);
+  line-height: 1.6;
+  margin-top: 4px;
+  flex: 1;
+  white-space: pre-line;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   飞书质感精细滚动条 (Feishu Sleek Scrollbar)
+   ───────────────────────────────────────────────────────────── */
+.vm-master-grid::-webkit-scrollbar,
+.vm-flow-track::-webkit-scrollbar,
+.vm-stats-grid::-webkit-scrollbar,
+.vm-timeline-track::-webkit-scrollbar,
+.vm-table-wrap::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.vm-master-grid::-webkit-scrollbar-track,
+.vm-flow-track::-webkit-scrollbar-track,
+.vm-stats-grid::-webkit-scrollbar-track,
+.vm-timeline-track::-webkit-scrollbar-track,
+.vm-table-wrap::-webkit-scrollbar-track {
+  background: #F2F3F5;
+  border-radius: 4px;
+}
+
+.vm-master-grid::-webkit-scrollbar-thumb,
+.vm-flow-track::-webkit-scrollbar-thumb,
+.vm-stats-grid::-webkit-scrollbar-thumb,
+.vm-timeline-track::-webkit-scrollbar-thumb,
+.vm-table-wrap::-webkit-scrollbar-thumb {
+  background: #C9CDD4;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.vm-master-grid::-webkit-scrollbar-thumb:hover,
+.vm-flow-track::-webkit-scrollbar-thumb:hover,
+.vm-stats-grid::-webkit-scrollbar-thumb:hover,
+.vm-timeline-track::-webkit-scrollbar-thumb:hover,
+.vm-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: #86909C;
+}
+
+/* 响应式精修 */
+@media (max-width: 640px) {
+  .vm-master-card { padding: 20px 16px; }
+  .vm-tree-layer-card {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+
+.markdown-body {
+  font-family: var(--vm-font-sans);
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--vm-ink-body);
+}
+
+.markdown-body h1 {
+  font-size: clamp(1.4rem, 2.2vw, 1.8rem);
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  margin: 36px 0 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--vm-border);
+  letter-spacing: -0.02em;
+  scroll-margin-top: 24px;
+}
+
+.markdown-body h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  margin: 40px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vm-border);
+  letter-spacing: -0.015em;
+  scroll-margin-top: 24px;
+}
+
+.markdown-body h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  margin: 28px 0 14px;
+  line-height: 1.4;
+  scroll-margin-top: 24px;
+}
+
+.markdown-body p {
+  margin: 0 0 14px;
+}
+
+.markdown-body ul, .markdown-body ol {
+  margin: 0 0 18px;
+  padding-left: 22px;
+}
+
+.markdown-body li {
+  margin-bottom: 6px;
+  line-height: 1.7;
+}
+
+.markdown-body li::marker {
+  color: var(--vm-ink-subtle);
+}
+
+.markdown-body blockquote {
+  margin: 8px 0 24px;
+  padding: 4px 0 4px 14px;
+  background: transparent;
+  border-left: 3px solid rgb(78, 205, 196);
+  border-radius: 0;
+  color: var(--vm-ink-body);
+}
+
+.markdown-body blockquote p {
+  margin: 0;
+  color: var(--vm-ink-body);
+  line-height: 1.7;
+}
+
+.markdown-body code {
+  font-family: var(--vm-font-mono);
+  font-size: 85%;
+  background: var(--vm-tone-stone);
+  padding: .15em .35em;
+  border-radius: 4px;
+}
+
+.markdown-body pre {
+  overflow-x: auto;
+  padding: 16px;
+  background: var(--vm-tone-stone);
+  border-radius: var(--vm-radius);
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  word-break: break-word;
+  margin: 18px 0;
+}
+
+.markdown-body th, .markdown-body td {
+  border: 1px solid var(--vm-border);
+  padding: 10px 12px;
+}
+
+.markdown-body th {
+  background: var(--vm-tone-stone);
+  font-weight: 700;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+
+html {
+  scroll-behavior: smooth;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #FFFFFF;
+  color: var(--vm-ink-body);
+  font-family: var(--vm-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 飞书同款：全屏通透无界画板，视口动态流式比例弹性自适应 (Fluid Responsive Layout) */
+.vm-layout-wrapper {
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: clamp(24px, 2.6vw, 56px);
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 24px clamp(20px, 2.5vw, 48px) 60px clamp(20px, 2.5vw, 48px);
+  box-sizing: border-box;
+}
+
+/* 左侧飞书导航目录栏 (TOC Sidebar - 动态流式弹性自适应，无边框纯净自然融入背景) */
+.vm-toc-sidebar {
+  width: clamp(200px, 15vw, 280px);
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  scrollbar-width: thin;
+  scrollbar-color: #C9CDD4 transparent;
+}
+
+.vm-toc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  padding: 0 8px 10px 8px;
+  margin-bottom: 4px;
+  border-bottom: none;
+  letter-spacing: 0.02em;
+}
+
+.vm-toc-icon {
+  color: var(--vm-accent-blue);
+  flex-shrink: 0;
+}
+
+.vm-toc-nav {
+  width: 100%;
+}
+
+.vm-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vm-toc-item {
+  margin: 0;
+  padding: 0;
+}
+
+.vm-toc-level-3 {
+  padding-left: 14px;
+}
+
+.vm-toc-link {
+  display: block;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--vm-ink-body);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vm-toc-level-3 .vm-toc-link {
+  font-size: 12px;
+  color: var(--vm-ink-muted);
+}
+
+.vm-toc-link:hover {
+  background-color: rgba(31, 35, 41, 0.06);
+  color: var(--vm-accent-blue);
+}
+
+.vm-toc-link.active {
+  background-color: #E8F0FE;
+  color: var(--vm-accent-blue);
+  font-weight: 600;
+}
+
+/* 右侧主文档画布：无边框自然融入背景，视口动态黄金版心 (780px ~ 1080px)，右侧留白弹性自适应 */
+.vm-doc {
+  flex: 0 1 clamp(780px, 56vw, 1080px);
+  width: 100%;
+  max-width: clamp(780px, 56vw, 1080px);
+  min-width: 0;
+  margin: 0;
+  padding: 0 12px 48px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+.vm-overview-heading {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--vm-ink-title);
+  margin: 0 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vm-border);
+  letter-spacing: -0.015em;
+  scroll-margin-top: 24px;
+}
+
+.vm-overview-content {
+  margin-bottom: 36px;
+}
+
+.vm-doc-footer {
+  margin-top: 56px;
+  padding-top: 22px;
+  border-top: 1px solid var(--vm-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vm-ink-subtle);
+  user-select: none;
+}
+
+.vm-footer-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.vm-footer-text {
+  line-height: 1.4;
+}
+
+.vm-section {
+  margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .vm-layout-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 16px;
+    margin: 0;
+    gap: 16px;
+  }
+  .vm-toc-sidebar {
+    position: static;
+    width: 100%;
+    max-height: none;
+    border-radius: 10px;
+    box-shadow: none;
+  }
+  .vm-doc {
+    max-width: 100%;
+    padding: 12px 0 24px 0;
+  }
+}
+
+</style>
+</head>
+<body>
+<div class="vm-layout-wrapper">
+  <!-- 飞书同款左侧目录导航栏 -->
+  <aside class="vm-toc-sidebar" id="vm-toc-sidebar">
+    <div class="vm-toc-header">
+      <svg class="vm-toc-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"></line>
+        <line x1="8" y1="12" x2="21" y2="12"></line>
+        <line x1="8" y1="18" x2="21" y2="18"></line>
+        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+      </svg>
+      <span>目录导航</span>
+    </div>
+    <nav class="vm-toc-nav">
+      <ul class="vm-toc-list">
+        <li class="vm-toc-item vm-toc-level-2">  <a href="#sec-overview" class="vm-toc-link" data-target="sec-overview" title="总览">    <span class="vm-toc-text">总览</span>  </a></li><li class="vm-toc-item vm-toc-level-2">  <a href="#heading-1" class="vm-toc-link" data-target="heading-1" title="会议总览">    <span class="vm-toc-text">会议总览</span>  </a></li><li class="vm-toc-item vm-toc-level-2">  <a href="#heading-2" class="vm-toc-link" data-target="heading-2" title="发展历程里程碑">    <span class="vm-toc-text">发展历程里程碑</span>  </a></li><li class="vm-toc-item vm-toc-level-2">  <a href="#heading-3" class="vm-toc-link" data-target="heading-3" title="战略主线与业务演进">    <span class="vm-toc-text">战略主线与业务演进</span>  </a></li><li class="vm-toc-item vm-toc-level-2">  <a href="#heading-4" class="vm-toc-link" data-target="heading-4" title="智能章节">    <span class="vm-toc-text">智能章节</span>  </a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- 右侧主文档画布 -->
+  <div class="vm-doc">
+    <main class="markdown-body">
+      <!-- 第一张大图外层套上 ## 总览 -->
+      <section class="vm-section vm-section-overview" data-section-id="sec-overview">
+        <h2 id="sec-overview" class="vm-overview-heading">总览</h2>
+        <div class="vm-overview-content">
+          
+<div class="vm-visual vm-master">
+  <div class="vm-master-card">
+    <div class="vm-master-widgets-container">
+      <div class="vm-master-grid vm-cols-3"><div class="vm-master-block vm-theme-blue">  <div class="vm-block-header">    <div class="vm-master-block-title-row">      <span class="vm-block-dot" style="background: var(--block-accent);"></span>      <div class="vm-master-block-title">认知奠基期 (1978-1987)</div>    </div>  </div>  <div class="vm-master-block-summary">全国科学大会与中共十二大参会经历，形成远超普通创业者的宏大战略格局。</div>    <div class="vm-master-block-highlight">  <div class="vm-highlight-tag-wrap">    <span class="vm-highlight-dot"></span>    <span class="vm-highlight-tag">核心定调</span>  </div>  <div class="vm-highlight-value">全国科学大会与中共十二大参会经历，形成远超普通创</div></div></div><div class="vm-master-block vm-theme-cyan">  <div class="vm-block-header">    <div class="vm-master-block-title-row">      <span class="vm-block-dot" style="background: var(--block-accent);"></span>      <div class="vm-master-block-title">自主突破期 (1988-1998)</div>    </div>  </div>  <div class="vm-master-block-summary">从代理转向坚决自研，力排万难研发 C&amp;C08 交换机，确立压强原则。</div>    <div class="vm-master-block-highlight">  <div class="vm-highlight-tag-wrap">    <span class="vm-highlight-dot"></span>    <span class="vm-highlight-tag">核心定调</span>  </div>  <div class="vm-highlight-value">从代理转向坚决自研，力排万难研发 C&amp;C08 交</div></div></div><div class="vm-master-block vm-theme-purple">  <div class="vm-block-header">    <div class="vm-master-block-title-row">      <span class="vm-block-dot" style="background: var(--block-accent);"></span>      <div class="vm-master-block-title">全球领先期 (1999至今)</div>    </div>  </div>  <div class="vm-master-block-summary">全面引进现代管理体系，端到端 IPD 与全球化布局，迈入技术无人区。</div>    <div class="vm-master-block-highlight">  <div class="vm-highlight-tag-wrap">    <span class="vm-highlight-dot"></span>    <span class="vm-highlight-tag">核心定调</span>  </div>  <div class="vm-highlight-value">全面引进现代管理体系，端到端 IPD 与全球化布</div></div></div></div>
+    </div>
+  </div>
+</div>
+
+        </div>
+      </section>
+      <section class="vm-section" data-section-id="s1"><h1 id="s1">华为发展历程与战略跃迁复盘研讨</h1>
+</section><section class="vm-section" data-section-id="s2"><h2 id="heading-1">会议总览</h2>
+<p>本次研讨会深度复盘了华为从创立初期到全球化技术自立的关键历史跃迁，系统总结了创始人战略定力与组织进化的底层逻辑。</p>
+</section><section class="vm-section" data-section-id="s3"><h2 id="heading-2">发展历程里程碑</h2>
+
+<div class="vm-visual">
+
+  <div class="vm-timeline-canvas">
+    <div class="vm-timeline-track">
+      <div class="vm-timeline-col" style="--event-accent: var(--vm-accent-blue); --event-accent-bg: var(--vm-accent-blue-bg); --event-accent-border: var(--vm-accent-blue-border);">  <div class="vm-timeline-time-label">1978年</div>  <div class="vm-timeline-node">    <span class="vm-timeline-dot"></span>  </div>  <div class="vm-timeline-card">    <div class="vm-timeline-title">破例参会</div>    <div class="vm-timeline-detail">33岁破例参加首届全国科学大会，现场聆听邓小平关于知识分子是工人阶级一部分的讲话</div>  </div></div><div class="vm-timeline-col" style="--event-accent: var(--vm-accent-cyan); --event-accent-bg: var(--vm-accent-cyan-bg); --event-accent-border: var(--vm-accent-cyan-border);">  <div class="vm-timeline-time-label">1980年</div>  <div class="vm-timeline-node">    <span class="vm-timeline-dot"></span>  </div>  <div class="vm-timeline-card">    <div class="vm-timeline-title">组织审查与入党</div>    <div class="vm-timeline-detail">部队出面核查确认其父亲无历史问题，同年正式加入中国共产党</div>  </div></div><div class="vm-timeline-col" style="--event-accent: var(--vm-accent-purple); --event-accent-bg: var(--vm-accent-purple-bg); --event-accent-border: var(--vm-accent-purple-border);">  <div class="vm-timeline-time-label">1982年</div>  <div class="vm-timeline-node">    <span class="vm-timeline-dot"></span>  </div>  <div class="vm-timeline-card">    <div class="vm-timeline-title">感知宏大战略</div>    <div class="vm-timeline-detail">作为代表参加中共十二大，深度感知国家科技与经济发展宏大战略方向</div>  </div></div><div class="vm-timeline-col" style="--event-accent: var(--vm-accent-emerald); --event-accent-bg: var(--vm-accent-emerald-bg); --event-accent-border: var(--vm-accent-emerald-border);">  <div class="vm-timeline-time-label">1987年</div>  <div class="vm-timeline-node">    <span class="vm-timeline-dot"></span>  </div>  <div class="vm-timeline-card">    <div class="vm-timeline-title">正式创办华为</div>    <div class="vm-timeline-detail">43岁正式在深圳创立华为，具备远超普通创业者的战略格局与底层认知</div>  </div></div>
+    </div>
+  </div>
+
+  <div class="vm-figure-caption">  <span class="vm-caption-prefix">▲ 图</span>  <span class="vm-caption-divider">·</span>  <span class="vm-caption-title">创业初期关键时间演进</span></div>
+</div>
+
+
+<p>任正非早期的国家级参会经历与认知沉淀，为其后续创业奠定了重视科技、瞄定国家发展方向的底层认知基础。</p>
+</section><section class="vm-section" data-section-id="s4"><h2 id="heading-3">战略主线与业务演进</h2>
+
+<div class="vm-visual">
+
+  <div class="vm-table-wrap">
+    <table class="vm-table">
+      <thead><tr><th class="vm-th-dim">演进阶段</th><th class="vm-th-col">  <div class="vm-th-wrap">    <span class="vm-th-dot" style="background: var(--vm-accent-blue); box-shadow: 0 0 6px var(--vm-accent-blue);"></span>    <span>战略重点</span>  </div></th><th class="vm-th-col">  <div class="vm-th-wrap">    <span class="vm-th-dot" style="background: var(--vm-accent-cyan); box-shadow: 0 0 6px var(--vm-accent-cyan);"></span>    <span>核心举措</span>  </div></th><th class="vm-th-col">  <div class="vm-th-wrap">    <span class="vm-th-dot" style="background: var(--vm-accent-purple); box-shadow: 0 0 6px var(--vm-accent-purple);"></span>    <span>组织成果</span>  </div></th></tr></thead>
+      <tbody><tr class="vm-table-row"><td class="vm-td-dim">  <span class="vm-dim-badge">初创期 (1987-1992)</span></td><td class="vm-td-val">生存与积累</td><td class="vm-td-val">代理交换机与狼性销售</td><td class="vm-td-val">完成原始资本积累，摸索市场规律</td></tr><tr class="vm-table-row"><td class="vm-td-dim">  <span class="vm-dim-badge">成长期 (1993-1998)</span></td><td class="vm-td-val">技术自立</td><td class="vm-td-val">压强投入自研 C&amp;C08 机</td><td class="vm-td-val">攻克农村市场包围城市，树立国产自主品牌</td></tr><tr class="vm-table-row"><td class="vm-td-dim">  <span class="vm-dim-badge">成熟期 (1999-2018)</span></td><td class="vm-td-val">国际化与正规化</td><td class="vm-td-val">削足适履引入 IBM IPD/ISC 流程</td><td class="vm-td-val">蜕变为世界级规范化运作的 ICT 领军企业</td></tr><tr class="vm-table-row"><td class="vm-td-dim">  <span class="vm-dim-badge">攻坚期 (2019至今)</span></td><td class="vm-td-val">底座根技术突围</td><td class="vm-td-val">攻坚鸿蒙操作系统与自研芯片</td><td class="vm-td-val">构建自主可控供应链，跨入技术无人区</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="vm-figure-caption">  <span class="vm-caption-prefix">▲ 图</span>  <span class="vm-caption-divider">·</span>  <span class="vm-caption-title">核心战略演进对比矩阵</span></div>
+</div>
+
+
+<p>华为在发展过程中始终坚持聚焦主航道，通过管理变革与研发高强度投入，实现了从跟随到领先的跨越。</p>
+</section><section class="vm-section" data-section-id="sec-section-summary"><h2 id="heading-4">智能章节</h2>
+<p><strong>03:06  任正非创建华为前的眼界格局积累及创业历程</strong><br />
+<strong>关键词：全国科学大会、中共十二大、创办华为</strong></p>
+<blockquote>
+<p>本章节围绕任正非1987年43岁创办华为的核心背景展开，明确任正非区别于普通创业者的核心特质。早年两次重要参会经历极大开阔了他的眼界，深刻认知到科技是国家发展核心、人才是现代化建设关键……</p>
+</blockquote>
+<p><strong>15:20  技术自研与管理变革深水区</strong><br />
+<strong>关键词：自主研发、IPD流程、全球化拓展</strong></p>
+<blockquote>
+<p>研讨深入分析了华为从早期代理走向自主研发 C&amp;C08 数字程控交换机，全面引入 IBM IPD 体系，完成从作坊研发到现代工业化研发的组织重塑。</p>
+</blockquote>
+<p><strong>32:45  总结定调与未来启示</strong><br />
+<strong>关键词：战略定力、底层认知、长期主义</strong></p>
+<blockquote>
+<p>全面总结指出：底层认知是企业战略方向的基石，在当前全球科技与产业链博弈背景下，唯有保持战略耐性与组织韧性方能行稳致远。</p>
+</blockquote>
+</section>
+    </main>
+    <footer class="vm-doc-footer">
+      <img class="vm-footer-icon" src="data:image/png;base64,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" alt="小艺慧记" />
+      <span class="vm-footer-text">小艺慧记：内容由AI生成，仅供参考。</span>
+    </footer>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const links = document.querySelectorAll(".vm-toc-link");
+  const targets = [];
+  links.forEach(link => {
+    const id = link.getAttribute("data-target");
+    const el = document.getElementById(id);
+    if (el) targets.push({ id, el, link });
+  });
+
+  function onScroll() {
+    let current = targets[0];
+    const scrollY = window.scrollY + 100;
+    for (let i = 0; i < targets.length; i++) {
+      if (targets[i].el.getBoundingClientRect().top + window.scrollY <= scrollY) {
+        current = targets[i];
+      }
+    }
+    links.forEach(l => l.classList.remove("active"));
+    if (current && current.link) {
+      current.link.classList.add("active");
+    }
+  }
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+});
+</script>
+</body>
+</html>
