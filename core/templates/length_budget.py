@@ -132,13 +132,21 @@ def output_token_cap(
 # 纪要相对原文的硬天花板：口语转写里寒暄/程序性发言占比高，纪要超过原文
 # 只可能是复述或注水（2026-09-19 用户实测：有的纪要比原文还长）
 SOURCE_CAP_RATIO = 0.8
+SHORT_MEETING_HAN_THRESHOLD = 3000
+SHORT_MEETING_WORDS_THRESHOLD = 1500
 
 
 def capped_budget(source_han: int, *, kind: str = "record") -> tuple[int, int] | None:
-    """档位预算与原文天花板（原文 × 80%）取小者；过短原文返回 None。"""
+    """档位预算与原文天花板（原文 × 80%）取小者；过短原文返回 None。
+
+    短会议（<3000 汉字）：公文模板自带摘要、分节、决议等结构骨架底噪，
+    豁免 80% 硬天花板限制，直接使用档位本身区间放行，防止区间极端狭窄或上下限倒挂。
+    """
     span = length_budget(source_han, kind=kind)
     if not span:
         return None
+    if source_han < SHORT_MEETING_HAN_THRESHOLD:
+        return span
     cap = max(300, int(source_han * SOURCE_CAP_RATIO))
     return span[0], min(span[1], cap)
 
@@ -157,9 +165,14 @@ def budget_line(source_han: int, *, columns: int = 0) -> str:
         f"；第 1 栏（概况/总述）参考下限 {floor} 汉字（单栏上限 400 汉字）"
         if floor else ""
     )
+    cap_rule = (
+        "；任何情况下不超过原文的 80%"
+        if source_han >= SHORT_MEETING_HAN_THRESHOLD
+        else ""
+    )
     return (
         f"【篇幅预算】原文约 {source_han} 汉字{cols} → 正文总量参考 {lo}–{hi} 汉字"
-        f"（原文的 {pct_lo}%–{pct_hi}%；任何情况下不超过原文的 80%）{first_col}。"
+        f"（原文的 {pct_lo}%–{pct_hi}%{cap_rule}）{first_col}。"
         "达到下限说明基本事实具备；低于下限说明遗漏关键事实（回原文深入挖掘补齐事实，不扩写寒暄与过程铺陈）；高于上限说明有重复注水。"
         "优先级：模板显式栏位上限 > 本动态总预算 > 默认形态规则。"
     )
@@ -187,6 +200,8 @@ def english_length_budget(source_words: int) -> tuple[int, int] | None:
         return None
     for ceiling, lo, hi in ENGLISH_TIERS:
         if ceiling is None or source_words < ceiling:
+            if source_words < SHORT_MEETING_WORDS_THRESHOLD:
+                return lo, hi
             cap = max(200, int(source_words * 0.8))
             return lo, min(hi, cap)
     return None
@@ -199,9 +214,14 @@ def english_budget_line(source_words: int, *, columns: int = 0) -> str:
         return ""
     lo, hi = span
     cols = f", template has {columns} sections" if columns else ""
+    cap_rule = (
+        " (never exceeding 80% of source text)"
+        if source_words >= SHORT_MEETING_WORDS_THRESHOLD
+        else ""
+    )
     return (
-        f"【Length Budget】Source text ~{source_words} words{cols} → Target body word count guideline: {lo}–{hi} words "
-        f"(never exceeding 80% of source text). "
+        f"【Length Budget】Source text ~{source_words} words{cols} → Target body word count guideline: {lo}–{hi} words"
+        f"{cap_rule}. "
         "Reaching the lower bound ensures essential facts are included; staying below upper bound avoids redundancy. "
         "Explicit template section constraints take precedence over this dynamic budget."
     )
@@ -217,6 +237,8 @@ __all__ = [
     "FIRST_COL_SHARE",
     "OUTPUT_CAP_MAX",
     "OUTPUT_CAP_MIN",
+    "SHORT_MEETING_HAN_THRESHOLD",
+    "SHORT_MEETING_WORDS_THRESHOLD",
     "SOURCE_CAP_RATIO",
     "TIERS",
     "TOKENS_PER_HAN",

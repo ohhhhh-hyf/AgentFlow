@@ -334,7 +334,8 @@ async def produce_line(
             dur = time.time() - _render_t0
             progress("[render:done] line=%s dur=%.2fs", line_name, dur)
             return
-        await engine._pre_render_async(state, line_name)
+        if hasattr(engine, "_pre_render_async"):
+            await engine._pre_render_async(state, line_name)
         if engine._pre_render_hook(state, line_name):
             await queue.put(
                 {
@@ -509,7 +510,13 @@ async def produce_line(
             )
             if span and _body_han_count:
                 lo_i, hi_i = int(span[0]), int(span[1])
-                if hi_i:
+                # 短会议（转写规模小或已走审核快速通道）公文骨架底噪刚性强，豁免整篇压缩重写，直接放行；
+                # 篇幅波动由下方 advisory 记录监控，避免发起耗时 10-30s 的多轮整篇 LLM 压缩重写
+                is_short_doc = (
+                    _doc_han(state) < 3000
+                    or bool(line(state, line_name).get("review_bypassed"))
+                )
+                if hi_i and not is_short_doc:
                     for _rev in range(2):
                         han = _body_han_count(full_text)
                         if han > hi_i:
