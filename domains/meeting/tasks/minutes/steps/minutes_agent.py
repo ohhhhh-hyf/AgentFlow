@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+import re
+
 from core.execution.hard_execution import (
     enforce_minutes_draft,
     extract_labeled_json,
@@ -7,14 +10,16 @@ from core.execution.hard_execution import (
 )
 from infra.llm import LLMClient
 
-from ....models import Minutes
+from ....models import Minutes, TopicMajorMinutes
 from ..contracts import (
     MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT,
     MINUTES_GENERATION_OUTPUT_CONTRACT,
     MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT,
+    MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT,
 )
 from ..prompt_map import (
     is_agenda_view,
+    is_topic_major,
     minutes_prompt_set,
     prompt_label,
 )
@@ -25,6 +30,46 @@ from ..prompts import (
     VISION_PROMPT_BLOCK,
     localize_agenda_headings_for_en,
 )
+
+logger = logging.getLogger(__name__)
+
+_TITLE_NOISE_RE = re.compile(r"[\s\[\]【】()（）:：,，.。;；\-–—_/]+")
+
+
+def _normalize_topic_title(value: str) -> str:
+    """议题标题归一化：去空白/标点/序号装饰，仅用于覆盖校验。"""
+    return _TITLE_NOISE_RE.sub("", (value or "").strip()).lower()
+
+
+def check_topic_coverage(
+    topics: list[dict],
+    expected_titles: list[str],
+) -> list[str]:
+    """对比草稿 topics 与有效议题清单的数量/顺序/标题；返回问题列表。
+
+    只做诊断，不改草稿事实；不一致由日志与 supervisor 继续兜底。
+    """
+    if not expected_titles:
+        return []
+    actual = [
+        str((item or {}).get("topic_name") or "")
+        for item in topics
+        if isinstance(item, dict)
+    ]
+    expected = [str(title or "") for title in expected_titles]
+    findings: list[str] = []
+    if len(actual) != len(expected):
+        findings.append(f"议题数量不一致：草稿 {len(actual)}，清单 {len(expected)}")
+    for idx, (actual_title, expected_title) in enumerate(
+        zip(actual, expected), start=1
+    ):
+        if _normalize_topic_title(actual_title) != _normalize_topic_title(
+            expected_title
+        ):
+            findings.append(
+                f"第{idx}个议题标题不一致：草稿 {actual_title!r}，清单 {expected_title!r}"
+            )
+    return findings
 
 
 def _extract_transcript(shared_context: str) -> str:
@@ -96,15 +141,19 @@ class MinutesGenerationAgent:
         lang: str | None = None,
         source_transcript: str = "",
         template_id: str = "",
-    ) -> Minutes:
+        layout: str = "column_major",
+        topic_titles: list[str] | None = None,
+    ) -> Minutes | TopicMajorMinutes:
         view = (view or "").strip().lower()
         if not view:
             raise ValueError("minutes generation view is required")
-        prompt_set = minutes_prompt_set(view)
+        layout = (layout or "").strip().lower() or "column_major"
+        topic_major = is_topic_major(view, layout)
+        prompt_set = minutes_prompt_set(view, layout)
         is_agenda = is_agenda_view(view)
         mode = "objective" if is_agenda else view
         raw_system_prompt = prompt_set.generation
-        label_mode = prompt_label(view)
+        label_mode = prompt_label(view, layout)
 
         aux_blocks = []
         if "【用户核心关键点】" in shared_context:
@@ -141,20 +190,36 @@ class MinutesGenerationAgent:
         else:
             system_prompt = raw_system_prompt
 
-        if is_agenda:
+        if topic_major:
+            output_contract = MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT
+            response_model: type[Minutes] | type[TopicMajorMinutes] = TopicMajorMinutes
+        elif is_agenda:
             output_contract = MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT
+            response_model = Minutes
         elif view == "personal":
             output_contract = MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT
+            response_model = Minutes
         else:
             output_contract = MINUTES_GENERATION_OUTPUT_CONTRACT
+            response_model = Minutes
         raw = await self.client.structured(
             system_prompt,
             shared_context,
-            Minutes,
+            response_model,
             output_contract,
             label=f"minutes/agent/{label_mode}/{template_id or 'none'}",
             preserve_content_on_validation_error=True,
         )
+        if topic_major:
+            topics = raw.topics if isinstance(raw, TopicMajorMinutes) else []
+            findings = check_topic_coverage(topics, list(topic_titles or []))
+            if findings:
+                logger.warning(
+                    "[minutes:topic_major] coverage findings=%s",
+                    "；".join(findings[:5]),
+                )
+            return raw
+
         understanding = extract_labeled_json(shared_context, "会议理解")
         perspective = extract_labeled_json(shared_context, "用户视角模型")
         # 议题模式由编排层显式传入完整 tagged transcript；普通分钟没有该字段，

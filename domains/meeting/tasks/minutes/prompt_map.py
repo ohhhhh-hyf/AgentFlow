@@ -24,6 +24,9 @@ from .prompts import (
     MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT,
     MINUTES_PERSONAL_SUPERVISOR_PROMPT,
     MINUTES_RENDER_TEMPLATE_PROMPT,
+    MINUTES_TOPIC_MAJOR_GENERATION_PROMPT,
+    MINUTES_TOPIC_MAJOR_RENDER_TEMPLATE_PROMPT,
+    MINUTES_TOPIC_MAJOR_SUPERVISOR_PROMPT,
 )
 
 
@@ -54,6 +57,12 @@ _AGENDA_OBJECTIVE_SET = MinutesPromptSet(
     supervisor=MINUTES_AGENDA_SUPERVISOR_PROMPT,
 )
 
+_TOPIC_MAJOR_SET = MinutesPromptSet(
+    view=VIEW_AGENDA_OBJECTIVE,
+    generation=MINUTES_TOPIC_MAJOR_GENERATION_PROMPT,
+    supervisor=MINUTES_TOPIC_MAJOR_SUPERVISOR_PROMPT,
+)
+
 # 职业模板沿用 objective prompt（与既有行为一致），但保留自己的 view 标签。
 _ROLE_TEMPLATE_SET = MinutesPromptSet(
     view=VIEW_ROLE_TEMPLATE,
@@ -69,26 +78,45 @@ _PROMPTS: dict[str, MinutesPromptSet] = {
 }
 
 
-def render_template_prompt(view: str) -> str:
-    """渲染 prompt 按 agenda / personal / 其它三路分派；view 已由编排层裁决。"""
+def _normalized_layout(layout: str) -> str:
+    return (layout or "").strip().lower() or "column_major"
+
+
+def is_topic_major(view: str, layout: str) -> bool:
+    """是否为 agenda_objective 下的 topic_major 布局。"""
+    return is_agenda_view((view or "").strip().lower()) and (
+        _normalized_layout(layout) == "topic_major"
+    )
+
+
+def render_template_prompt(view: str, layout: str = "column_major") -> str:
+    """渲染 prompt 按 agenda / personal / 其它三路分派；agenda 再按 layout 分派。"""
     normalized = (view or "").strip().lower()
     if is_agenda_view(normalized):
+        if _normalized_layout(layout) == "topic_major":
+            return MINUTES_TOPIC_MAJOR_RENDER_TEMPLATE_PROMPT
         return MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT
     if normalized == VIEW_PERSONAL:
         return MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT
     return MINUTES_RENDER_TEMPLATE_PROMPT
 
 
-def minutes_prompt_set(view: str) -> MinutesPromptSet:
-    """view → prompt 组合；未知 view 回退 objective，避免把请求打成 500。"""
-    return _PROMPTS.get((view or "").strip().lower(), _OBJECTIVE_SET)
+def minutes_prompt_set(view: str, layout: str = "column_major") -> MinutesPromptSet:
+    """view/layout → prompt 组合；未知 view 回退 objective，避免把请求打成 500。"""
+    normalized = (view or "").strip().lower()
+    if is_topic_major(normalized, layout):
+        return _TOPIC_MAJOR_SET
+    return _PROMPTS.get(normalized, _OBJECTIVE_SET)
 
 
-def prompt_label(view: str) -> str:
+def prompt_label(view: str, layout: str = "column_major") -> str:
     """日志/LLM label 用的短名（保持既有 label 口径）。"""
-    if view == VIEW_AGENDA_OBJECTIVE:
+    normalized = (view or "").strip().lower()
+    if is_topic_major(normalized, layout):
+        return "agenda_topic"
+    if normalized == VIEW_AGENDA_OBJECTIVE:
         return "agenda"
-    if view == VIEW_PERSONAL:
+    if normalized == VIEW_PERSONAL:
         return "personal"
     return "objective"
 
@@ -100,6 +128,7 @@ def is_agenda_view(view: str) -> bool:
 __all__ = [
     "MinutesPromptSet",
     "is_agenda_view",
+    "is_topic_major",
     "minutes_prompt_set",
     "prompt_label",
     "render_template_prompt",

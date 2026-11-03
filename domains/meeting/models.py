@@ -1,7 +1,15 @@
 """meeting 领域数据模型（手写）。生成模型在 models_generated.py。"""
 from __future__ import annotations
 
-from typing import Annotated, TypedDict
+from dataclasses import dataclass, field, fields
+from typing import Annotated, Any, ClassVar, TypedDict
+
+from core.schema.validation import (
+    OutputValidationError,
+    _exact_fields,
+    _string,
+    _string_list,
+)
 
 from .models_base import ModelMixin, UserIdentity  # noqa: F401 - 再导出：reports.py / __init__.py 从本模块取
 from .models_generated import *  # noqa: F403
@@ -78,6 +86,11 @@ class MeetingState(TypedDict, total=False):
     # 各任务线的运行视角（线名 → objective/personal/role_template/agenda_objective）。
     # 当前仅 minutes 使用；必须显式声明，LangGraph 只传 TypedDict 声明过的 key。
     line_views: dict[str, str]
+    # 各任务线的布局（线名 → column_major / topic_major）；由模板 layout 元数据裁决。
+    # 必须显式声明，否则写入会被 LangGraph 静默丢弃。
+    line_layouts: dict[str, str]
+    # topic_major 布局下，各任务线的议题容器栏目名（线名 → 栏名）。
+    line_containers: dict[str, str]
     # 语种标识（"zh" | "en"，供下游各节点、篇幅预算与渲染器使用）
     lang: str
     # 审定议题模式状态字段（用于 minutes 任务在检测到有效议程时跨节点传递）
@@ -95,6 +108,58 @@ class MeetingState(TypedDict, total=False):
     template_mode: str
     # 场景识别决策（原始输出、后处理结果、是否实际应用）；仅用于日志/调试，不进入 API 响应
     template_decision: dict
+
+
+@dataclass
+class TopicMajorMinutes(ModelMixin):
+    """topic_major 议题主序草稿输出（手写模型，不进 models_generated.py）。
+
+    结构：
+    - 顶层：headline / overview / topics / history_comparison；
+    - 每条议题：topic_name + topic_summary / decisions / actions / risks / open_questions。
+    """
+
+    headline: str
+    overview: str
+    topics: list[dict[str, Any]] = field(default_factory=list)
+    history_comparison: list[str] = field(default_factory=list)
+
+    _TOPIC_KEYS: ClassVar[tuple[str, ...]] = (
+        "topic_name",
+        "topic_summary",
+        "decisions",
+        "actions",
+        "risks",
+        "open_questions",
+    )
+    _TOPIC_LIST_KEYS: ClassVar[tuple[str, ...]] = (
+        "topic_summary",
+        "decisions",
+        "actions",
+        "risks",
+        "open_questions",
+    )
+
+    @classmethod
+    def validate(cls, data: dict) -> "TopicMajorMinutes":
+        _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
+        _string(data["headline"], "headline")
+        _string(data["overview"], "overview")
+
+        if not isinstance(data["topics"], list):
+            raise OutputValidationError("topics 必须是数组")
+        for idx, item in enumerate(data["topics"]):
+            if not isinstance(item, dict):
+                raise OutputValidationError(f"topics[{idx}] 必须是对象")
+            _exact_fields(item, list(cls._TOPIC_KEYS), f"topics[{idx}]")
+            _string(item["topic_name"], f"topics[{idx}].topic_name")
+            if not item["topic_name"].strip():
+                raise OutputValidationError(f"topics[{idx}].topic_name 不能为空")
+            for key in cls._TOPIC_LIST_KEYS:
+                _string_list(item[key], f"topics[{idx}].{key}")
+
+        _string_list(data["history_comparison"], "history_comparison")
+        return cls(**data)
 
 
 # 多样式纪要：浅校验放行空 sections，这里补结构门禁，供 schema repair 重出。

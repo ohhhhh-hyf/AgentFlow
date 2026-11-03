@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 
@@ -94,6 +95,79 @@ def test_minutes_view_node_preserves_other_lines() -> None:
 
 def test_meeting_state_declares_line_views() -> None:
     assert "line_views" in MeetingState.__annotations__
+
+
+def test_meeting_state_declares_line_layouts() -> None:
+    assert "line_layouts" in MeetingState.__annotations__
+    assert "line_containers" in MeetingState.__annotations__
+
+
+def test_minutes_view_node_writes_layout_and_strips_template() -> None:
+    state = _state(
+        user={"perspective": "objective"},
+        has_valid_agenda=True,
+        objective_perspective=True,
+    )
+    state["templates"] = {
+        "minutes": (
+            "# 团队例会\n\n"
+            "<!-- layout\n"
+            "mode: topic_major\n"
+            "container: 议题梳理\n"
+            "-->\n\n"
+            "## [议题梳理]\n"
+            "[说明]\n"
+        )
+    }
+
+    out = asyncio.run(_Nodes()._make_minutes_view_node()(state))
+
+    assert out["line_views"]["minutes"] == VIEW_AGENDA_OBJECTIVE
+    assert out["line_layouts"]["minutes"] == "topic_major"
+    assert out["line_containers"]["minutes"] == "议题梳理"
+    assert "<!-- layout" not in out["templates"]["minutes"]
+    assert "## [议题梳理]" in out["templates"]["minutes"]
+
+
+def test_minutes_view_node_defaults_column_major_without_layout() -> None:
+    state = _state(
+        user={"perspective": "objective"},
+        has_valid_agenda=False,
+    )
+    template = "# 通用纪要\n\n## [全文摘要]\n[说明]\n"
+    state["templates"] = {"minutes": template, "actions": "其他线模板"}
+
+    out = asyncio.run(_Nodes()._make_minutes_view_node()(state))
+
+    assert out["line_layouts"]["minutes"] == "column_major"
+    assert out["line_containers"]["minutes"] == ""
+    assert out["templates"]["minutes"] == template
+    assert out["templates"]["actions"] == "其他线模板"
+
+
+def test_minutes_view_node_logs_layout(caplog: pytest.LogCaptureFixture) -> None:
+    state = _state(
+        user={"perspective": "objective"},
+        has_valid_agenda=True,
+        objective_perspective=True,
+    )
+    state["templates"] = {
+        "minutes": (
+            "# 团队例会\n\n"
+            "<!-- layout\n"
+            "mode: topic_major\n"
+            "container: 议题梳理\n"
+            "-->\n\n"
+            "## [议题梳理]\n"
+            "[说明]\n"
+        )
+    }
+
+    with caplog.at_level(logging.INFO, logger="agentflow"):
+        asyncio.run(_Nodes()._make_minutes_view_node()(state))
+
+    assert "[minutes:layout] layout=topic_major" in caplog.text
+    assert "container=议题梳理" in caplog.text
 
 
 class _BuilderStub:

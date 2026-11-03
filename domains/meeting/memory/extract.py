@@ -559,7 +559,7 @@ def _draft_agenda_titles(
     draft: dict[str, Any],
     agenda_titles: list[str] | None,
 ) -> list[str]:
-    """草稿议题标题：优先用编排层给的法定清单，否则解析 executive_summary 标题。"""
+    """草稿议题标题：优先用编排层给的法定清单，否则解析草稿议题标题。"""
     titles: list[str] = []
     for raw in agenda_titles or []:
         title = _clean(raw).strip("[]")
@@ -567,6 +567,16 @@ def _draft_agenda_titles(
             titles.append(title)
     if titles:
         return titles
+    raw_topics = draft.get("topics")
+    if isinstance(raw_topics, list):
+        for item in raw_topics:
+            if not isinstance(item, dict):
+                continue
+            title = _clean(item.get("topic_name")).strip("[]")
+            if title and title not in titles:
+                titles.append(title)
+        if titles:
+            return titles
     raw_summary = draft.get("executive_summary")
     if not isinstance(raw_summary, list):
         return titles
@@ -585,6 +595,105 @@ def _draft_agenda_titles(
     return titles
 
 
+def _is_topic_major_draft(draft: dict[str, Any]) -> bool:
+    """是否为 topic_major 草稿（headline/overview/topics[]）。"""
+    return (
+        isinstance(draft.get("topics"), list)
+        and "overview" in draft
+        and "executive_summary" not in draft
+    )
+
+
+def _topic_major_topics(draft: dict[str, Any]) -> list[dict[str, Any]]:
+    """把 topic_major 草稿的 topics 转成 memory 的归一化议题树。"""
+    topics: list[dict[str, Any]] = []
+    for item in draft.get("topics") or []:
+        if not isinstance(item, dict):
+            continue
+        title = _clean(item.get("topic_name"))
+        if not title:
+            continue
+        actions = [
+            {"text": text, "owner": "", "timing": ""}
+            for text in _str_list(item.get("actions"))
+        ]
+        topics.append(
+            {
+                "topic_id": "",
+                "module": "",
+                "title": title,
+                "decisions": _str_list(item.get("decisions")),
+                "actions": actions,
+                "risks": _str_list(item.get("risks")),
+                "open_issues": _str_list(item.get("open_questions")),
+            }
+        )
+    return topics
+
+
+def _extract_topic_major_meeting_fact(
+    draft: dict[str, Any],
+    *,
+    agenda_titles: list[str] | None = None,
+    transcript: str = "",
+    request_id: str = "",
+    time: str = "",
+) -> MeetingFact:
+    """用 topic_major 草稿构建 MeetingFact（overview + topics）。"""
+    topics = _topic_major_topics(draft)
+    decisions = [d for topic in topics for d in topic["decisions"]]
+    open_items = [q for topic in topics for q in topic["open_issues"]]
+    risks = [r for topic in topics for r in topic["risks"]]
+    action_items = [item for topic in topics for item in topic["actions"]]
+    titles = [topic["title"] for topic in topics]
+    if not titles:
+        titles = _draft_agenda_titles(draft, agenda_titles)
+
+    overview = _clean(draft.get("overview"))
+    understanding_like: dict[str, Any] = {
+        "meeting_purpose": overview,
+        "decisions": decisions,
+        "open_questions": open_items,
+        "risks": risks,
+        "topics": topics,
+    }
+    headline = _clean(draft.get("headline"))
+    title = headline or (titles[0] if titles else "")
+    if not title:
+        title = _meeting_title(understanding_like, transcript)
+    summary = overview or _summary(understanding_like)
+    anchors = _anchor_candidates(understanding_like, transcript)
+    if title and title not in anchors:
+        anchors.insert(0, title)
+    if not anchors:
+        anchors = list(titles)
+    project_candidates = _project_candidates(transcript, understanding_like, title)
+    time_val = (time or "").strip()
+    return MeetingFact(
+        meeting_id=_meeting_id(request_id, transcript),
+        time=time_val,
+        time_source="user" if time_val else "unknown",
+        title=title,
+        summary=summary,
+        anchors=anchors,
+        project_candidates=project_candidates,
+        decisions=decisions,
+        open_items=open_items,
+        action_items=action_items,
+        risks=risks,
+        closed_items=[],
+        quotes=_quotes(
+            transcript,
+            decisions,
+            open_items,
+            risks,
+            [],
+            action_items,
+        ),
+        topics=topics,
+    )
+
+
 def extract_meeting_fact_from_minutes_draft(
     draft: dict[str, Any] | None,
     *,
@@ -600,6 +709,14 @@ def extract_meeting_fact_from_minutes_draft(
     ``extract_meeting_fact``。
     """
     data = draft if isinstance(draft, dict) else {}
+    if _is_topic_major_draft(data):
+        return _extract_topic_major_meeting_fact(
+            data,
+            agenda_titles=agenda_titles,
+            transcript=transcript,
+            request_id=request_id,
+            time=time,
+        )
     decisions = _str_list(data.get("key_decisions"))
     open_items = _str_list(data.get("unresolved_questions"))
     risks = _str_list(data.get("risks_and_blockers"))

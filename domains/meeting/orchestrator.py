@@ -764,8 +764,23 @@ class _Nodes(DomainNodes):
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")
             return "\n\n".join(parts)
         view_mode = "objective" if view == VIEW_AGENDA_OBJECTIVE else view
+        layout = str(
+            (state.get("line_layouts") or {}).get(line_name) or "column_major"
+        ).strip().lower()
+        topic_major = (
+            line_name == "minutes"
+            and view == VIEW_AGENDA_OBJECTIVE
+            and layout == "topic_major"
+        )
         if line_name == "minutes":
-            if state.get("has_valid_agenda"):
+            if state.get("has_valid_agenda") and topic_major:
+                fact_note = (
+                    "说明：本场会议已审定有效议题清单，会议原文已完成议题打标。"
+                    "请按有效议题清单逐条输出 topics 记录；每个议题内部按 "
+                    "topic_summary / decisions / actions / risks / open_questions 归位；"
+                    "不写全场概况，不跨议题串写。"
+                )
+            elif state.get("has_valid_agenda"):
                 fact_note = (
                     "说明：本场会议已审定有效议题清单，会议原文已完成议题打标。以审定议题为主线骨架，以各议题的因果脉络、核心指标与论辩过程成段展开草稿，确保每段清晰标注所属议题与子主题。"
                 )
@@ -850,34 +865,71 @@ class _Nodes(DomainNodes):
                 parts.append(f"════════════════════════════════════════\n{aux_block}")
             # 针对审定议题模式：在长上下文最底端注入最高优先级执行红线，克服长文本注意力稀疏
             if state.get("has_valid_agenda"):
-                parts.append(
-                    "════════════════════════════════════════\n"
-                    "【审定议题草稿生成执行准绳】：\n"
-                    "1. 标题直出：每个议题分项顶格以「### 一. [议题全称]」开始，不写任何前言过渡句；\n"
-                    "2. 扁平子主题：多方向研讨以独立加粗行「**业务子主题**」划分段落，单方向研讨直接列表，不使用四级标题与数字编号；\n"
-                    "3. 纯净列表：正文统一采用「- 要点名称: 具体陈述」，列表项内部不重复加粗；冒号前提炼为实质业务短语，直接点明具体的业务对象、核心矛盾、方案举措或定调结论；\n"
-                    "4. 就事论事：以业务方案、现状与结论为主干直陈事实，正文只记录事项本身，不编写参会人口头转述；\n"
-                    "5. 细节充分：讲透方案背景与落地动作，原文中的参数、指标、排期精准完整保留。"
-                )
+                if topic_major:
+                    parts.append(
+                        "════════════════════════════════════════\n"
+                        "【议题主序草稿生成执行准绳】：\n"
+                        "1. 顶层只输出 headline / overview / topics / history_comparison；\n"
+                        "2. topics 必须与【现场审定的有效议题清单】1:1，顺序、标题逐字一致；\n"
+                        "3. 每个议题固定六个键：topic_name / topic_summary / decisions / actions / risks / open_questions；\n"
+                        "4. topic_summary 不写议题标题、不写全场概况、不写决策/行动/风险/未决；\n"
+                        "5. decisions 只写已拍板；actions 交代责任人/交付物/时限；risks 与 open_questions 严格区分；\n"
+                        "6. 无内容写 []；不得跨议题串写；不得新增/删除/改名/重排议题。"
+                    )
+                else:
+                    parts.append(
+                        "════════════════════════════════════════\n"
+                        "【审定议题草稿生成执行准绳】：\n"
+                        "1. 标题直出：每个议题分项顶格以「### 一. [议题全称]」开始，不写任何前言过渡句；\n"
+                        "2. 扁平子主题：多方向研讨以独立加粗行「**业务子主题**」划分段落，单方向研讨直接列表，不使用四级标题与数字编号；\n"
+                        "3. 纯净列表：正文统一采用「- 要点名称: 具体陈述」，列表项内部不重复加粗；冒号前提炼为实质业务短语，直接点明具体的业务对象、核心矛盾、方案举措或定调结论；\n"
+                        "4. 就事论事：以业务方案、现状与结论为主干直陈事实，正文只记录事项本身，不编写参会人口头转述；\n"
+                        "5. 细节充分：讲透方案背景与落地动作，原文中的参数、指标、排期精准完整保留。"
+                    )
             template_text = str(
                 (state.get("templates") or {}).get("minutes") or ""
             ).strip()
             logger.info(
-                "[minutes:generation] template_in_context=False template_id=%s template_chars=%d",
+                "[minutes:generation] layout=%s template_in_context=False template_id=%s template_chars=%d",
+                layout,
                 _template_fingerprint(template_text),
                 len(template_text),
             )
-            # 生成阶段只看 JSON 契约，不看最终排版模板；末尾用最高优先级清单锁住 7 个字段。
-            parts.append(
-                "════════════════════════════════════════\n"
-                "【本轮 JSON 输出契约（唯一结构，最高优先级）】\n"
-                "必须同时输出：\n"
-                "headline、executive_summary、key_decisions、personally_relevant_points、\n"
-                "risks_and_blockers、unresolved_questions、history_comparison。\n"
-                "无内容写 []；\n"
-                "不得因为最终模板栏目少而省略字段；\n"
-                "不得把 decisions / actions / risks 并入 executive_summary。"
-            )
+            # 生成阶段只看 JSON 契约，不看最终排版模板；末尾用最高优先级清单锁住字段。
+            if topic_major:
+                parts.append(
+                    "════════════════════════════════════════\n"
+                    "【本轮 JSON 输出契约（唯一结构，最高优先级）】\n"
+                    "必须按以下结构输出：\n"
+                    "{\n"
+                    '  "headline": "",\n'
+                    '  "overview": "",\n'
+                    '  "topics": [\n'
+                    "    {\n"
+                    '      "topic_name": "",\n'
+                    '      "topic_summary": [],\n'
+                    '      "decisions": [],\n'
+                    '      "actions": [],\n'
+                    '      "risks": [],\n'
+                    '      "open_questions": []\n'
+                    "    }\n"
+                    "  ],\n"
+                    '  "history_comparison": []\n'
+                    "}\n"
+                    "无内容写 []；六个议题字段不得省略；\n"
+                    "不得把 decisions / actions / risks / open_questions 并入 topic_summary。"
+                )
+            else:
+                parts.append(
+                    "════════════════════════════════════════\n"
+                    "【本轮 JSON 输出契约（唯一结构，最高优先级）】\n"
+                    "必须同时输出：\n"
+                    "headline、executive_summary、key_decisions、personally_relevant_points、\n"
+                    "risks_and_blockers、unresolved_questions、history_comparison。\n"
+                    "无内容写 []；\n"
+                    "不得因为最终模板栏目少而省略字段；\n"
+                    "不得把 decisions / actions / risks 并入 executive_summary。"
+                )
         return "\n\n".join(parts)
 
     def _supervisor_context(self, state, line_name: str) -> str:
@@ -890,6 +942,14 @@ class _Nodes(DomainNodes):
         """
         sub = _line(state, line_name)
         view = self._minutes_view(state, line_name)
+        layout = str(
+            (state.get("line_layouts") or {}).get(line_name) or "column_major"
+        ).strip().lower()
+        topic_major = (
+            line_name == "minutes"
+            and view == VIEW_AGENDA_OBJECTIVE
+            and layout == "topic_major"
+        )
         blocks = []
         if line_name == "minutes" and state.get("has_valid_agenda"):
             blocks.append("议题模式：agenda_enhanced")
@@ -928,9 +988,18 @@ class _Nodes(DomainNodes):
             )
             return f"{revision}\n\n" + "\n\n".join(blocks)
         if view in {VIEW_AGENDA_OBJECTIVE, VIEW_PERSONAL}:
-            source_pack = self._supervisor_source_pack(
-                state, line_name, include_profile=False
-            )
+            if topic_major:
+                source_state = dict(state)
+                source_state["transcript"] = (
+                    state.get("tagged_transcript") or state.get("transcript") or ""
+                )
+                source_pack = self._supervisor_source_pack(
+                    source_state, line_name, include_profile=False
+                )
+            else:
+                source_pack = self._supervisor_source_pack(
+                    state, line_name, include_profile=False
+                )
         else:
             # 保持两参调用，兼容既有测试/外部桩实现。
             source_pack = self._supervisor_source_pack(state, line_name)
@@ -966,7 +1035,7 @@ class _Nodes(DomainNodes):
                 blocks.append(budget)
         blocks.append(
             f"{_line_draft_title(line_name)}：\n"
-            f"{_json(compact_draft_for_review(sub['draft'], drop_keys=_SUPERVISOR_CARRY_DROP if line_name == 'minutes' else None))}"
+            f"{_json(compact_draft_for_review(sub['draft'], drop_keys=None if topic_major else (_SUPERVISOR_CARRY_DROP if line_name == 'minutes' else None)))}"
         )
         return f"{self._revision_instruction(state, line_name)}\n\n" + "\n\n".join(blocks)
 
@@ -1056,6 +1125,16 @@ class _Nodes(DomainNodes):
                     for i, a in enumerate(agendas)
                 ]
                 blocks.append(("现场审定的有效议题清单", "\n".join(checklist_lines), "raw"))
+        if line_name == "minutes" and view == VIEW_AGENDA_OBJECTIVE:
+            layout = str(
+                (state.get("line_layouts") or {}).get(line_name) or "column_major"
+            ).strip().lower()
+            if layout == "topic_major":
+                container = str(
+                    (state.get("line_containers") or {}).get(line_name) or ""
+                ).strip()
+                if container:
+                    blocks.append(("议题容器", container, "raw"))
         perspective = self._compact_perspective(state.get("perspective_profile") or {})
         if perspective and view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
             blocks.append(("已审核用户视角", perspective, "json"))
@@ -1348,12 +1427,44 @@ class _Nodes(DomainNodes):
         return node
 
     def _make_minutes_view_node(self):
-        """把本次 minutes 的有效 view 固化到 state["line_views"]。"""
+        """把本次 minutes 的有效 view 与模板 layout 固化到 state。
+
+        - ``line_views["minutes"]``：objective/personal/role_template/agenda_objective；
+        - ``line_layouts["minutes"]``：column_major/topic_major（模板 layout 元数据）；
+        - ``line_containers["minutes"]``：topic_major 的议题容器栏目名。
+
+        模板里的 ``<!-- layout ... -->`` 在此剥离，避免进入占位符解析/渲染 prompt/终稿。
+        """
 
         async def node(state: dict) -> dict:
+            from core.templates.router import split_template_layout
+
             views = dict(state.get("line_views") or {})
             views["minutes"] = self._minutes_view(state, "minutes")
-            return {"line_views": views}
+
+            template = str((state.get("templates") or {}).get("minutes") or "")
+            clean, layout, container = split_template_layout(template)
+
+            update: dict = {"line_views": views}
+            if template:
+                templates = dict(state.get("templates") or {})
+                templates["minutes"] = clean
+                update["templates"] = templates
+
+            layouts = dict(state.get("line_layouts") or {})
+            layouts["minutes"] = layout
+            containers = dict(state.get("line_containers") or {})
+            containers["minutes"] = container
+            update["line_layouts"] = layouts
+            update["line_containers"] = containers
+
+            progress(
+                "[minutes:layout] layout=%s container=%s template_id=%s",
+                layout,
+                container or "-",
+                state.get("template_id") or "-",
+            )
+            return update
 
         return node
 
@@ -1746,11 +1857,96 @@ class MeetingAgentSystem(_Nodes):
 
         # ── FallbackRules 注册生成区结束 ──
 
+        # minutes 的图内降级节点按 layout 分叉：topic_major 用 topic 兜底，
+        # column_major 继续用声明式 FallbackRules。
+        self._fallback_nodes = {"minutes": self._make_minutes_fallback_node()}
+
         # 共享编排内核所需实例属性（引擎通过 self 读取；值来自领域注册表）
         self._task_lines = TASK_LINES
         self._line_cn_names = LINE_CN_NAMES
         self._state_class = MeetingState
         self._quality_warning = QUALITY_WARNING
+
+    def _make_minutes_fallback_node(self):
+        """minutes 图内降级：topic_major 走 overview + topics 确定性兜底。"""
+
+        async def node(state: dict) -> dict:
+            from .tasks.minutes.steps.minutes_render import (
+                render_fallback_topic_major,
+            )
+
+            sub = _line(state, "minutes")
+            draft = sub.get("draft") or {}
+            layout = str(
+                (state.get("line_layouts") or {}).get("minutes") or "column_major"
+            ).strip().lower()
+            view = str(
+                (state.get("line_views") or {}).get("minutes") or ""
+            ).strip().lower()
+            lang = str(state.get("lang") or "zh").strip().lower()
+
+            structure = None
+            if layout == "topic_major" and view == VIEW_AGENDA_OBJECTIVE:
+                text = render_fallback_topic_major(draft, is_en=lang == "en")
+            else:
+                text, structure = self._domain_fallback_text(
+                    state, "minutes", self._fallback_rules["minutes"]
+                )
+
+            line_dict = {"rendered": text, "degraded": True}
+            if structure is not None:
+                line_dict["structure"] = structure
+            return {
+                "lines": {"minutes": line_dict},
+                "quality_degraded": True,
+            }
+
+        return node
+
+    def _fallback_reports(self, state: dict, line_names: list[str]) -> dict:
+        """图异常/校验失败时的确定性 Report；minutes 的 topic_major 走专用兜底。"""
+        from core.graph.engine_text import assemble_report
+
+        from .tasks.minutes.steps.minutes_render import render_fallback_topic_major
+
+        lines = state.setdefault("lines", {})
+        layout = str(
+            (state.get("line_layouts") or {}).get("minutes") or "column_major"
+        ).strip().lower()
+        view = str(
+            (state.get("line_views") or {}).get("minutes") or ""
+        ).strip().lower()
+        lang = str(state.get("lang") or "zh").strip().lower()
+
+        for line_name in line_names:
+            line_dict = lines.setdefault(line_name, {})
+            if (
+                line_name == "minutes"
+                and layout == "topic_major"
+                and view == VIEW_AGENDA_OBJECTIVE
+            ):
+                draft = line_dict.get("draft") or {}
+                line_dict["rendered"] = render_fallback_topic_major(
+                    draft, is_en=lang == "en"
+                )
+                continue
+            text, structure = self._domain_fallback_text(
+                state, line_name, self._fallback_rules[line_name]
+            )
+            line_dict["rendered"] = text
+            if structure is not None:
+                line_dict["structure"] = structure
+
+        return {
+            line_name: assemble_report(
+                state,
+                self._quality_warning,
+                self._report_assemblers[line_name],
+                line_name,
+                self._compute_title,
+            )
+            for line_name in line_names
+        }
 
     async def _pre_render_async(self, state: dict, line_name: str) -> None:
         """actions 审核通过后、渲染前，按开关批量回填 calendar 绝对时间。"""

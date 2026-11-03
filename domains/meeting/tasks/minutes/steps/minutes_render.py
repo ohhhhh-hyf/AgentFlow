@@ -77,6 +77,124 @@ def _format_history_lines(items: list) -> list[str]:
     return lines
 
 
+_CN_TOPIC_NUMBERS = "一二三四五六七八九十"
+_TOPIC_SECTION_LABELS = frozenset(
+    {"**工作进展**", "**落实安排**", "**未决风险**", "**结论定调**"}
+)
+
+
+def cleanup_empty_topic_sections(text: str) -> str:
+    """删除 topic_major 渲染结果中“只有加粗子栏标签、没有正文”的空块。"""
+    lines = (text or "").splitlines()
+    kept: list[str] = []
+    for idx, line in enumerate(lines):
+        label = line.strip()
+        if label not in _TOPIC_SECTION_LABELS:
+            kept.append(line)
+            continue
+        nxt = idx + 1
+        while nxt < len(lines) and not lines[nxt].strip():
+            nxt += 1
+        if nxt >= len(lines):
+            continue
+        next_text = lines[nxt].strip()
+        if next_text in _TOPIC_SECTION_LABELS or next_text.startswith("#"):
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def _is_topic_major_draft(draft: dict) -> bool:
+    """是否为 topic_major 草稿（headline/overview/topics[]）。"""
+    return (
+        isinstance(draft, dict)
+        and isinstance(draft.get("topics"), list)
+        and "overview" in draft
+        and "executive_summary" not in draft
+    )
+
+
+def _topic_heading(index: int, title: str) -> str:
+    number = (
+        _CN_TOPIC_NUMBERS[index - 1]
+        if 1 <= index <= len(_CN_TOPIC_NUMBERS)
+        else str(index)
+    )
+    return f"### {number}. {title}".strip()
+
+
+def render_fallback_topic_major(draft: dict, *, is_en: bool = False) -> str:
+    """topic_major 草稿的确定性兜底渲染（零 LLM 调用）。
+
+    不推断模板栏目，只按通用结构输出：
+    - overview → 全文摘要；
+    - 每个 topic → 议题标题 + 工作进展/结论定调/落实安排/未决风险。
+    """
+    empty_msg = (
+        "Please refer directly to the meeting transcript."
+        if is_en
+        else "请直接参考会议原文。"
+    )
+    if not draft:
+        return empty_msg
+
+    headline = str(draft.get("headline") or "").strip()
+    title = headline or ("Meeting Minutes" if is_en else "会议纪要")
+    blocks: list[str] = []
+
+    overview = str(draft.get("overview") or "").strip()
+    if overview:
+        heading = "## Executive Summary" if is_en else "## 全文摘要"
+        blocks.append(f"{heading}\n\n{overview}")
+
+    topic_blocks: list[str] = []
+    for idx, topic in enumerate(draft.get("topics") or [], start=1):
+        if not isinstance(topic, dict):
+            continue
+        name = str(topic.get("topic_name") or "").strip()
+        if not name:
+            continue
+        lines = [_topic_heading(idx, name)]
+
+        def add_section(label_zh: str, label_en: str, items: list) -> None:
+            formatted = _format_list_lines(items)
+            if not formatted:
+                return
+            lines.append(label_en if is_en else label_zh)
+            lines.extend(formatted)
+
+        add_section(
+            "**工作进展**",
+            "**Work Progress**",
+            _field_list(topic, "topic_summary"),
+        )
+        add_section(
+            "**结论定调**",
+            "**Decisions**",
+            _field_list(topic, "decisions"),
+        )
+        add_section(
+            "**落实安排**",
+            "**Actions**",
+            _field_list(topic, "actions"),
+        )
+        add_section(
+            "**未决风险**",
+            "**Risks & Open Questions**",
+            _field_list(topic, "risks") + _field_list(topic, "open_questions"),
+        )
+        if len(lines) > 1:
+            topic_blocks.append("\n".join(lines))
+
+    if topic_blocks:
+        heading = "## Topic Breakdown" if is_en else "## 议题梳理"
+        blocks.append(f"{heading}\n\n" + "\n\n".join(topic_blocks))
+
+    if not blocks:
+        return f"# {title}\n\n{empty_msg}"
+    return f"# {title}\n\n" + "\n\n".join(blocks)
+
+
 def render_fallback_minutes(
     draft: dict,
     *,
@@ -169,12 +287,15 @@ class MinutesGenerationRender:
     def render_draft(state: dict) -> str:
         """把已批准的纪要草稿纯 Python 确定性组装为规范 Markdown 正文（零 LLM 调用）。
 
-        先提取视角/语种，再委托 ``render_fallback_minutes`` 做 7 字段 → 栏目映射；
-        兜底布局固定为：全文摘要 / 要点梳理 / 关键决策 / 执行要点 / 风险 / 未决 / 历史对比。
+        - topic_major 草稿：走 ``render_fallback_topic_major``（overview + topics）；
+        - 其它草稿：委托 ``render_fallback_minutes`` 做 7 字段 → 栏目映射。
         """
         minutes_state = (state.get("lines") or {}).get("minutes") or {}
         draft = minutes_state.get("draft") or {}
         lang = str(state.get("lang") or "zh").strip().lower()
+
+        if _is_topic_major_draft(draft):
+            return render_fallback_topic_major(draft, is_en=lang == "en")
 
         objective = bool(state.get("objective_perspective"))
         user = state.get("user") or {}
@@ -200,6 +321,7 @@ class MinutesGenerationRender:
         *,
         view: str,
         lang: str | None = None,
+        layout: str = "column_major",
     ) -> tuple[str, str]:
         """组装渲染 prompt 与用户消息（普通与流式共用）。
 
@@ -210,7 +332,7 @@ class MinutesGenerationRender:
         view = (view or "").strip().lower()
         if not view:
             raise ValueError("minutes render view is required")
-        template_prompt = render_template_prompt(view)
+        template_prompt = render_template_prompt(view, layout)
         is_agenda = is_agenda_view(view)
 
         lang_val = lang or parse_lang_mode(context)
@@ -255,6 +377,7 @@ class MinutesGenerationRender:
         max_tokens: int | None = None,
         temperature: float | None = None,
         lang: str | None = None,
+        layout: str = "column_major",
     ) -> str:
         """整段渲染纪要正文（纯文本）。有模板时用低温度稳住结构。
 
@@ -266,12 +389,15 @@ class MinutesGenerationRender:
             template,
             view=view,
             lang=lang,
+            layout=layout,
         )
         has_template = bool((template or "").strip())
         temp = temperature if temperature is not None else (0.0 if has_template else None)
         text = await self.client.text(
             prompt, user, temperature=temp, max_tokens=max_tokens, label="minutes/render"
         )
+        if (layout or "").strip().lower() == "topic_major":
+            text = cleanup_empty_topic_sections(text)
         return text
 
     async def stream(
@@ -281,6 +407,7 @@ class MinutesGenerationRender:
         *,
         view: str,
         lang: str | None = None,
+        layout: str = "column_major",
     ) -> AsyncIterator[str]:
         """流式渲染纪要正文：LLM token 逐块产出（SSE）。"""
         prompt, user = self._prompt_and_user(
@@ -288,6 +415,7 @@ class MinutesGenerationRender:
             template,
             view=view,
             lang=lang,
+            layout=layout,
         )
         async for chunk in self.client.stream_text(prompt, user, label="minutes/render"):
             yield chunk

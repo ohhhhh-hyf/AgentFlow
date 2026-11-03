@@ -135,6 +135,36 @@ MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT = """{
 - unresolved_questions：未决问题（现场悬而未决、待澄清、待确认事项）
 - history_comparison：与历史对比（底层自动装配，默认 []）"""
 
+# topic_major 议题主序专用输出契约（普通字符串，不新增 *GenerationContract 子类，
+# 避免 sync_domain 生成多余模型；对应手写模型 TopicMajorMinutes）。
+MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT = """{
+  "headline": "",
+  "overview": "",
+  "topics": [
+    {
+      "topic_name": "",
+      "topic_summary": [],
+      "decisions": [],
+      "actions": [],
+      "risks": [],
+      "open_questions": []
+    }
+  ],
+  "history_comparison": []
+}
+
+字段说明：
+- headline：会议纪要标题（8–18 字，公文标题风格）
+- overview：全场概况（单段；不承载跨议题行动/风险清单）
+- topics：按【现场审定的有效议题清单】逐项输出；N 个有效议题必须输出 N 条，顺序与清单一致
+- topic_name：议题全称，必须与清单逐字一致；不得改名、合并、拆分、重排
+- topic_summary：本议题正文/研讨/进展/内容要点；一条一个完整事实；不写「### 议题名」、不写全场概况、不写决策/行动/风险/未决
+- decisions：本议题已拍板的决议/结论/定调；讨论/建议不算；无则 []
+- actions：本议题的后续行动；写清责任人、交付物、时限；无则 []
+- risks：本议题的风险/卡点/阻塞/外部依赖；无则 []
+- open_questions：本议题的未决/待确认/遗留问题；无则 []
+- history_comparison：程序装配字段，草稿固定输出 []"""
+
 # 降级拼装规则（声明式类）：fallback 节点由 sync_domain.py 检测子类后生成
 class MinutesFallbackRules(FallbackRules):
     """纪要降级拼装：headline + 5 段（带标签）+ 免责声明。"""
@@ -162,6 +192,7 @@ __all__ = [
     "MINUTES_GENERATION_OUTPUT_CONTRACT",
     "MINUTES_PERSONAL_GENERATION_OUTPUT_CONTRACT",
     "MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT",
+    "MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT",
     "MINUTES_SUPERVISOR_OUTPUT_CONTRACT",
     "MINUTES_FALLBACK_RULES",
 ]

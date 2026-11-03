@@ -572,6 +572,11 @@ class DomainNodes:
                 lang,
                 aux_str,
             )
+            if line_name == "minutes":
+                progress(
+                    "[agent:layout] line=minutes layout=%s",
+                    (state.get("line_layouts") or {}).get(line_name) or "-",
+                )
             agent = getattr(self, cfg["agent_attr"])
             # 每线可选参数：组织模式 / 附加上下文（state["line_modes"] / ["line_extra"]）
             context = self._line_shared_context(state, line_name)
@@ -633,6 +638,21 @@ class DomainNodes:
                     view = (state.get("line_views") or {}).get(line_name)
                     if view:
                         run_kwargs["view"] = view
+                if line_name == "minutes":
+                    if "layout" in sig.parameters or has_var_kw:
+                        layout = (state.get("line_layouts") or {}).get(line_name)
+                        if layout:
+                            run_kwargs["layout"] = layout
+                    if "topic_titles" in sig.parameters or has_var_kw:
+                        titles: list[str] = []
+                        for item in state.get("valid_agendas") or []:
+                            title = getattr(item, "title", None)
+                            if title is None and isinstance(item, dict):
+                                title = item.get("title")
+                            if title:
+                                titles.append(str(title))
+                        if titles:
+                            run_kwargs["topic_titles"] = titles
                 result = await agent.run(
                     self._revision_context(
                         context,
@@ -732,9 +752,22 @@ class DomainNodes:
             transcript = str(state.get("transcript") or "").strip()
             degraded = bool(sub.get("degraded"))
             band = self._supervisor_guardrail_range
+            layout = str(
+                (state.get("line_layouts") or {}).get(line_name) or "column_major"
+            ).strip().lower()
+            view_for_layout = str(
+                (state.get("line_views") or {}).get(line_name) or ""
+            ).strip().lower()
+            topic_major = (
+                line_name == "minutes"
+                and layout == "topic_major"
+                and view_for_layout == "agenda_objective"
+            )
             # ── 快速短路（Fast-Path Skip）：短会 / 极简输入 ──────────────
+            # topic_major 草稿不使用旧 7 字段，短会 bypass / 规则门禁可能误判，
+            # 试点阶段强制走 LLM 审核。
             bypass = ""
-            limit = self._supervisor_fast_path_chars
+            limit = 0 if topic_major else self._supervisor_fast_path_chars
             if not degraded and limit:
                 if len(transcript) < limit:
                     bypass = f"short_meeting:{len(transcript)}chars"
@@ -745,7 +778,8 @@ class DomainNodes:
                     bypass = self._few_party_reason(state)
             # ── 规则门禁（Rule-Based Guardrails）：确定性预检全过 → 放行 ──
             if (
-                not bypass
+                not topic_major
+                and not bypass
                 and not degraded
                 and band[0] and band[0] <= len(transcript) <= band[1]
                 and guardrail_fast_path_enabled()
@@ -788,6 +822,8 @@ class DomainNodes:
                 }
             _rev_t0 = time.time()
             progress("[agent:start] name=%s_review line=%s", line_name, line_name)
+            if line_name == "minutes":
+                progress("[supervisor:layout] line=minutes layout=%s", layout)
             supervisor = getattr(self, cfg["supervisor_attr"])
             sig = inspect.signature(supervisor.review)
             has_var_kw = any(
@@ -807,6 +843,10 @@ class DomainNodes:
                     view = (state.get("line_views") or {}).get(line_name)
                     if view:
                         rev_kwargs["view"] = view
+                if line_name == "minutes" and (
+                    "layout" in sig.parameters or has_var_kw
+                ):
+                    rev_kwargs["layout"] = layout
                 review = await supervisor.review(
                     self._supervisor_context(state, line_name),
                     **rev_kwargs,

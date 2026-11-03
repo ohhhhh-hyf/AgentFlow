@@ -19,6 +19,7 @@ from ._base import (
     _body_han_count,  # noqa: F401 - 门面再导出：tools/runtime/render.py 从这里取
     clear_compile_caches,
     is_router_enabled,
+    split_template_layout,
     split_template_meta,
     strip_outer_markdown_fence,
     wrap_template_requirement,
@@ -83,6 +84,7 @@ __all__ = [
     "preview_to_template",
     "route_template",
     "split_spec_template",
+    "split_template_layout",
     "split_template_meta",
     "strip_char_budget_meta",
     "strip_outer_markdown_fence",

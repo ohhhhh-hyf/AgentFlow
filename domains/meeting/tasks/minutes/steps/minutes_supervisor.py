@@ -36,12 +36,15 @@ class MinutesGenerationSupervisor(StructuredDomainSupervisor):
         *,
         view: str,
         lang: str | None = None,
+        layout: str = "column_major",
     ) -> MinutesSupervisorReview:
         view = (view or "").strip().lower()
         if not view:
             raise ValueError("minutes supervisor view is required")
-        raw_domain_prompt = build_minutes_supervisor_prompt(view, context=context)
-        label_mode = prompt_label(view)
+        raw_domain_prompt = build_minutes_supervisor_prompt(
+            view, context=context, layout=layout
+        )
+        label_mode = prompt_label(view, layout)
 
         lang_val = lang or parse_lang_mode(context)
         if (lang_val or "").strip().lower() == "en":

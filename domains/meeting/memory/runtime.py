@@ -534,6 +534,9 @@ def _draft_has_fact(draft: dict[str, Any] | None) -> bool:
         "personally_relevant_points",
         "risks_and_blockers",
         "unresolved_questions",
+        # topic_major 草稿
+        "overview",
+        "topics",
     ):
         value = draft.get(key)
         if isinstance(value, str) and value.strip():

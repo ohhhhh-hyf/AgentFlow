@@ -117,6 +117,113 @@ def wrap_template_requirement(fmt: str, requirement: str) -> str:
     return f"<!-- requirement\n{req}\n-->\n\n{body}\n"
 
 
+_LAYOUT_COMMENT_RE = re.compile(
+    r"<!--\s*layout\b(.*?)-->",
+    re.IGNORECASE | re.DOTALL,
+)
+
+_LAYOUT_MODE_ALIASES = {
+    "column": "column_major",
+    "column_major": "column_major",
+    "columnmajor": "column_major",
+    "topic": "topic_major",
+    "topic_major": "topic_major",
+    "topicmajor": "topic_major",
+}
+
+
+def _normalize_layout_mode(raw: str) -> str | None:
+    """layout mode 归一化；未知值返回 None。"""
+    value = (raw or "").strip().strip("'\"").lower()
+    if not value:
+        return None
+    value = re.sub(r"[\s\-]+", "_", value)
+    return _LAYOUT_MODE_ALIASES.get(value)
+
+
+def _parse_layout_comment(body: str) -> tuple[str | None, str]:
+    """解析 ``<!-- layout ... -->`` 的注释体，返回 (mode, container)。
+
+    支持：
+    - ``mode: topic_major`` / ``mode=topic_major``
+    - ``container: 议题梳理``
+    - 纯值简写：``topic_major``
+    - 换行、分号、逗号分隔的多个键值
+    """
+    text = (body or "").strip()
+    if text.startswith((":", "=")):
+        text = text[1:].strip()
+
+    mode_raw = ""
+    container = ""
+    bare: list[str] = []
+    for part in re.split(r"[\n;,]+", text):
+        part = part.strip().strip(",")
+        if not part:
+            continue
+        if ":" in part:
+            key, value = part.split(":", 1)
+        elif "=" in part:
+            key, value = part.split("=", 1)
+        else:
+            bare.append(part)
+            continue
+        key = key.strip().lower()
+        value = value.strip().strip("'\"")
+        if not value:
+            continue
+        if key in {"mode", "layout", "layout_mode"} and not mode_raw:
+            mode_raw = value
+        elif key == "container" and not container:
+            container = value
+
+    if not mode_raw and bare:
+        mode_raw = bare[0]
+    return (mode_raw or None), container
+
+
+def split_template_layout(text: str) -> tuple[str, str, str]:
+    """剥掉模板里的 ``<!-- layout ... -->``，返回 (正文, layout_mode, container)。
+
+    - 无 layout 注释：返回**原文原样** + ``column_major`` + 空 container，
+      保证旧模板解析/渲染零变化；
+    - 支持块式 ``<!-- layout\\nmode: topic_major\\ncontainer: 议题梳理\\n-->``
+      与行内式 ``<!-- layout: topic_major -->``；
+    - ``mode`` 支持 ``column_major`` / ``topic_major``，兼容 ``column`` / ``topic``；
+    - 非法或缺失 mode：回退 ``column_major`` 并打 warning；
+    - 多个 layout 注释：以第一条为准，全部从正文剥离；
+    - 注释剥离后收敛多余空行；原文以换行结尾时保留结尾换行。
+    """
+    raw = text or ""
+    matches = list(_LAYOUT_COMMENT_RE.finditer(raw))
+    if not matches:
+        return raw, "column_major", ""
+
+    mode_raw, container = _parse_layout_comment(matches[0].group(1))
+    if len(matches) > 1:
+        logger.warning(
+            "[template:layout] duplicate layout comments=%d; first wins",
+            len(matches),
+        )
+
+    mode = _normalize_layout_mode(mode_raw or "")
+    if mode is None:
+        if mode_raw:
+            logger.warning(
+                "[template:layout] invalid mode=%r; fallback=column_major",
+                mode_raw,
+            )
+        else:
+            logger.warning("[template:layout] missing mode; fallback=column_major")
+        mode = "column_major"
+
+    cleaned = _LAYOUT_COMMENT_RE.sub("", raw)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    if cleaned and raw.endswith("\n"):
+        cleaned += "\n"
+    return cleaned, mode, container
+
+
 _ENUM_SEP_RE = re.compile(r"\s*/\s*")
 
 

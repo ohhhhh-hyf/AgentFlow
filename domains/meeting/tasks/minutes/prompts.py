@@ -139,6 +139,57 @@ MINUTES_AGENDA_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」（审
 所有人名、决策与议题归属以打标转写为准；研讨探讨与拍板定调严格区分边界；辅助材料仅补充事实、参数与原话，有据才写，忠实于原始事实。
 """
 
+# ── 议题主序（topic_major）生成提示词 ───────────────────────────────────────
+MINUTES_TOPIC_MAJOR_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」（议题主序模式）。
+
+上下文中的会议素材已按现场审定的议程完成结构化整理，包含【现场审定的有效议题清单】、【会议开场背景与主线脉络】、各【议题 XX：议题全称】现场研讨记录以及【会末收尾与全场定调】。
+
+若上下文同时出现【用户核心关键点】、【用户划线原话与笔记】或【视觉信息参考(OCR)】，这些是辅助材料，按下方「辅助材料使用规约」使用。
+
+以打标转写与【现场审定的有效议题清单】为议程骨架与事实归属的唯一底座；辅助材料仅补充事实、参数、原话与数据。
+
+只输出结构化 JSON 数据。
+
+---
+
+## 一、核心输出字段提炼与格式规约
+
+### 1. headline（客观总结标题）
+
+- 概括会议核心业务主题，8–18 字，具备严谨公文标题风格；直接陈述核心业务事项与定调结论。
+
+### 2. overview（全场概况）
+
+- 单段连贯文字，约 250–350 字，客观概括全场会议背景、核心主线推进态势与最关键的全局定调决议。
+- 不逐议题展开，不列行动/风险清单，不写跨议题事项明细。
+
+### 3. topics（议题主序记录）
+
+- 每个有效议题一条记录，N 个有效议题必须输出 N 条，顺序与【现场审定的有效议题清单】一致。
+- 每条记录固定包含：
+  - **topic_name**：议题全称，必须与清单逐字一致；不得改名、合并、拆分、重排。
+  - **topic_summary**：本议题正文/研讨/进展/内容要点，数组；写方案、事实、参数、指标与阶段结论；不写议题标题、不写全场概况，不写 decisions/actions/risks/open_questions 的内容。
+  - **decisions**：本议题已拍板的最终决议/结论/定调，数组；讨论、建议、倾向、待定不得写入；无则 []。
+  - **actions**：本议题的后续行动/落实安排，数组；写清责任人（或团队）、具体任务、交付物/验收标准、时限；无则 []。
+  - **risks**：本议题的风险/卡点/阻塞/外部依赖，数组；写清风险现象、影响面、受阻环节、跟进人（原文有则写）；无则 []。
+  - **open_questions**：本议题的未决/待确认/遗留问题，数组；写清待确认事项、协同对象、预期结果；无则 []。
+- 每个有效议题都必须保留一条记录，即使部分字段为空。
+- 不得新增“全场”“会末”等合成议题。
+
+### 4. history_comparison
+
+- 统一输出空列表 []。
+
+---
+
+## 二、真实性底线
+
+1. 所有人名、决策、议题归属以打标转写为准；研讨探讨与拍板定调严格区分；辅助材料仅补充事实、参数与原话，有据才写，忠实于原始事实。
+2. 会末收尾、全场定调、跨议题事项：归入最相关议题；确实无法归属时，只把最重要的结论写入 overview，不新增议题、不列清单。
+3. 字段边界：topic_summary 只写事实/方案/进展；decisions 只写已拍板；actions 只写后续动作；risks 只写风险/卡点；open_questions 只写未决/待确认；同一事实只出现一次，不得跨议题串写。
+4. 无内容字段写 []，不得用“未提及/待补充/暂无”套话填充；六个字段必须全部输出，不得省略键。
+"""
+
 # ── 议题辅助材料边界 ──────────────────────────────────────────────────────────
 AGENDA_AUX_PROMPT_BLOCK = """## 辅助材料使用规约（仅在上下文出现对应标签时生效）
 
@@ -238,6 +289,15 @@ _AGENDA_SUPERVISOR_SCOPE = """### 审定议题模式审查范围
 - 英文模式下，英文标题保留原文，不得翻译成中文。"""
 
 
+_TOPIC_MAJOR_SUPERVISOR_SCOPE = """### 议题主序模式审查范围
+- topics 必须覆盖本轮有效议题，顺序、标题与清单一致；不得新增、删除、合并、改名、重排。
+- 每个议题的 topic_summary / decisions / actions / risks / open_questions 必须能在打标原文中找到依据。
+- topic_summary 只写本议题正文，不得跨议题串写，不得混入 decisions/actions/risks/open_questions。
+- decisions 只认已拍板；讨论/建议/待定不得写成 decisions。
+- actions 必须有责任人/交付物/时限；risks 与 open_questions 必须区分。
+- 空数组属于规范；不得要求补全无依据内容。"""
+
+
 # ── 动态规则（按输入拼接）──────────────────────────────────────────────────────
 _SUPERVISOR_HISTORY = """### 历史记忆审查
 history_comparison 由记忆链路装配。若正文把往期决策写成本场新决策，或把本场决议写成往期沿革，请指出。"""
@@ -316,14 +376,18 @@ def build_minutes_supervisor_prompt(
     aux_labels: list[str] | None = None,
     has_history: bool | None = None,
     allowed_actions: str | None = None,
+    layout: str = "column_major",
 ) -> str:
-    """按模式/辅助材料/记忆/可选动作拼审核 Prompt；决策块始终最后。"""
+    """按模式/布局/辅助材料/记忆/可选动作拼审核 Prompt；决策块始终最后。"""
     mode = _supervisor_mode(view)
-    scope = {
-        "objective": _OBJECTIVE_SUPERVISOR_SCOPE,
-        "personal": _PERSONAL_SUPERVISOR_SCOPE,
-        "agenda": _AGENDA_SUPERVISOR_SCOPE,
-    }[mode]
+    if mode == "agenda" and (layout or "").strip().lower() == "topic_major":
+        scope = _TOPIC_MAJOR_SUPERVISOR_SCOPE
+    else:
+        scope = {
+            "objective": _OBJECTIVE_SUPERVISOR_SCOPE,
+            "personal": _PERSONAL_SUPERVISOR_SCOPE,
+            "agenda": _AGENDA_SUPERVISOR_SCOPE,
+        }[mode]
     parts = [_MINUTES_SUPERVISOR_BASE, scope]
 
     labels = aux_labels if aux_labels is not None else _detect_aux_labels(context)
@@ -345,6 +409,9 @@ def build_minutes_supervisor_prompt(
 MINUTES_OBJECTIVE_SUPERVISOR_PROMPT = build_minutes_supervisor_prompt("objective")
 MINUTES_PERSONAL_SUPERVISOR_PROMPT = build_minutes_supervisor_prompt("personal")
 MINUTES_AGENDA_SUPERVISOR_PROMPT = build_minutes_supervisor_prompt("agenda_objective")
+MINUTES_TOPIC_MAJOR_SUPERVISOR_PROMPT = build_minutes_supervisor_prompt(
+    "agenda_objective", layout="topic_major"
+)
 
 # 兼容别名
 MINUTES_SUPERVISOR_DOMAIN_PROMPT = MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
@@ -419,6 +486,28 @@ MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     ],
 )
 
+MINUTES_TOPIC_MAJOR_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
+    renderer="会议纪要渲染器",
+    source="已审核草稿（结构化事实基准）",
+    source_rule=(
+        "**以已审核草稿为事实基准，严格遵循模板栏目规约与公文层级标准完成排版**：\n"
+        "【栏目语义自适应映射】：\n"
+        "1. 概括总述类栏目：映射草稿 overview，以连贯单段呈现；不得把议题内容塞入本栏；栏目标题必须与模板方括号内文字完全一致，不得用会议标题或草稿 headline 替换；\n"
+        "2. 议题容器类栏目：映射草稿 topics，按数组顺序逐个议题输出；每个议题顶格以「### 序号. topic_name」开始；议题内部按模板在该栏占位说明中声明/列出的子栏顺序输出；议题容器以模板 layout 元数据 container 指定的栏目为准，未指定时取占位说明中声明“以有效议题清单为主线”的栏目；\n"
+        "3. 议题内子栏按语义映射：工作进展/进展/内容/方案/核心要点/方案陈述/进度追踪 → topic_summary；结论/决议/定调/共识/最终决议 → decisions；落实安排/行动/待办/分工/后续计划/改进措施/行动建议 → actions；风险/卡点/阻塞/隐患/外部依赖/风险预警 → risks；未决/待确认/遗留/疑问/未决后续 → open_questions；子栏名同时包含多个语义时（如“未决风险”）按语义合并输出（risks + open_questions）；\n"
+        "4. 议题内子栏无内容时整块隐去，不保留空标签；不得把 actions / risks 再作为顶层栏目输出；同一事实只出现一次；\n"
+        "5. 不得改写 topic_name、不得重排议题、不得跨议题合并内容；\n"
+        "6. 若模板没有总述/概况栏：overview 作为议题容器开篇总述；\n"
+        "7. 不强行塞入不相关内容，不自创模板外栏目。"
+    ),
+    empty_rule=(
+        "某栏在草稿中对该栏主题无依据且模板允许省略时直接保持空内容自适应隐去；模板没约定时优先自适应隐去，确需占位时按模板指定词填写，不使用外部常识补全。"
+    ),
+    extra_rules=[
+        "模板若含写作要求，按该要求客观准确填写",
+    ],
+)
+
 __all__ = [
     "KEYPOINTS_PROMPT_BLOCK",
     "NOTES_PROMPT_BLOCK",
@@ -429,11 +518,14 @@ __all__ = [
     "MINUTES_OBJECTIVE_GENERATION_PROMPT",
     "MINUTES_PERSONAL_GENERATION_PROMPT",
     "MINUTES_AGENDA_GENERATION_PROMPT",
+    "MINUTES_TOPIC_MAJOR_GENERATION_PROMPT",
     "MINUTES_SUPERVISOR_DOMAIN_PROMPT",
     "MINUTES_OBJECTIVE_SUPERVISOR_PROMPT",
     "MINUTES_PERSONAL_SUPERVISOR_PROMPT",
     "MINUTES_AGENDA_SUPERVISOR_PROMPT",
+    "MINUTES_TOPIC_MAJOR_SUPERVISOR_PROMPT",
     "MINUTES_RENDER_TEMPLATE_PROMPT",
     "MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT",
     "MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT",
+    "MINUTES_TOPIC_MAJOR_RENDER_TEMPLATE_PROMPT",
 ]

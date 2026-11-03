@@ -173,9 +173,34 @@ def _accepts_view(func) -> bool:
     return cached
 
 
+_LAYOUT_SUPPORT: dict = {}
+
+
+def _accepts_layout(func) -> bool:
+    """``func`` 是否接受 ``layout=`` 关键字。"""
+    key = getattr(func, "__func__", func)
+    cached = _LAYOUT_SUPPORT.get(key)
+    if cached is None:
+        try:
+            params = inspect.signature(func).parameters
+        except (TypeError, ValueError):
+            cached = False
+        else:
+            cached = "layout" in params or any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+        _LAYOUT_SUPPORT[key] = cached
+    return cached
+
+
 def _render_view(state: dict, line_name: str) -> str | None:
     """取本线已裁决的 view；无该状态时返回 None。"""
     return (state.get("line_views") or {}).get(line_name)
+
+
+def _render_layout(state: dict, line_name: str) -> str | None:
+    """取本线已裁决的 layout；无该状态时返回 None。"""
+    return (state.get("line_layouts") or {}).get(line_name)
 
 
 async def _render_run(
@@ -185,8 +210,9 @@ async def _render_run(
     cap: int | None,
     temperature: float | None = None,
     view: str | None = None,
+    layout: str | None = None,
 ):
-    """调用渲染步；支持 ``max_tokens`` / ``temperature`` / ``view`` 就带上（按签名预判）。"""
+    """调用渲染步；支持 ``max_tokens`` / ``temperature`` / ``view`` / ``layout`` 就带上。"""
     kwargs: dict[str, Any] = {}
     if cap and _accepts_max_tokens(render.run):
         kwargs["max_tokens"] = cap
@@ -194,6 +220,8 @@ async def _render_run(
         kwargs["temperature"] = temperature
     if view and _accepts_view(render.run):
         kwargs["view"] = view
+    if layout and _accepts_layout(render.run):
+        kwargs["layout"] = layout
     return await render.run(context, template, **kwargs)
 
 # ── 渲染修订指令（从 produce_line 抽出，独立便于调整；函数内 format 插值）──
@@ -308,6 +336,7 @@ async def produce_line(
     degraded = bool(line(state, line_name).get("degraded"))
     template = line_template(state, line_name)
     view = _render_view(state, line_name)
+    layout = _render_layout(state, line_name)
     streamed = False
     context = ""
     try:
@@ -318,6 +347,8 @@ async def produce_line(
 
         _render_t0 = time.time()
         progress("[render:start] line=%s", line_name)
+        if line_name == "minutes" and layout:
+            progress("[render:layout] line=minutes layout=%s", layout)
         if degraded:
             try:
                 engine._post_render_hook(state, line_name)
@@ -365,7 +396,7 @@ async def produce_line(
             elif policy.llm_render == "never" and hasattr(render, "run"):
                 context = engine._render_context(state, line_name)
                 full_text = await _render_run(
-                    render, context, template, None, view=view
+                    render, context, template, None, view=view, layout=layout
                 )
                 fill_mode = "run"
             else:
@@ -440,16 +471,16 @@ async def produce_line(
 
                     if use_block:
                         full_text = await _render_run(
-                            render, context, template, cap, view=view
+                            render, context, template, cap, view=view, layout=layout
                         )
                         fill_mode = "freeform"
                     else:
                         parts: list[str] = []
-                        stream_kwargs = (
-                            {"view": view}
-                            if view and _accepts_view(render.stream)
-                            else {}
-                        )
+                        stream_kwargs: dict[str, Any] = {}
+                        if view and _accepts_view(render.stream):
+                            stream_kwargs["view"] = view
+                        if layout and _accepts_layout(render.stream):
+                            stream_kwargs["layout"] = layout
                         async for chunk in render.stream(
                             context, template, **stream_kwargs
                         ):
@@ -534,6 +565,7 @@ async def produce_line(
                                     template,
                                     cap,
                                     view=view,
+                                    layout=layout,
                                 )
                             except Exception:  # noqa: BLE001
                                 compressed = ""
@@ -633,7 +665,7 @@ async def produce_line(
                 for _round in range(2 if compress_hi else 1):
                     try:
                         repaired = await _render_run(
-                            render, repair_context, template, cap, view=view
+                            render, repair_context, template, cap, view=view, layout=layout
                         )
                     except Exception:  # noqa: BLE001
                         logger.warning(
