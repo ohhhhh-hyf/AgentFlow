@@ -85,6 +85,11 @@ def test_topic_major_generation_prompt_fields() -> None:
         assert key in prompt
     assert "executive_summary" not in prompt
     assert "N 个有效议题必须输出 N 条" in prompt
+    assert "只填议题全称本体" in prompt
+    assert "议题：" in prompt
+    assert "不得带" in prompt
+    assert "按业务逻辑自然分组，不设固定组数和条数" in prompt
+    assert "**子主题**：" in prompt
 
 
 def test_topic_major_supervisor_scope() -> None:
@@ -101,7 +106,7 @@ def test_topic_major_supervisor_scope() -> None:
 def test_topic_major_render_prompt_mapping() -> None:
     prompt = MINUTES_TOPIC_MAJOR_RENDER_TEMPLATE_PROMPT
 
-    for text in ("overview", "topics", "topic_summary", "open_questions", "container"):
+    for text in ("overview", "topics", "topic_summary", "open_questions", "容器"):
         assert text in prompt
     assert "executive_summary" not in prompt
     assert "议题容器类栏目" in prompt

@@ -81,8 +81,21 @@ def test_render_prompt_selected_by_layout() -> None:
     assert "议题容器类栏目" in topic_prompt
     assert "topic_summary" in topic_prompt
     assert "executive_summary" not in topic_prompt
+    assert "不得将分组拆成平行列表项" in topic_prompt
+    assert "例如" not in topic_prompt
+    assert "bullet" not in topic_prompt.lower()
     assert "执行准绳" not in topic_prompt  # 渲染 prompt 不混生成红线
     assert column_prompt != topic_prompt
+
+
+def test_team_template_declares_fourth_level_sections() -> None:
+    template = _team_template()
+
+    assert "#### 工作进展" in template
+    assert "#### 落实安排" in template
+    assert "#### 未决风险" in template
+    assert "**子主题**：" in template
+    assert "不设固定组数和条数" in template
 
 
 def test_render_run_passes_layout_to_prompt() -> None:

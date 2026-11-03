@@ -57,6 +57,19 @@ def test_contract_is_independent_from_agenda_contract() -> None:
     assert "executive_summary" in MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT
 
 
+def test_contract_requires_clean_topic_name() -> None:
+    assert "议题全称本体" in MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT
+    assert "不得带" in MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT
+    assert "议题：" in MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT
+
+
+def test_contract_requires_natural_topic_summary_grouping() -> None:
+    contract = MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT
+    assert "按业务逻辑自然分组" in contract
+    assert "不设固定组数和条数" in contract
+    assert "**子主题**：" in contract
+
+
 def test_model_fields_exact() -> None:
     assert [f.name for f in fields(TopicMajorMinutes)] == [
         "headline",

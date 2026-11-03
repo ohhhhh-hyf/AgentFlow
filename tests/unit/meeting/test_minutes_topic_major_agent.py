@@ -174,5 +174,7 @@ def test_agent_node_injects_layout_and_topic_titles() -> None:
     assert agent.topic_titles == ["接口联调"]
     assert "【议题主序草稿生成执行准绳】" in agent.context
     assert "topic_summary" in agent.context
+    assert "标题本体" in agent.context
+    assert "按业务逻辑自然分组" in agent.context
     assert "【审定议题草稿生成执行准绳】" not in agent.context
     assert "executive_summary" not in agent.context
