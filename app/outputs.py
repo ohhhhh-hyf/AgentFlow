@@ -13,12 +13,12 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from .config import PROJECT_ROOT
+from .config import data_root
 
 
 def output_dir(user_id: str, request_id: str) -> Path:
     """本次调用的产物目录。request_id 缺省由 app.id_worker 生成。"""
-    root = PROJECT_ROOT / "data"
+    root = data_root()
     if (user_id or "").strip():
         root = root / (user_id or "").strip()
     return (root / "output" / (request_id or "default")).resolve()
@@ -34,8 +34,8 @@ def resolve_output_file(user_id: str, request_id: str, file_name: str) -> Path |
             return None
     out = output_dir(user_id, request_id)
     path = (out / file_name).resolve()
-    data_root = (PROJECT_ROOT / "data").resolve()
-    if path.is_file() and data_root in path.parents:
+    root = data_root().resolve()
+    if path.is_file() and root in path.parents:
         return path
     return None
 

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
@@ -51,9 +52,8 @@ def task_output_dir(ctx: DomainContext, line_name: str) -> Path:
     else:
         uid = "default"
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    out_dir = (
-        ctx.project_root / "data" / uid / "output" / f"cli_{stamp}" / line_name
-    )
+    base = Path(os.getenv("AGENTFLOW_DATA_DIR") or (ctx.project_root / "data"))
+    out_dir = base / uid / "output" / f"cli_{stamp}" / line_name
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
 

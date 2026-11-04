@@ -20,3 +20,8 @@ __pycache__/
 data/test_user/
 logs/
 
+
+# coverage artifacts
+.coverage
+.coverage.*
+htmlcov/

@@ -21,6 +21,8 @@ from domains.meeting.tasks.actions.steps.actions_render import ActionItemsRender
 from domains.meeting.tasks.risks.steps.risks_render import RiskRender
 from domains.meeting.tasks.agenda_minutes.steps.agenda_minutes_render import AgendaMinutesRender
 
+pytestmark = pytest.mark.integration
+
 
 def test_is_transient_error() -> None:
     """验证瞬时可重试异常与不可重试异常判定。"""

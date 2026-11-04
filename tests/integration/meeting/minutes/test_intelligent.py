@@ -14,6 +14,8 @@ from app.tasks import (
 )
 from domains.shared.section_summary.models import SectionSummary, SectionSummaryResult
 
+pytestmark = pytest.mark.integration
+
 
 class FakePrepared:
     def __init__(self, line="minutes", transcript=""):

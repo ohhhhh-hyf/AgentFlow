@@ -11,3 +11,12 @@ markers = [
 filterwarnings = [
     "error::DeprecationWarning:domains.*",
 ]
+
+[tool.coverage.run]
+source = ["app", "core", "domains", "infra"]
+omit = ["*/__pycache__/*", "tests/*"]
+
+[tool.coverage.report]
+fail_under = 47
+skip_covered = true
+show_missing = true

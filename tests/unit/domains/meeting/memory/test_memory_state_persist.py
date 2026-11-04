@@ -24,25 +24,8 @@ from domains.meeting.memory.runtime import persist_after_run, resolve_bind
 from domains.meeting.memory.state import rebuild_state, session_index, session_label, update_state
 from domains.meeting.memory.store import list_meetings, load_registry, load_state
 from tests.support.expectations import expect
+from tests.support.builders import meeting_fact as _fact
 
-def _fact(**kwargs) -> MeetingFact:
-    data = {
-        "meeting_id": "m_1",
-        "time": "2026-09-01",
-        "time_source": "user",
-        "title": "小艺慧记Agent开发进展阶段复盘",
-        "summary": "复盘小艺慧记Agent第一阶段",
-        "anchors": ["小艺慧记Agent"],
-        "project_candidates": ["小艺慧记Agent"],
-        "decisions": ["8月18日前优化 minutes_trace"],
-        "open_items": ["是否默认开启记忆引用"],
-        "action_items": [{"text": "补齐记忆引用来源字段", "owner": "赵衡", "timing": "8月19日前"}],
-        "risks": ["记忆可解释性不足"],
-        "closed_items": [],
-        "quotes": [],
-    }
-    data.update(kwargs)
-    return MeetingFact.from_dict(data)
 
 def test_state_scope_isolation() -> None:
     """阶段三：同 module 跨场延续；不同 module 的同名条目不误配；升级边界不重复建档。"""

@@ -22,6 +22,9 @@ from domains.meeting.tasks.agenda_minutes.alignment_engine import DiscussionBloc
 from domains.meeting.orchestrator import _Nodes
 from app.tasks import _prepare
 from app.schemas import TaskRequest
+from tests.support.fakes import make_minutes_mock_client as _make_minutes_mock_client, run_minutes_graph as _run_minutes_graph
+
+pytestmark = pytest.mark.integration
 
 _EN_AGENDA = """
 | 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |
@@ -53,73 +56,7 @@ _ZH_TRANSCRIPT = (
     "李四 00:10\n关于发布计划，我们有三个里程碑，十一月完成测试，十二月上线。\n"
 )
 
-def _make_minutes_mock_client(called_labels: list[str], *, headline: str):
-    from unittest.mock import MagicMock
 
-    from domains.meeting.models_generated import (
-        MeetingUnderstanding,
-        Minutes,
-        MinutesSupervisorReview,
-    )
-
-    client = MagicMock()
-
-    async def mock_structured(prompt, *args, **kwargs):
-        label = kwargs.get("label", "")
-        called_labels.append(label)
-        if "meeting_understanding" in label:
-            return MeetingUnderstanding(
-                meeting_brief="测试",
-                meeting_purpose="目的",
-            )
-        if "minutes/agent" in label:
-            return Minutes(headline=headline, executive_summary=["段落1"])
-        if "minutes/supervisor" in label:
-            return MinutesSupervisorReview(
-                decision="approve",
-                facts_check={"passed": True, "issues": []},
-                perspective_check={"passed": True, "issues": []},
-                consistency_check={"passed": True, "issues": []},
-                feedback=[],
-            )
-        raise ValueError(f"Unexpected label {label}")
-
-    client.structured.side_effect = mock_structured
-    return client
-
-async def _run_minutes_graph(
-    *,
-    transcript: str,
-    lang: str,
-    agenda_text: str = "",
-    headline: str = "测试标题",
-):
-    from domains.meeting.agenda_engine import clear_agenda_engine_cache
-    from domains.meeting.orchestrator import MeetingAgentSystem
-    from domains.meeting.tasks.agenda_minutes.agenda_parser import (
-        clear_agenda_parser_cache,
-    )
-    from domains.meeting.tasks.agenda_minutes.alignment_engine import (
-        clear_alignment_cache,
-    )
-
-    clear_agenda_parser_cache()
-    clear_alignment_cache()
-    clear_agenda_engine_cache()
-
-    called: list[str] = []
-    client = _make_minutes_mock_client(called, headline=headline)
-    system = MeetingAgentSystem(client)
-    graph = system._build_graph(["minutes"])
-    state = {
-        "transcript": transcript,
-        "user": {},
-        "lang": lang,
-        "line_extra": {"agenda_text": agenda_text} if agenda_text else {},
-        "lines": {"minutes": {"revision_count": 0}},
-    }
-    final = await graph.ainvoke(state)
-    return system, final, called
 
 def test_orchestrator_line_shared_context_enhanced():
     nodes = _Nodes()

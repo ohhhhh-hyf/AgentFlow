@@ -9,6 +9,9 @@ from domains.meeting.models import (
     MeetingUnderstanding,
 )
 from domains.meeting.orchestrator import MeetingAgentSystem
+import pytest
+
+pytestmark = pytest.mark.e2e
 
 
 def _items() -> ActionItems:

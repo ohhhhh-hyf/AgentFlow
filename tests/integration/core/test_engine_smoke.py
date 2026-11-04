@@ -22,6 +22,9 @@ from core.runner.hooks import hooks_for, register
 from core.runner.context import load_domain
 
 from tests.support.expectations import expect
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 

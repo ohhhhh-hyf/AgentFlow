@@ -182,7 +182,7 @@ def agenda_plan_to_markdown(plan: AgendaPlan) -> str:
 def save_agenda_ocr_debug_snapshot(content: str, prefix: str = "agenda_ocr") -> None:
     """保存议程提取快照到 logs/agenda_ocr/latest_agenda_ocr.md 供排查追踪。"""
     try:
-        log_dir = Path("logs/agenda_ocr")
+        log_dir = Path(os.getenv("AGENTFLOW_LOG_DIR") or "logs") / "agenda_ocr"
         log_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         (log_dir / "latest_agenda_ocr.md").write_text(content, encoding="utf-8")

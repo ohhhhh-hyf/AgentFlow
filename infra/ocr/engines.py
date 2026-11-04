@@ -22,7 +22,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
-_OCR_FAILURE_DIR = ROOT / "logs" / "ocr_failed"
+_OCR_FAILURE_DIR = Path(os.getenv("AGENTFLOW_LOG_DIR") or (ROOT / "logs")) / "ocr_failed"
 
 # OCR_ENGINE 取值别名 → 引擎模块名（infra/ocr/{module}.py）
 _ENGINE_ALIASES: dict[str, str] = {

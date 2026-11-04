@@ -25,6 +25,9 @@ from core.runner.profiles import (
     user_profile_path,
 )
 from tests.support.expectations import expect
+import pytest
+
+pytestmark = pytest.mark.integration
 
 def _write(path: Path, data) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)

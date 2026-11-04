@@ -40,6 +40,8 @@ from infra.exporters.html.agenda_minutes import (
     render_agenda_minutes_html,
 )
 
+pytestmark = pytest.mark.integration
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 while PROJECT_ROOT.parent != PROJECT_ROOT and not (PROJECT_ROOT / "domains").exists():

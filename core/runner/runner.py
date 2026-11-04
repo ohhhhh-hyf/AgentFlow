@@ -232,9 +232,9 @@ async def prepare_run(
 
             from core.runner.ids import safe_id
 
+            data_base = Path(os.getenv("AGENTFLOW_DATA_DIR") or (ctx.project_root / "data"))
             monitor_dir = (
-                ctx.project_root / "data" / safe_id(user_id or "")
-                / "monitor"
+                data_base / safe_id(user_id or "") / "monitor"
                 if (user_id or "").strip()
                 else None
             )

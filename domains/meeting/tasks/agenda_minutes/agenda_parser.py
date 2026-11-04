@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -76,7 +77,7 @@ class AgendaPlan:
 def _log_parser_record(text: str, plan: AgendaPlan, mode: str, cols: dict | None = None) -> None:
     """落盘解析审计记录到 logs/agenda_ocr/parser_debug.log，便于线上定位 OCR 解析效果。"""
     try:
-        log_dir = Path("logs/agenda_ocr")
+        log_dir = Path(os.getenv("AGENTFLOW_LOG_DIR") or "logs") / "agenda_ocr"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "parser_debug.log"
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

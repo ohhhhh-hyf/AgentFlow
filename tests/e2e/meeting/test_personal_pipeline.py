@@ -17,6 +17,9 @@ from domains.shared.perspective import (
     PERSONAL_PERSPECTIVE_MODELING_SYSTEM_PROMPT,
     PersonalPerspective,
 )
+import pytest
+
+pytestmark = pytest.mark.e2e
 
 _FINAL_MARKDOWN = """# demo 评审个人纪要
 

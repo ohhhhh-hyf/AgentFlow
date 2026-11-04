@@ -6,6 +6,9 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.api.main import app
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 class _FakeJobStore:

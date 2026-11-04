@@ -11,6 +11,19 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+
+def data_root() -> Path:
+    """运行期数据根；``AGENTFLOW_DATA_DIR`` 可覆盖（测试隔离用）。"""
+    override = (os.getenv("AGENTFLOW_DATA_DIR") or "").strip()
+    return Path(override) if override else (PROJECT_ROOT / "data")
+
+
+def log_root() -> Path:
+    """运行期日志根；``AGENTFLOW_LOG_DIR`` 可覆盖（测试隔离用）。"""
+    override = (os.getenv("AGENTFLOW_LOG_DIR") or "").strip()
+    return Path(override) if override else (PROJECT_ROOT / "logs")
+
+
 logger = logging.getLogger(__name__)
 
 # 模板源目录：统一固定为 template

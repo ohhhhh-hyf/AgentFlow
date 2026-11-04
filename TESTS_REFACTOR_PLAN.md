@@ -967,6 +967,47 @@ python -m pytest -m integration -q
 python -m pytest -m e2e -q
 ```
 
+#### Step 7 执行记录（2026-11-04）
+
+按「导入的顶级包数量」重新划分：
+
+| 分类 | 文件数/用例数 | 规则 |
+|---|---:|---|
+| `tests/unit/` | 374 用例 | 只导入 1 个顶级包；运行 1.69s |
+| `tests/integration/` | 424 用例 | 导入 ≥2 个顶级包，或跨模块/跨运行时 |
+| `tests/e2e/` | 3 用例 | 完整流程 |
+
+本次共将 **51 个**跨包文件从 `tests/unit/` 迁到 `tests/integration/`：
+
+- `tests/unit/domains/meeting/**` → `tests/integration/meeting/**`（去掉 `domains/` 层）
+- `tests/unit/domains/shared/**` → `tests/integration/shared/**`
+- `tests/unit/core/**` → `tests/integration/core/**`
+- `tests/unit/infra/**` → `tests/integration/infra/**`
+
+同步处理：
+
+- 所有 `tests/integration/**/test_*.py` 加 `pytestmark = pytest.mark.integration`；
+- 所有 `tests/e2e/**/test_*.py` 加 `pytestmark = pytest.mark.e2e`；
+- 5 处 `parents[N]` 因目录深度减少而同步减 1；
+- 删除迁移后完全空的 3 个目录：`unit/core/runtime`、`unit/domains/meeting/consensus_decision`、`unit/domains/meeting/minutes_styles`；
+- `tests/unit` 中已不存在导入 ≥2 个顶级包的测试文件。
+
+验证：
+
+```bash
+python -m pytest tests -q
+# 792 passed, 9 skipped, 1 warning in 16.97s
+
+python -m pytest tests/unit -q
+# 374 passed, 1 warning in 1.69s
+
+python -m pytest tests -m integration --collect-only -q
+# 424/801 tests collected
+
+python -m pytest tests -m e2e --collect-only -q
+# 3/801 tests collected
+```
+
 ### Step 8：测试隔离与 fixture 治理
 
 **目标**：跑测试不污染仓库。
@@ -996,6 +1037,37 @@ python -m pytest tests -q
 git status --short   # 只剩本次代码改动
 ```
 
+#### Step 8 执行记录（2026-11-04）
+
+已实现运行期路径隔离：
+
+| 层 | 改动 |
+|---|---|
+| `app/config.py` | 新增 `data_root()` / `log_root()`，分别读取 `AGENTFLOW_DATA_DIR` / `AGENTFLOW_LOG_DIR` |
+| `app/outputs.py` | 产物目录改用 `data_root()` |
+| `infra/exporters/outputs.py` | CLI 产物目录优先 `AGENTFLOW_DATA_DIR`，否则回退 `ctx.project_root/data` |
+| `core/runner/runner.py` | TaskMonitor 目录优先 `AGENTFLOW_DATA_DIR` |
+| `domains/meeting/agenda_vision.py` / `agenda_parser.py` | `logs/agenda_ocr` 改用 `AGENTFLOW_LOG_DIR` |
+| `infra/ocr/engines.py` / `server_ocr.py` | `logs/ocr_failed` 改用 `AGENTFLOW_LOG_DIR` |
+| `tests/conftest.py` | 导入期设置 `AGENTFLOW_DATA_DIR` / `AGENTFLOW_LOG_DIR` / `AGENTFLOW_LOG_FILE` / `AGENTFLOW_DIAG_LOG_FILE` 到会话级临时目录；autouse fixture 每例重新钉住；退出时自动清理 |
+| `tests/fixtures/` | 删除未引用的 2 张样例图片 |
+
+验证：
+
+```bash
+rm -rf data/test_user logs
+python -m pytest tests -q
+# 792 passed, 9 skipped, 1 warning in 15.81s
+
+find data/test_user logs -type f
+# 无输出
+
+git status --short data logs
+# 无输出
+```
+
+说明：测试仍可读取仓库内已跟踪的 `data/1/**` 输入素材；只有运行期产物与日志被重定向到临时目录。
+
 ### Step 9：覆盖率与 CI
 
 **目标**：防止重构后测试质量回退。
@@ -1020,6 +1092,40 @@ git status --short   # 只剩本次代码改动
 - 覆盖率不低于基线；
 - 新增测试必须落在 `unit/` 或 `integration/` 下的镜像路径。
 
+#### Step 9 执行记录（2026-11-04）
+
+已落地：
+
+| 文件 | 内容 |
+|---|---|
+| `requirements-dev.txt`（新增） | `-r requirements.txt` + `pytest>=8,<9` + `pytest-cov>=7,<8` + `anyio>=4` |
+| `pyproject.toml` | 新增 `[tool.coverage.run]` / `[tool.coverage.report]`，`fail_under = 47` |
+| `.github/workflows/tests.yml`（新增） | push/PR 跑 `-m "not llm"` 并校验覆盖率；每周一跑 `-m llm`；同时检查测试没有写仓库 `data/`、`logs/` |
+| `tests/conftest.py` | 无外部 Key 时设置占位 `DEEPSEEK_API_KEY` / `SILICONFLOW_API_KEY`，保证 CI 不需要 `.env` |
+
+覆盖率基线（`-m "not llm"`）：
+
+```
+TOTAL   41842   21292   49%
+Required test coverage of 47% reached. Total coverage: 49.11%
+```
+
+验证：
+
+```bash
+rm -rf data/test_user logs
+python -m pytest tests -m "not llm" -q \
+  --cov=app --cov=core --cov=domains --cov=infra \
+  --cov-report=term-missing --cov-fail-under=47
+# 792 passed, 9 skipped
+# coverage 49.11% >= 47%
+
+find data/test_user logs -type f
+# 无输出
+```
+
+说明：当前没有测试标记 `llm`，每周定时任务暂时收集 0 个用例；后续新增真实模型测试时补 `@pytest.mark.llm` 即可。
+
 ### Step 10：文档与收尾
 
 动作：
@@ -1027,6 +1133,26 @@ git status --short   # 只剩本次代码改动
 1. 新增 `tests/README.md`：目录约定、命名规则、如何跑 unit/integration/e2e、如何加新测试。
 2. 删除 `tests/__main__.py`（可选；如果团队习惯 `python -m tests` 则保留）。
 3. 在 CI 中加一步"目录镜像检查"（可选）：校验每个 `tests/unit/<path>` 在源码中存在对应目录。
+
+#### Step 10 执行记录（2026-11-04）
+
+已完成：
+
+- 新增 `tests/README.md`：目录结构、分层规则、命名、运行命令、新增测试流程、隔离与 CI 约定；
+- 保留 `tests/__main__.py`（`python -m tests` 仍可用）；
+- 收敛拆分产生的重复 helper：
+  - `_fact` → `tests/support/builders.py::meeting_fact`，5 个记忆测试文件改为导入；
+  - `_make_minutes_mock_client` / `_run_minutes_graph` → `tests/support/fakes.py`，5 个 minutes 集成文件改为导入；
+  - 多源上下文字符串与 `_agenda_context` / `_normal_context` → `tests/support/builders.py`，2 个文件改为导入；
+- 修复 `tests/support/fakes.py` 缺失 docstring 结束引号的历史问题（此前未被导入所以未暴露）；
+- 目录镜像检查未加入 CI（可选），当前靠 `tests/README.md` 约定 + review。
+
+验证：
+
+```bash
+python -m pytest tests -q
+# 792 passed, 9 skipped, 1 warning in 11.50s
+```
 
 ---
 

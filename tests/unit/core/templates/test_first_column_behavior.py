@@ -324,6 +324,43 @@ def test_meta_omission_leak_pruning() -> None:
     expect("## Q&A 环节" in cleaned_nat and "现场未设置问答互动环节" in cleaned_nat, "自然业务语言正文予以正常保留", cleaned_nat)
 
 
+def test_topic_major_negative_generation_leak_pruning() -> None:
+    """topic_major：子栏照抄「没有对应事实的，不生成该子栏标题与正文」时同样物理剥离。"""
+    from core.execution.hard_execution import clean_template_render_text
+
+    raw = (
+        "# 团队例会\n\n"
+        "## 例会概况\n本周例会围绕支付链路上线推进。\n\n"
+        "## 议题梳理\n\n"
+        "### 一. 支付链路优化\n\n"
+        "#### 工作进展\n本次完成灰度发布。\n\n"
+        "#### 落实安排\n没有对应事实的，不生成该子栏标题与正文。\n\n"
+        "#### 未决风险\n该子栏无对应事实，不生成。\n"
+    )
+    cleaned, notes = clean_template_render_text(raw)
+    expect("#### 落实安排" not in cleaned, "「不生成」元指令泄漏：整栏含标题物理剥离", cleaned)
+    expect("#### 未决风险" not in cleaned, "无对应事实句式的子栏同样剥离", cleaned)
+    expect("#### 工作进展" in cleaned and "本次完成灰度发布" in cleaned, "有效子栏保留", cleaned)
+    expect(any("落实安排" in n for n in notes), "剥离动作写入日志", str(notes))
+
+
+def test_placeholder_pruner_negative_generation_leak() -> None:
+    """占位符装配层：栏目正文照抄「没有对应事实…不生成」时同样剔除标题行。"""
+    from core.templates.router._placeholder import assemble_placeholder_output
+
+    tpl = (
+        "# 团队例会\n\n"
+        "## [例会概况]\n[概况描述]\n\n"
+        "## [议题梳理]\n[议题描述]\n"
+    )
+    assembled = assemble_placeholder_output(
+        tpl,
+        {"1": "本周例会围绕支付链路上线推进。", "2": "没有对应事实的，不生成该子栏标题与正文。"},
+    )
+    expect("## 议题梳理" not in assembled and "不生成" not in assembled, "装配层：元指令栏目连标题剔除", assembled)
+    expect("## 例会概况" in assembled and "支付链路上线" in assembled, "装配层：正常栏目保留", assembled)
+
+
 def test_first_column_single_paragraph_synergy() -> None:
     """首栏单段控制与 Prefix Caching 协同优化完整闭环验证：
     1. 安全气囊正则：_FIRST_COL_PARA_RE 覆盖全库 31 个散文单段总述模板（100% 覆盖）；

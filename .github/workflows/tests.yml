@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # 每周一 03:00 UTC 跑一次需要真实模型/网络的测试
+    - cron: "0 3 * * 1"
+
+jobs:
+  tests:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run unit + integration tests
+        run: |
+          python -m pytest tests -m "not llm" \
+            --cov=app --cov=core --cov=domains --cov=infra \
+            --cov-report=term-missing \
+            --cov-fail-under=47
+
+      - name: Ensure tests do not write into the repository
+        run: |
+          if [ -d data/test_user ] || [ -d logs ]; then
+            echo "tests wrote into repo data/ or logs/"
+            exit 1
+          fi
+
+  llm:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run llm-marked tests
+        run: |
+          set +e
+          python -m pytest tests -m llm -q
+          code=$?
+          set -e
+          if [ "$code" -eq 5 ]; then
+            echo "no llm-marked tests collected; skipping"
+            exit 0
+          fi
+          exit "$code"
