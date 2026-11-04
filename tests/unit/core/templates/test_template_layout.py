@@ -196,7 +196,7 @@ def test_column_template_without_layout_is_unchanged() -> None:
         / "resources"
         / "agenda_templates"
         / "zh"
-        / "general_minutes.md"
+        / "class_transcript.md"
     )
     text = path.read_text(encoding="utf-8")
 
