@@ -1,7 +1,0 @@
-# 开发/自测依赖（在 requirements.txt 之上追加）
-#   pip install -r requirements-dev.txt
--r requirements.txt
-
-pytest>=8,<9
-pytest-cov>=7,<8
-anyio>=4
