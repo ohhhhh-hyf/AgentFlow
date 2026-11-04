@@ -131,8 +131,9 @@ def test_agenda_template_resolution_by_language():
 
     en_fmt = resolve_agenda_template_format("general_minutes", lang="en")
     assert "[Executive Summary]" in en_fmt
-    assert "[Key Discussion Points]" in en_fmt
-    assert "[Decisions & Rulings]" in en_fmt
+    assert "[Topic Review]" in en_fmt
+    assert "#### Key Discussion Points" in en_fmt
+    assert "#### Decisions & Rulings" in en_fmt
     assert "### I. Topic Title" in en_fmt
     assert "### 1. Topic Title" not in en_fmt
     assert "以现场审定的有效议题" not in en_fmt

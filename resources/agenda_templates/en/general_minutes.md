@@ -1,14 +1,16 @@
 # General Minutes
 
+<!-- layout
+mode: topic_major
+container: Topic Review
+-->
+
 <!-- requirement
-Present the facts along the validated agenda as the main thread, highlighting key data evidence, core proposal considerations, and final decisions; use a rigorous, objective tone with full, high-density content.
+Present the facts along the validated agenda items as the main thread, recording summary points and final rulings in a closed loop for each topic; highlight key data evidence, core proposal considerations, and decision rulings; maintain a rigorous, objective tone with full, high-density content.
 -->
 
 ## [Executive Summary]
-[Single paragraph, approx. 150–250 words: Provide a comprehensive overview of the meeting background, primary participants, the business mainline of the validated agenda topics, and the most critical decisions made; keep it at the macro level and do not expand into details in this section.]
+[Single paragraph, approx. 150–250 words: Provide a comprehensive overview of the meeting background, primary participants, business mainline of validated agenda topics, and the most critical decisions made; maintain a macro perspective and leave itemized discussion details to the Topic Review section.]
 
-## [Key Discussion Points]
-[Use the validated agenda as the main thread: list each topic as a top-level heading in the form "### I. Topic Title"; for multi-direction discussions, divide the content into paragraphs with an independent bold line "**Business Sub-topic**"; for single-direction discussions, use a flat list. Use "- Key point: specific statement" for the body, with a substantive business phrase before the colon (directly identifying the business object, core issue, proposed action, or decision), and state proposal details, technical parameters, and quantitative metrics fully and concretely.]
-
-## [Decisions & Rulings]
-[Focus on the final decisions, adjudications, or consensus reached in the meeting: list them item by item in the form "- **Item Name**: specific decision & target metrics, decision owner, and implementation tone"; adaptively omit this section if there are no decisions or consensus.]
+## [Topic Review]
+[Expand topic by topic along the validated agenda as the main thread: use "### I. Topic Title" as the heading for each topic; sequentially output two fixed sub-columns inside each topic: "#### Key Discussion Points" and "#### Decisions & Rulings"; group "#### Key Discussion Points" naturally by business logic using "**Business Sub-topic**: ", expanding with "- Point Name: specific facts and supporting rationale" to state proposal details, technical parameters, and quantitative metrics; "#### Decisions & Rulings" (adaptively omit if there are no explicit decisions or consensus for this topic) lists items one by one in the form "- **Item Name**: specific decision and metric requirements, decision owner, and implementation tone"; generate sub-columns only when there are corresponding facts in the draft; do not mix contents across different topics.]

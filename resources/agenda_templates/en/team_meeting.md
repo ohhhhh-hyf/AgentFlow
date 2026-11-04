@@ -1,17 +1,16 @@
 # Team Meeting
 
+<!-- layout
+mode: topic_major
+container: Topic Review
+-->
+
 <!-- requirement
-Present the facts along the validated agenda as the main thread, faithfully recording the work progress, implementation arrangements, and open risks reported under each topic; focus on work elements and execution, make owners and quantitative metrics clear, and use full, substantive content.
+Expand topic by topic along the validated agenda items, forming a structured closed loop within each topic; highlight substantive business points, metric progress, focal points of divergence, and ruling conclusions; maintain a rigorous, objective tone with full, high-density content.
 -->
 
 ## [Meeting Overview]
-[Single paragraph, approx. 150–250 words: state the participating members or departments, the meeting background, the business mainline of the validated agenda topics, the overall progress trend, and the key global conclusions; focus on the mainline and macro trend, and leave item-level progress and execution details to later sections.]
+[Single paragraph, approx. 150–250 words: State the meeting background, participating entities, core business tracks, and overarching conclusions; lead with conclusions to outline the whole picture at a macro level, leaving specific business topic details to the Topic Review section.]
 
-## [Work Progress]
-[Use the validated agenda as the main thread: list each topic as a top-level heading in the form "### I. Topic Title"; for multi-direction discussions or task modules, divide the content into paragraphs with an independent bold line "**Business Sub-topic / Task Module**"; for single-direction progress, use a flat list. Use "- Key point: specific statement" for the body, with a substantive business phrase before the colon (directly identifying the specific task, core breakthrough, deliverable, or milestone conclusion), and concretely state the specific progress actions, current-stage results, and core quantitative metrics with full, substantive content.]
-
-## [Action Arrangements]
-[Record the execution actions, implementation arrangements, and coordination requests agreed in the meeting: use bullet items to list delivery requirements, deadlines, and owners one by one in the form "- **Item Name**: specific delivery requirements, owner (or team), and timeline"; clarify the execution prerequisites and dependencies; adaptively omit this section if there are no clear follow-up arrangements.]
-
-## [Open Risks]
-[(Present only when there are clear blockers or risks; adaptively omit this section if there are no substantive blockers.) Record the open items, abnormal blockers, and external dependency risks raised on site: list them item by item in the form "- **Item Name**: core issue, blocked stage, potential impact, and follow-up owner"; clarify the waiting prerequisites and risk exposure.]
+## [Topic Review]
+[Expand topic by topic along the validated agenda as the main thread: use "### I. Topic Title" as the heading for each topic; sequentially output three fixed sub-columns inside each topic: "#### Work Progress", "#### Action Arrangements", and "#### Open Risks"; naturally group content within each sub-column by business logic using "**Sub-topic**: ", and state summary points with "- " bullet items; do not set fixed group or item counts; merge similar points, stating conclusions before arguments without copying verbatim; generate sub-columns or groups only when there are corresponding facts in the draft; do not generate the sub-column heading or text if there are no corresponding facts; do not mix contents across different topics.]

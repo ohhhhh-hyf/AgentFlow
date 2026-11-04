@@ -1,17 +1,16 @@
 # Special Lecture
 
+<!-- layout
+mode: topic_major
+container: Topic Review
+-->
+
 <!-- requirement
-Systematically distill the lecture's core viewpoints, argumentation logic, case support, and speaker's key quotes; omit only repetitive, same-angle, or secondary evidence; key arguments, direct data, and typical examples must be retained.
+Present the facts along the validated agenda as the main thread, recording core viewpoints, interactive Q&A, and key quotes in a closed loop for each topic; systematically distill the lecture's core viewpoints, argumentation logic, case support, and speaker's key quotes; omit only repetitive, same-angle, or secondary evidence; key arguments, direct data, and typical examples must be retained.
 -->
 
 ## [Lecture Overview]
-[Single-paragraph overview, approx. 150–250 words: state the speaker and title, topic and occasion, and explain the mainline of the core topics, core claims, and core judgments, as well as the lecture's core logical framework.]
+[Single-paragraph overview, approx. 150–250 words: State the speaker and title, topic and occasion, explaining the business mainline of the validated agenda topics, core claims, and core judgments, as well as the lecture's core logical framework; outline the macro picture, leaving itemized arguments, cases, and details to the Topic Review section.]
 
-## [Core Viewpoints]
-[Use the validated agenda as the main thread: list each topic as a top-level heading in the form "### I. Topic Title"; within each subsection, itemize the core arguments and viewpoint development under that topic: for multi-direction discussions, divide the content into paragraphs with an independent bold line "**Discussion Direction / Sub-argument**"; for a single direction, use a flat list. Start each body item with a substantive phrase that reflects the core viewpoint or argument element (e.g., "- **Viewpoint / Argument Element**: core insight and reasoning logic"), concretely state typical examples, direct data, and theoretical support; for more complex multi-step reasoning or argumentation details, add indented sub-items "  - " to expand, and explain the argumentation thread thoroughly; consolidate interactive discussions under "Q&A Session".]
-
-## [Key Quotes]
-[Extract the speaker's key quotes on core positions, thinking, and methodology (max 6; write as many as there are): for each, put the verbatim quote on the first line as "> \"...\"", and on the second line note the speaker and context as "> — **Speaker** (context: which topic was being discussed / which step of the argument; one sentence is enough; if there is no clear context, write \"not mentioned\")"; adaptively omit this section if there are no distinctive quotes.]
-
-## [Q&A Session]
-[(Present only if there was interactive Q&A; adaptively omit this section if there was no Q&A interaction.) Present the interactive Q&A in groups, with one question and one answer per group: the question line "**Questioner**: core focus of the question" is immediately followed by the answer line "**Speaker**: clear conclusion and logical evidence"; merge multiple rounds of exchange on the same question into one group and output the conclusion directly and objectively.]
+## [Topic Review]
+[Expand topic by topic along the validated agenda as the main thread: use "### I. Topic Title" as the heading for each topic; sequentially output three fixed sub-columns inside each topic: "#### Core Viewpoints", "#### Q&A Session", and "#### Key Quotes"; start each body item with a substantive phrase that reflects the core viewpoint or argument element; "#### Core Viewpoints" itemizes the core arguments and viewpoint deductions under that topic, grouping naturally by business logic using "**Discussion Direction / Sub-argument**: ", and expanding within groups using "- **Viewpoint / Argument Element**: core insight and reasoning logic" with concrete examples and data support; "#### Q&A Session" (present only if there was interactive Q&A; adaptively omit if there was no Q&A interaction for this topic) presents Q&A pairs where the question line "**Questioner**: question focus" is immediately followed by the answer line "**Speaker**: clear conclusion and logical evidence"; "#### Key Quotes" (adaptively omit if there are no distinctive quotes for this topic) extracts the speaker's verbatim quote on the first line as "> \"...\"" followed by "> — **Speaker**"; generate sub-columns only when there are corresponding facts in the draft; do not mix contents across different topics.]
