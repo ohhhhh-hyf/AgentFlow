@@ -777,14 +777,19 @@ class DomainNodes:
                     # 深度判定（方案步骤五："仅将长会……送交 LLM"）。
                     bypass = self._few_party_reason(state)
             # ── 规则门禁（Rule-Based Guardrails）：确定性预检全过 → 放行 ──
+            # 发言人清单缺失时不放行：拿不准就照常送审（与 _few_party_reason 同口径）。
+            understanding = self._understanding(state)
+            speakers_known = bool(
+                isinstance(understanding, dict) and (understanding.get("speakers") or [])
+            )
             if (
                 not topic_major
                 and not bypass
                 and not degraded
+                and speakers_known
                 and band[0] and band[0] <= len(transcript) <= band[1]
                 and guardrail_fast_path_enabled()
             ):
-                understanding = self._understanding(state)
                 try:
                     ok, findings = quick_facts_guardrail(
                         sub.get("draft") or {},

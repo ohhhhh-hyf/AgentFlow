@@ -16,3 +16,7 @@ __pycache__/
 .cac/
 .vscode/
 
+# 测试运行产生的隔离目录
+data/test_user/
+logs/
+

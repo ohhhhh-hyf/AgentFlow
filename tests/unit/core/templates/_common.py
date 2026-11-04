@@ -1,11 +1,8 @@
-"""tests/unit/core/templates/_common.py -- 模板路由测试公共基线与断言工具。"""
+"""tests/unit/core/templates/_common.py -- 模板路由测试公共基线。"""
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
-PASS: list[str] = []
-FAIL: list[str] = []
 
 SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
     "template": {
@@ -25,9 +22,6 @@ SCALAR_BASELINE_BY_DIR: dict[str, dict[str, int]] = {
 KNOWN_PENDING_BRACKET_LITERALS: set[str] = set()
 
 
-def check(name: str, ok: bool, detail: str = "") -> None:
-    (PASS if ok else FAIL).append(name)
-    print(("PASS  " if ok else "FAIL  ") + name + (f" | {detail}" if detail else ""))
 
 
 def _active_dir() -> Path:

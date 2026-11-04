@@ -240,15 +240,9 @@ def _item_matches_text(
         return True
     if same_scope and len(shared_entities) >= 1:
         return True
-    c_item = "".join(ch for ch in item_text if "\u4e00" <= ch <= "\u9fff")
-    c_target = "".join(ch for ch in target if "\u4e00" <= ch <= "\u9fff")
-    if len(c_item) >= 4 and len(c_target) >= 4:
-        for i in range(len(c_item) - 3):
-            sub = c_item[i : i + 4]
-            if sub in c_target and not any(
-                g in sub for g in ("完成了", "已完成", "进行了", "讨论了", "优化了", "推进了")
-            ):
-                return True
+    # 注意：这里不再做 4 字重合放宽。锚点 span 的 4 字放宽适用于「原文复述定位」，
+    # 但用于「未决 → 已闭环」判定会把共享泛词（如「记忆引用」）误判成同一事项，
+    # 导致仍开放的条目被错误折叠为已闭环。闭环判定统一要求 similar() 的 5 字以上重合。
     return False
 
 

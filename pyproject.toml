@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "integration: 跨模块、跨运行时边界的测试",
+    "e2e: 端到端流程测试",
+    "slow: 单文件或单用例超过 2 秒",
+    "llm: 需要真实模型或网络（默认不进入 CI）",
+]
+filterwarnings = [
+    "error::DeprecationWarning:domains.*",
+]

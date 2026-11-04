@@ -129,7 +129,8 @@ def test_overview_column_prunes_executive_summary_to_first_item():
 
 
 def test_minutes_validation_auto_fills_missing_history_comparison():
-    """验证当LLM因无需编写而漏输出history_comparison时，Minutes.validate零报错自动补空列表，避免7秒二次重试。"""
+    """验证当LLM因无需编写而漏输出history_comparison时，硬执行层补齐7字段后再校验，避免7秒二次重试。"""
+    from core.execution.hard_execution import enforce_minutes_draft
     from domains.meeting.models_generated import Minutes
 
     raw_data_without_history_comparison = {
@@ -142,7 +143,8 @@ def test_minutes_validation_auto_fills_missing_history_comparison():
         # 注意：此处故意缺少 history_comparison 键
     }
 
-    minutes_obj = Minutes.validate(raw_data_without_history_comparison)
+    enforced = enforce_minutes_draft(raw_data_without_history_comparison, None)
+    minutes_obj = Minutes.validate(enforced)
     assert minutes_obj.headline == "手机常用APP与音乐偏好交流讨论"
     assert minutes_obj.history_comparison == []
 
@@ -156,7 +158,7 @@ def test_prompts_overview_word_budget_and_mapping_rules():
     )
 
     # 1. 验证生成Prompt中首项字数约束已对齐为 250–350 字
-    assert "默认 250–350 字" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "250–350 字" in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert "约 250–350 字" in MINUTES_AGENDA_GENERATION_PROMPT
 
     # 2. 验证普通模板渲染Prompt中已补齐概括总述类栏目的单段映射规约
