@@ -80,19 +80,19 @@ TASTE_CSS = """
   --vm-glass-inset-border: rgba(255, 255, 255, 0.10);
   --vm-glass-inset-shadow: inset 0 2px 5px rgba(2, 6, 16, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.12);
 
-  /* 文字墨水规范（针对深色玻璃夜景调优） */
-  --vm-ink-title: #FFFFFF;
-  --vm-ink-body: rgba(255, 255, 255, 0.85);
-  --vm-ink-muted: rgba(255, 255, 255, 0.65);
-  --vm-ink-subtle: rgba(255, 255, 255, 0.45);
-  --vm-ink-faint: rgba(255, 255, 255, 0.25);
+  /* 外部主文档纯白画布文字墨水规范 (Light Canvas Tokens) */
+  --vm-ink-title: #1F2329;
+  --vm-ink-body: #4E5969;
+  --vm-ink-muted: #86909C;
+  --vm-ink-subtle: #C9CDD4;
+  --vm-ink-faint: #E5E6EB;
 
-  /* 底色阶与边框兼容 */
-  --vm-tone-canvas: #0B1322;
-  --vm-tone-card: rgba(255, 255, 255, 0.07);
-  --vm-tone-stone: rgba(255, 255, 255, 0.05);
-  --vm-tone-stone-light: rgba(255, 255, 255, 0.03);
-  --vm-border: rgba(255, 255, 255, 0.12);
+  /* 外部主文档底色阶与边框规范 */
+  --vm-tone-canvas: #FFFFFF;
+  --vm-tone-card: #FFFFFF;
+  --vm-tone-stone: #F2F3F5;
+  --vm-tone-stone-light: #F7F8FA;
+  --vm-border: #E5E6EB;
 
   /* 基础尺寸与缓动规范 */
   --vm-radius: 12px;
@@ -113,12 +113,57 @@ TASTE_CSS = """
   flex-shrink: 0;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   夜航玻璃拟态微画板容器 (Self-Contained Nocturne Glass Stage)
+   嵌入纯白文档中，作为独立的暗夜光影玻璃展台
+   ───────────────────────────────────────────────────────────── */
 .vm-visual {
+  /* 局部作用域重定义：深墨夜航玻璃画板的文字与边框 */
+  --vm-ink-title: #FFFFFF;
+  --vm-ink-body: rgba(255, 255, 255, 0.85);
+  --vm-ink-muted: rgba(255, 255, 255, 0.65);
+  --vm-ink-subtle: rgba(255, 255, 255, 0.45);
+  --vm-ink-faint: rgba(255, 255, 255, 0.25);
+  --vm-border: rgba(255, 255, 255, 0.12);
+  --vm-tone-card: rgba(255, 255, 255, 0.07);
+  --vm-tone-stone: rgba(255, 255, 255, 0.05);
+
+  /* 夜航画板底盘：深墨夜景 + 3 个大半径柔和径向光源光斑 */
+  position: relative;
+  overflow: hidden;
+  background-color: var(--vm-bg-night);
+  background-image:
+    radial-gradient(circle 500px at 85% 15%, rgba(124, 156, 196, 0.25) 0%, transparent 65%),
+    radial-gradient(circle 600px at 10% 85%, rgba(51, 81, 122, 0.32) 0%, transparent 65%),
+    radial-gradient(circle 400px at 50% 50%, rgba(228, 184, 99, 0.08) 0%, transparent 60%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--vm-radius-xl);
+  padding: 24px 26px 22px 26px;
+  box-shadow: 0 16px 40px rgba(11, 19, 34, 0.14), 0 4px 12px rgba(11, 19, 34, 0.06);
   font-family: var(--vm-font-sans);
   color: var(--vm-ink-body);
   margin: 32px 0;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* 2.5% SVG feTurbulence 颗粒微质感噪点 */
+.vm-visual::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+.vm-visual > * {
+  position: relative;
+  z-index: 1;
 }
 
 .vm-visual * {
