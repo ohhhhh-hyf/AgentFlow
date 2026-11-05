@@ -1,4 +1,4 @@
-"""Visual Minutes 商业级设计系统与通用样式（夜航高级毛玻璃拟态 Nocturne Glassmorphism 规范）。"""
+"""Visual Minutes 商业级设计系统与通用样式（水彩画风 Watercolor Style 规范）。"""
 from __future__ import annotations
 
 import html
@@ -13,72 +13,21 @@ SVG_ICON_STATS = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" strok
 SVG_ICON_TIMELINE = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>'
 SVG_ICON_LOOP = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>'
 
-# 夜航玻璃拟态 5 轮转微光色阶体系（月光蓝、水晶青、月华紫、极光绿、香槟金）
+# 水彩画风 5 轮转半透明水彩色阶体系（蓝灰色、蜜桃色、青绿色、玫瑰色、沙色）
 NEU_5_COLORS = [
-    ("var(--vm-accent-blue)", "var(--vm-accent-blue-bg)", "var(--vm-accent-blue-border)"),
-    ("var(--vm-accent-cyan)", "var(--vm-accent-cyan-bg)", "var(--vm-accent-cyan-border)"),
-    ("var(--vm-accent-purple)", "var(--vm-accent-purple-bg)", "var(--vm-accent-purple-border)"),
-    ("var(--vm-accent-emerald)", "var(--vm-accent-emerald-bg)", "var(--vm-accent-emerald-border)"),
-    ("var(--vm-accent-amber)", "var(--vm-accent-amber-bg)", "var(--vm-accent-amber-border)"),
+    ("var(--vm-wc-blue)", "var(--vm-wc-blue-bg)", "var(--vm-wc-blue-border)"),
+    ("var(--vm-wc-peach-text)", "var(--vm-wc-peach-bg)", "var(--vm-wc-peach-border)"),
+    ("var(--vm-wc-teal-text)", "var(--vm-wc-teal-bg)", "var(--vm-wc-teal-border)"),
+    ("var(--vm-wc-rose-text)", "var(--vm-wc-rose-bg)", "var(--vm-wc-rose-border)"),
+    ("var(--vm-wc-sand-text)", "var(--vm-wc-sand-bg)", "var(--vm-wc-sand-border)"),
 ]
 
 TASTE_CSS = """
 :root {
   /* ─────────────────────────────────────────────────────────────
-     夜航玻璃拟态 UI 规范 (Nocturne Glassmorphism Tokens)
-     无色白玻璃（5%~10%），高斯模糊与饱和度增强，方向性高光与暗缘
+     水彩画风 UI 规范 (Watercolor Style Design System Tokens)
+     温暖纸张色底、柔和半透明水彩晕染渗透、大圆角与柔和漫射阴影
      ───────────────────────────────────────────────────────────── */
-  /* 夜景场景底色 */
-  --vm-bg-night: #0B1322;
-  --vm-bg-night-deep: #060A13;
-  --vm-bg-elevated: #16233A;
-
-  /* 唯一主强调色：香槟金 (Champagne Gold Accents) */
-  --vm-accent-gold: #E4B863;
-  --vm-accent-gold-light: #F3DCA8;
-  --vm-accent-gold-bg: rgba(228, 184, 99, 0.12);
-  --vm-accent-gold-border: rgba(228, 184, 99, 0.40);
-
-  /* 夜航月光与微光色彩系统 (Moonlight Astral Palette) */
-  --vm-accent-blue: #7C9CC4;
-  --vm-accent-blue-bg: rgba(124, 156, 196, 0.12);
-  --vm-accent-blue-border: rgba(124, 156, 196, 0.35);
-
-  --vm-accent-cyan: #87E8DE;
-  --vm-accent-cyan-bg: rgba(135, 232, 222, 0.12);
-  --vm-accent-cyan-border: rgba(135, 232, 222, 0.35);
-
-  --vm-accent-purple: #B8A9D9;
-  --vm-accent-purple-bg: rgba(184, 169, 217, 0.12);
-  --vm-accent-purple-border: rgba(184, 169, 217, 0.35);
-
-  --vm-accent-emerald: #7FB69E;
-  --vm-accent-emerald-bg: rgba(127, 182, 158, 0.12);
-  --vm-accent-emerald-border: rgba(127, 182, 158, 0.35);
-
-  --vm-accent-amber: #E4B863;
-  --vm-accent-amber-bg: rgba(228, 184, 99, 0.12);
-  --vm-accent-amber-border: rgba(228, 184, 99, 0.40);
-
-  /* 玻璃外托盘 / 容器底盘 (Outer Frosted Tray) */
-  --vm-glass-tray-bg: rgba(255, 255, 255, 0.04);
-  --vm-glass-tray-border: rgba(255, 255, 255, 0.12);
-  --vm-glass-tray-shadow: 0 20px 48px rgba(3, 7, 18, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(2, 6, 16, 0.4);
-
-  /* 玻璃卡片 (Inner Glass Card - 5%~10% 白玻璃，绝不上色) */
-  --vm-glass-card-bg: rgba(255, 255, 255, 0.07);
-  --vm-glass-card-bg-hover: rgba(255, 255, 255, 0.12);
-  --vm-glass-card-border: rgba(255, 255, 255, 0.15);
-  --vm-glass-card-border-hover: rgba(255, 255, 255, 0.32);
-
-  /* 方向性阴影：顶边高光 + 底边暗缘 + 外层深阴影 */
-  --vm-glass-card-shadow: 0 16px 40px rgba(3, 7, 18, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(2, 6, 16, 0.35);
-  --vm-glass-card-shadow-hover: 0 24px 64px rgba(3, 7, 18, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(2, 6, 16, 0.35);
-
-  /* 嵌入式凹槽小盒 (Glass Inset Pill / Box) */
-  --vm-glass-inset-bg: rgba(6, 10, 19, 0.45);
-  --vm-glass-inset-border: rgba(255, 255, 255, 0.10);
-  --vm-glass-inset-shadow: inset 0 2px 5px rgba(2, 6, 16, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.12);
 
   /* 外部主文档纯白画布文字墨水规范 (Light Canvas Tokens) */
   --vm-ink-title: #1F2329;
@@ -94,12 +43,66 @@ TASTE_CSS = """
   --vm-tone-stone-light: #F7F8FA;
   --vm-border: #E5E6EB;
 
-  /* 基础尺寸与缓动规范 */
-  --vm-radius: 12px;
-  --vm-radius-lg: 16px;
-  --vm-radius-xl: 24px;
-  --vm-spring-easing: cubic-bezier(0.16, 1, 0.3, 1);
-  --vm-duration: 0.5s;
+  /* ─────────────────────────────────────────────────────────────
+     水彩画风专属色彩系统 (Watercolor Palette)
+     ───────────────────────────────────────────────────────────── */
+  /* 主色调：蓝灰色与纸张色 */
+  --vm-wc-blue: #4a6fa5;
+  --vm-wc-blue-bg: rgba(74, 111, 165, 0.12);
+  --vm-wc-blue-border: rgba(74, 111, 165, 0.28);
+
+  --vm-wc-paper: #faf8f5;
+  --vm-wc-paper-subtle: #f0ebe3;
+  --vm-wc-paper-card: rgba(255, 255, 255, 0.78);
+  --vm-wc-paper-card-hover: rgba(255, 255, 255, 0.94);
+
+  /* 水彩色系（半透明扩散） */
+  --vm-wc-peach: #e8a87c;
+  --vm-wc-peach-text: #b36840;
+  --vm-wc-peach-bg: rgba(232, 168, 124, 0.15);
+  --vm-wc-peach-border: rgba(232, 168, 124, 0.35);
+
+  --vm-wc-teal: #85cdca;
+  --vm-wc-teal-text: #37827f;
+  --vm-wc-teal-bg: rgba(133, 205, 202, 0.16);
+  --vm-wc-teal-border: rgba(133, 205, 202, 0.35);
+
+  --vm-wc-rose: #c38d94;
+  --vm-wc-rose-text: #96535d;
+  --vm-wc-rose-bg: rgba(195, 141, 148, 0.15);
+  --vm-wc-rose-border: rgba(195, 141, 148, 0.35);
+
+  --vm-wc-sand: #d4a373;
+  --vm-wc-sand-text: #9a6430;
+  --vm-wc-sand-bg: rgba(212, 163, 115, 0.15);
+  --vm-wc-sand-border: rgba(212, 163, 115, 0.35);
+
+  /* 水彩文字角色 (WCAG AA 合规) */
+  --vm-wc-text-main: #3a3a3a;
+  --vm-wc-text-sub: #4a6fa5;
+  --vm-wc-text-muted: #8a8a8a;
+  --vm-wc-text-subtle: #a8a8a8;
+
+  /* 水彩柔和边框与阴影规范 (Token 映射) */
+  --vm-wc-border: rgba(74, 111, 165, 0.18);
+  --vm-wc-border-hover: rgba(74, 111, 165, 0.35);
+
+  /* 柔和漫射阴影与晕染扩散 (Pigment Bloom Shadows) */
+  --vm-wc-shadow-sm: 0 2px 10px rgba(74, 111, 165, 0.08);
+  --vm-wc-shadow-md: 0 4px 20px rgba(74, 111, 165, 0.10);
+  --vm-wc-shadow-lg: 0 8px 30px rgba(74, 111, 165, 0.12);
+  --vm-wc-shadow-bloom: 0 10px 36px rgba(74, 111, 165, 0.22);
+
+  /* 基础尺寸与缓动规范 (液态慢速缓动) */
+  --vm-radius-md: 14px;
+  --vm-radius: 16px;
+  --vm-radius-lg: 20px;
+  --vm-radius-xl: 26px;
+  --vm-wc-duration: 0.4s;
+  --vm-wc-easing: ease-out;
+
+  /* 字体规范：标题艺术衬线，正文轻盈无衬线 */
+  --vm-font-serif: "Georgia", "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
   --vm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --vm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -114,40 +117,38 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   夜航玻璃拟态微画板容器 (Self-Contained Nocturne Glass Stage)
-   嵌入纯白文档中，作为独立的暗夜光影玻璃展台
+   水彩画风微画板容器 (Watercolor Canvas Stage)
+   嵌入纯白文档中，作为温暖水彩渗透纸面画板
    ───────────────────────────────────────────────────────────── */
 .vm-visual {
-  /* 局部作用域重定义：深墨夜航玻璃画板的文字与边框 */
-  --vm-ink-title: #FFFFFF;
-  --vm-ink-body: rgba(255, 255, 255, 0.85);
-  --vm-ink-muted: rgba(255, 255, 255, 0.65);
-  --vm-ink-subtle: rgba(255, 255, 255, 0.45);
-  --vm-ink-faint: rgba(255, 255, 255, 0.25);
-  --vm-border: rgba(255, 255, 255, 0.12);
-  --vm-tone-card: rgba(255, 255, 255, 0.07);
-  --vm-tone-stone: rgba(255, 255, 255, 0.05);
+  /* 局部作用域重定义：水彩画板的文字与边框 */
+  --vm-ink-title: var(--vm-wc-text-main);
+  --vm-ink-body: var(--vm-wc-text-main);
+  --vm-ink-muted: var(--vm-wc-text-muted);
+  --vm-ink-subtle: var(--vm-wc-text-subtle);
+  --vm-border: var(--vm-wc-border);
 
-  /* 夜航画板底盘：深墨夜景 + 3 个大半径柔和径向光源光斑 */
+  /* 温暖水彩纸张底色 + 多个柔和水彩晕染径向渐变渗透 */
   position: relative;
   overflow: hidden;
-  background-color: var(--vm-bg-night);
+  background-color: var(--vm-wc-paper);
   background-image:
-    radial-gradient(circle 500px at 85% 15%, rgba(124, 156, 196, 0.25) 0%, transparent 65%),
-    radial-gradient(circle 600px at 10% 85%, rgba(51, 81, 122, 0.32) 0%, transparent 65%),
-    radial-gradient(circle 400px at 50% 50%, rgba(228, 184, 99, 0.08) 0%, transparent 60%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+    radial-gradient(circle 500px at 88% 12%, rgba(232, 168, 124, 0.20) 0%, transparent 65%),
+    radial-gradient(circle 550px at 12% 88%, rgba(133, 205, 202, 0.20) 0%, transparent 65%),
+    radial-gradient(circle 420px at 45% 35%, rgba(195, 141, 148, 0.14) 0%, transparent 60%),
+    radial-gradient(circle 380px at 78% 78%, rgba(212, 163, 115, 0.16) 0%, transparent 60%);
+  border: 1px solid var(--vm-wc-border);
   border-radius: var(--vm-radius-xl);
   padding: 24px 26px 22px 26px;
-  box-shadow: 0 16px 40px rgba(11, 19, 34, 0.14), 0 4px 12px rgba(11, 19, 34, 0.06);
+  box-shadow: 0 8px 30px rgba(74, 111, 165, 0.09), 0 2px 8px rgba(74, 111, 165, 0.04);
   font-family: var(--vm-font-sans);
-  color: var(--vm-ink-body);
+  color: var(--vm-wc-text-main);
   margin: 32px 0;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* 2.5% SVG feTurbulence 颗粒微质感噪点 */
+/* 细腻水彩纸张纤维微质感纹理 */
 .vm-visual::before {
   content: "";
   position: absolute;
@@ -155,7 +156,7 @@ TASTE_CSS = """
   left: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.025;
+  opacity: 0.02;
   pointer-events: none;
   z-index: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
@@ -173,15 +174,16 @@ TASTE_CSS = """
 .vm-visual-title {
   display: flex;
   align-items: center;
-  font-size: 15px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-family: var(--vm-font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--vm-wc-blue);
   margin: 0 0 14px 0;
   line-height: 1.4;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.02em;
 }
 
-/* 玻璃拟态图注规范 (Figure Caption) */
+/* 水彩画风图注规范 (Figure Caption) */
 .vm-figure-caption {
   display: flex;
   align-items: center;
@@ -189,28 +191,29 @@ TASTE_CSS = """
   gap: 8px;
   margin-top: 16px;
   font-size: 12.5px;
-  color: var(--vm-ink-subtle);
+  color: var(--vm-wc-text-muted);
   letter-spacing: 0.02em;
   user-select: none;
 }
 
 .vm-caption-prefix {
-  font-weight: 700;
-  color: var(--vm-accent-gold);
+  font-family: var(--vm-font-serif);
+  font-weight: 600;
+  color: var(--vm-wc-blue);
   font-size: 11.5px;
 }
 
 .vm-caption-divider {
-  color: var(--vm-ink-faint);
+  color: var(--vm-wc-sand);
 }
 
 .vm-caption-title {
-  font-weight: 600;
-  color: var(--vm-ink-muted);
+  font-weight: 500;
+  color: var(--vm-wc-text-muted);
 }
 
 /* ─────────────────────────────────────────────────────────────
-   1. 【开篇统领】Master Infographic (全景通览大图 - 玻璃拟态版)
+   1. 【开篇统领】Master Infographic (全景通览大图 - 水彩画风版)
    ───────────────────────────────────────────────────────────── */
 .vm-master-card {
   background: transparent;
@@ -226,22 +229,24 @@ TASTE_CSS = """
   align-items: center;
   gap: 6px;
   font-size: 11.5px;
-  font-weight: 700;
-  color: var(--vm-accent-gold-light);
-  background: rgba(228, 184, 99, 0.12);
-  border: 1px solid rgba(228, 184, 99, 0.35);
-  box-shadow: 0 2px 10px rgba(228, 184, 99, 0.15);
-  padding: 4px 12px;
+  font-family: var(--vm-font-serif);
+  font-weight: 600;
+  color: var(--vm-wc-blue);
+  background: var(--vm-wc-blue-bg);
+  border: 1px solid var(--vm-wc-blue-border);
+  box-shadow: 0 2px 8px rgba(74, 111, 165, 0.08);
+  padding: 4px 14px;
   border-radius: 100px;
   margin-bottom: 12px;
   letter-spacing: 0.03em;
 }
 
 .vm-master-headline {
-  font-size: 22px;
-  font-weight: 700;
-  color: #FFFFFF;
-  letter-spacing: -0.02em;
+  font-family: var(--vm-font-serif);
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--vm-wc-text-main);
+  letter-spacing: 0.02em;
   line-height: 1.35;
   margin: 0 0 14px 0;
 }
@@ -257,10 +262,12 @@ TASTE_CSS = """
 }
 
 .vm-widget-title {
-  font-size: 14.5px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-family: var(--vm-font-serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--vm-wc-blue);
   margin-bottom: 12px;
+  letter-spacing: 0.01em;
 }
 
 .vm-master-card .vm-visual {
@@ -275,15 +282,13 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
-  background: var(--vm-glass-tray-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--vm-glass-tray-border);
-  box-shadow: var(--vm-glass-tray-shadow);
+  background: rgba(240, 235, 227, 0.45);
+  border: 1px solid var(--vm-wc-border);
+  box-shadow: inset 0 1px 3px rgba(74, 111, 165, 0.04);
   border-radius: var(--vm-radius-xl);
   padding: 18px 20px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
 }
 
 .vm-master-block {
@@ -291,72 +296,71 @@ TASTE_CSS = """
   min-width: 220px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-glass-card-bg);
-  backdrop-filter: blur(50px) saturate(180%);
-  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  background: var(--vm-wc-paper-card);
   border-radius: var(--vm-radius-lg);
   padding: 20px 22px 18px 22px;
-  border: 1px solid var(--vm-glass-card-border);
-  box-shadow: var(--vm-glass-card-shadow);
-  transition: transform var(--vm-duration) var(--vm-spring-easing),
-              box-shadow var(--vm-duration) var(--vm-spring-easing),
-              border-color var(--vm-duration) var(--vm-spring-easing),
-              background var(--vm-duration) var(--vm-spring-easing);
+  border: 1px solid var(--vm-wc-border);
+  box-shadow: var(--vm-wc-shadow-md);
+  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
+              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
+              border-color var(--vm-wc-duration) var(--vm-wc-easing),
+              background var(--vm-wc-duration) var(--vm-wc-easing);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
 }
 
-/* 顶边内发光 (Inner Top Luminance) */
 .vm-master-block::before {
   content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 40px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
-  pointer-events: none;
-  border-top-left-radius: inherit;
-  border-top-right-radius: inherit;
+  height: 4px;
+  background: var(--block-accent, var(--vm-wc-blue));
+  opacity: 0.65;
 }
 
 .vm-master-block:hover {
-  transform: translateY(-4px);
-  background: var(--vm-glass-card-bg-hover);
-  border-color: var(--vm-glass-card-border-hover);
-  box-shadow: var(--vm-glass-card-shadow-hover);
+  transform: scale(1.015);
+  background: var(--vm-wc-paper-card-hover);
+  border-color: var(--vm-wc-border-hover);
+  box-shadow: var(--vm-wc-shadow-bloom);
 }
 
-/* 夜航主题微光分色体系 */
+.vm-master-block:active {
+  transform: scale(0.98);
+}
+
+/* 水彩主题分色体系 */
 .vm-theme-blue {
-  --block-accent: var(--vm-accent-blue);
-  --block-accent-bg: var(--vm-accent-blue-bg);
-  --block-accent-border: var(--vm-accent-blue-border);
+  --block-accent: var(--vm-wc-blue);
+  --block-accent-bg: var(--vm-wc-blue-bg);
+  --block-accent-border: var(--vm-wc-blue-border);
 }
 
 .vm-theme-cyan {
-  --block-accent: var(--vm-accent-cyan);
-  --block-accent-bg: var(--vm-accent-cyan-bg);
-  --block-accent-border: var(--vm-accent-cyan-border);
+  --block-accent: var(--vm-wc-teal-text);
+  --block-accent-bg: var(--vm-wc-teal-bg);
+  --block-accent-border: var(--vm-wc-teal-border);
 }
 
 .vm-theme-purple {
-  --block-accent: var(--vm-accent-purple);
-  --block-accent-bg: var(--vm-accent-purple-bg);
-  --block-accent-border: var(--vm-accent-purple-border);
+  --block-accent: var(--vm-wc-rose-text);
+  --block-accent-bg: var(--vm-wc-rose-bg);
+  --block-accent-border: var(--vm-wc-rose-border);
 }
 
 .vm-theme-emerald {
-  --block-accent: var(--vm-accent-emerald);
-  --block-accent-bg: var(--vm-accent-emerald-bg);
-  --block-accent-border: var(--vm-accent-emerald-border);
+  --block-accent: var(--vm-wc-peach-text);
+  --block-accent-bg: var(--vm-wc-peach-bg);
+  --block-accent-border: var(--vm-wc-peach-border);
 }
 
 .vm-theme-amber {
-  --block-accent: var(--vm-accent-amber);
-  --block-accent-bg: var(--vm-accent-amber-bg);
-  --block-accent-border: var(--vm-accent-amber-border);
+  --block-accent: var(--vm-wc-sand-text);
+  --block-accent-bg: var(--vm-wc-sand-bg);
+  --block-accent-border: var(--vm-wc-sand-border);
 }
 
 .vm-block-header {
@@ -373,22 +377,22 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--block-accent, var(--vm-accent-gold));
-  background-color: var(--block-accent, var(--vm-accent-gold));
+  background-color: var(--block-accent, var(--vm-wc-blue));
+  box-shadow: 0 0 6px var(--block-accent, var(--vm-wc-blue));
   flex-shrink: 0;
 }
 
 .vm-master-block-title {
+  font-family: var(--vm-font-serif);
   font-size: 15px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-weight: 600;
+  color: var(--vm-wc-text-main);
   line-height: 1.4;
 }
 
 .vm-master-block-summary {
   font-size: 12.5px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.75);
+  color: #5a5a5a;
   line-height: 1.6;
   margin-bottom: 12px;
 }
@@ -398,7 +402,7 @@ TASTE_CSS = """
   padding: 0;
   list-style: none;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.65);
+  color: #5a5a5a;
   line-height: 1.6;
   display: flex;
   flex-direction: column;
@@ -419,17 +423,16 @@ TASTE_CSS = """
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background-color: var(--block-accent, var(--vm-accent-gold));
-  box-shadow: 0 0 6px var(--block-accent, var(--vm-accent-gold));
+  background-color: var(--block-accent, var(--vm-wc-blue));
+  opacity: 0.75;
 }
 
-/* 嵌入式高光底盒 (Glass Inset Pill) */
+/* 嵌入式纸质底盒 (Damp Paper Inset Box) */
 .vm-master-block-highlight {
   margin-top: auto;
-  background: var(--vm-glass-inset-bg);
-  box-shadow: var(--vm-glass-inset-shadow);
-  border: 1px solid var(--vm-glass-inset-border);
-  border-radius: 10px;
+  background: rgba(240, 235, 227, 0.60);
+  border: 1px solid var(--vm-wc-border);
+  border-radius: 12px;
   padding: 10px 14px;
   display: flex;
   flex-direction: column;
@@ -446,21 +449,21 @@ TASTE_CSS = """
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background-color: var(--block-accent, var(--vm-accent-gold));
-  box-shadow: 0 0 6px var(--block-accent, var(--vm-accent-gold));
+  background-color: var(--block-accent, var(--vm-wc-blue));
 }
 
 .vm-highlight-tag {
   font-size: 11px;
-  font-weight: 700;
-  color: var(--vm-accent-gold-light);
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--block-accent, var(--vm-wc-blue));
+  letter-spacing: 0.03em;
 }
 
 .vm-highlight-value {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-family: var(--vm-font-serif);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vm-wc-text-main);
   line-height: 1.4;
   word-break: break-word;
 }
@@ -469,51 +472,48 @@ TASTE_CSS = """
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--vm-wc-border);
   padding-top: 20px;
 }
 
 .vm-master-metric {
   flex: 1 1 180px;
-  background: var(--vm-glass-card-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  background: var(--vm-wc-paper-card);
   border-radius: var(--vm-radius);
   padding: 12px 16px;
-  border: 1px solid var(--vm-glass-card-border);
-  border-left: 3px solid var(--vm-accent-gold);
+  border: 1px solid var(--vm-wc-border);
+  box-shadow: var(--vm-wc-shadow-sm);
+  border-left: 3px solid var(--vm-wc-blue);
 }
 
 .vm-master-metric-value {
   display: block;
+  font-family: var(--vm-font-serif);
   font-size: 20px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-weight: 600;
+  color: var(--vm-wc-blue);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  text-shadow: 0 0 12px rgba(228, 184, 99, 0.2);
+  letter-spacing: -0.01em;
 }
 
 .vm-master-metric-label {
   display: block;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--vm-wc-text-muted);
   margin-top: 3px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   2. 【链路闭环】Flow & Closed Loop 渲染 (夜航玻璃流转版)
+   2. 【链路闭环】Flow & Closed Loop 渲染 (水彩流转版)
    ───────────────────────────────────────────────────────────── */
 .vm-flow-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: var(--vm-glass-tray-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--vm-glass-tray-border);
-  box-shadow: var(--vm-glass-tray-shadow);
+  background: rgba(240, 235, 227, 0.45);
+  border: 1px solid var(--vm-wc-border);
+  box-shadow: inset 0 1px 3px rgba(74, 111, 165, 0.04);
   border-radius: var(--vm-radius-xl);
   padding: 18px 20px;
 }
@@ -528,7 +528,7 @@ TASTE_CSS = """
   align-items: stretch;
   padding: 6px 4px 12px 4px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
 }
 
 .vm-flow-step-card {
@@ -536,17 +536,15 @@ TASTE_CSS = """
   min-width: 200px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-glass-card-bg);
-  backdrop-filter: blur(50px) saturate(180%);
-  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  background: var(--vm-wc-paper-card);
   border-radius: var(--vm-radius-lg);
   padding: 18px 20px 16px 20px;
-  border: 1px solid var(--vm-glass-card-border);
-  box-shadow: var(--vm-glass-card-shadow);
-  transition: transform var(--vm-duration) var(--vm-spring-easing),
-              box-shadow var(--vm-duration) var(--vm-spring-easing),
-              border-color var(--vm-duration) var(--vm-spring-easing),
-              background var(--vm-duration) var(--vm-spring-easing);
+  border: 1px solid var(--vm-wc-border);
+  box-shadow: var(--vm-wc-shadow-md);
+  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
+              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
+              border-color var(--vm-wc-duration) var(--vm-wc-easing),
+              background var(--vm-wc-duration) var(--vm-wc-easing);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
@@ -558,18 +556,20 @@ TASTE_CSS = """
   top: 0;
   left: 0;
   right: 0;
-  height: 36px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
-  pointer-events: none;
-  border-top-left-radius: inherit;
-  border-top-right-radius: inherit;
+  height: 4px;
+  background: var(--step-accent, var(--vm-wc-blue));
+  opacity: 0.65;
 }
 
 .vm-flow-step-card:hover {
-  transform: translateY(-4px);
-  background: var(--vm-glass-card-bg-hover);
-  border-color: var(--vm-glass-card-border-hover);
-  box-shadow: var(--vm-glass-card-shadow-hover);
+  transform: scale(1.015);
+  background: var(--vm-wc-paper-card-hover);
+  border-color: var(--vm-wc-border-hover);
+  box-shadow: var(--vm-wc-shadow-bloom);
+}
+
+.vm-flow-step-card:active {
+  transform: scale(0.98);
 }
 
 .vm-step-card-header {
@@ -589,14 +589,16 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--step-accent, var(--vm-accent-gold));
+  background: var(--step-accent, var(--vm-wc-blue));
+  box-shadow: 0 0 6px var(--step-accent, var(--vm-wc-blue));
   flex-shrink: 0;
 }
 
 .vm-flow-node-title {
+  font-family: var(--vm-font-serif);
   font-size: 14.5px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-weight: 600;
+  color: var(--vm-wc-text-main);
   line-height: 1.4;
 }
 
@@ -606,7 +608,7 @@ TASTE_CSS = """
   justify-content: center;
   flex-shrink: 0;
   width: 20px;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(74, 111, 165, 0.40);
   user-select: none;
   transition: color 0.3s ease;
 }
@@ -621,12 +623,12 @@ TASTE_CSS = """
 }
 
 .vm-flow-track:hover .vm-flow-connector {
-  color: var(--vm-accent-gold);
+  color: var(--vm-wc-blue);
 }
 
 .vm-flow-node-detail {
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.75);
+  color: #5a5a5a;
   line-height: 1.6;
   flex: 1;
 }
@@ -634,42 +636,38 @@ TASTE_CSS = """
 .vm-flow-delivery {
   margin-top: 12px;
   padding: 7px 12px;
-  background: var(--vm-glass-inset-bg);
-  box-shadow: var(--vm-glass-inset-shadow);
-  border: 1px solid var(--vm-glass-inset-border);
-  border-radius: 8px;
+  background: rgba(240, 235, 227, 0.60);
+  border: 1px solid var(--vm-wc-border);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 11.5px;
-  color: var(--vm-ink-body);
+  color: #5a5a5a;
 }
 
 .vm-delivery-arrow {
-  color: var(--step-accent, var(--vm-accent-gold));
+  color: var(--step-accent, var(--vm-wc-blue));
   flex-shrink: 0;
 }
 
 .vm-delivery-text {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.90);
+  color: var(--vm-wc-text-main);
   line-height: 1.35;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   3. 【对比矩阵】Table / Matrix 对比表 (夜航玻璃拟态版)
+   3. 【对比矩阵】Table / Matrix 对比表 (水彩画风版)
    ───────────────────────────────────────────────────────────── */
 .vm-table-wrap {
   overflow-x: auto;
-  background: var(--vm-glass-tray-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--vm-glass-tray-border);
-  box-shadow: var(--vm-glass-tray-shadow);
+  background: rgba(240, 235, 227, 0.40);
+  border: 1px solid var(--vm-wc-border);
   border-radius: var(--vm-radius-xl);
   padding: 16px 20px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
 }
 
 .vm-table {
@@ -683,8 +681,9 @@ TASTE_CSS = """
 .vm-table th {
   padding: 10px 16px 8px 16px;
   text-align: left;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-family: var(--vm-font-serif);
+  font-weight: 600;
+  color: var(--vm-wc-blue);
   font-size: 13.5px;
   border: none;
 }
@@ -692,7 +691,7 @@ TASTE_CSS = """
 .vm-th-dim {
   width: 17%;
   min-width: 100px;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--vm-wc-text-muted);
 }
 
 .vm-th-col {
@@ -713,52 +712,50 @@ TASTE_CSS = """
 }
 
 .vm-table-row {
-  filter: drop-shadow(0 4px 12px rgba(3, 7, 18, 0.45));
-  transition: filter var(--vm-duration) var(--vm-spring-easing);
+  filter: drop-shadow(0 2px 6px rgba(74, 111, 165, 0.06));
+  transition: filter var(--vm-wc-duration) var(--vm-wc-easing);
 }
 
 .vm-table-row:hover {
-  filter: drop-shadow(0 8px 24px rgba(3, 7, 18, 0.65));
+  filter: drop-shadow(0 6px 16px rgba(74, 111, 165, 0.14));
 }
 
 .vm-table td {
   padding: 14px 18px;
   text-align: left;
   vertical-align: middle;
-  background: var(--vm-glass-card-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border-top: 1px solid var(--vm-glass-card-border);
-  border-bottom: 1px solid var(--vm-glass-card-border);
-  color: var(--vm-ink-body);
+  background: var(--vm-wc-paper-card);
+  border-top: 1px solid var(--vm-wc-border);
+  border-bottom: 1px solid var(--vm-wc-border);
+  color: var(--vm-wc-text-main);
   line-height: 1.6;
-  transition: background var(--vm-duration) var(--vm-spring-easing), border-color var(--vm-duration) var(--vm-spring-easing);
+  transition: background var(--vm-wc-duration) var(--vm-wc-easing), border-color var(--vm-wc-duration) var(--vm-wc-easing);
 }
 
 .vm-table-row:hover td {
-  background: var(--vm-glass-card-bg-hover);
-  border-color: var(--vm-glass-card-border-hover);
+  background: rgba(232, 168, 124, 0.12);
+  border-color: rgba(232, 168, 124, 0.35);
 }
 
 .vm-td-dim {
   width: 17%;
   min-width: 100px;
-  border-left: 1px solid var(--vm-glass-card-border);
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
+  border-left: 1px solid var(--vm-wc-border);
+  border-top-left-radius: 14px;
+  border-bottom-left-radius: 14px;
 }
 
 .vm-dim-badge {
   display: inline-block;
   font-size: 11.5px;
-  font-weight: 700;
-  color: #FFFFFF;
-  background: var(--vm-glass-inset-bg);
-  box-shadow: var(--vm-glass-inset-shadow);
-  border: 1px solid var(--vm-glass-inset-border);
+  font-family: var(--vm-font-serif);
+  font-weight: 600;
+  color: var(--vm-wc-blue);
+  background: var(--vm-wc-blue-bg);
+  border: 1px solid var(--vm-wc-blue-border);
   padding: 4px 10px;
   border-radius: 8px;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
 }
 
 .vm-td-val {
@@ -766,42 +763,37 @@ TASTE_CSS = """
 }
 
 .vm-table tr td:last-child {
-  border-right: 1px solid var(--vm-glass-card-border);
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
+  border-right: 1px solid var(--vm-wc-border);
+  border-top-right-radius: 14px;
+  border-bottom-right-radius: 14px;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   4. 【分层架构】Tree / Layered Architecture (夜航玻璃分层版)
+   4. 【分层架构】Tree / Layered Architecture (水彩分层版)
    ───────────────────────────────────────────────────────────── */
 .vm-tree-container {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: var(--vm-glass-tray-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--vm-glass-tray-border);
-  box-shadow: var(--vm-glass-tray-shadow);
+  background: rgba(240, 235, 227, 0.40);
+  border: 1px solid var(--vm-wc-border);
   border-radius: var(--vm-radius-xl);
   padding: 20px 22px;
 }
 
 .vm-tree-layer-card {
-  background: var(--vm-glass-card-bg);
-  backdrop-filter: blur(50px) saturate(180%);
-  -webkit-backdrop-filter: blur(50px) saturate(180%);
-  border: 1px solid var(--vm-glass-card-border);
+  background: var(--vm-wc-paper-card);
+  border: 1px solid var(--vm-wc-border);
   border-radius: var(--vm-radius-md);
   padding: 15px 20px;
   display: flex;
   align-items: center;
   gap: 18px;
-  box-shadow: var(--vm-glass-card-shadow);
-  transition: transform var(--vm-duration) var(--vm-spring-easing),
-              box-shadow var(--vm-duration) var(--vm-spring-easing),
-              border-color var(--vm-duration) var(--vm-spring-easing),
-              background var(--vm-duration) var(--vm-spring-easing);
+  box-shadow: var(--vm-wc-shadow-sm);
+  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
+              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
+              border-color var(--vm-wc-duration) var(--vm-wc-easing),
+              background var(--vm-wc-duration) var(--vm-wc-easing);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
@@ -812,17 +804,21 @@ TASTE_CSS = """
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  height: 24px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
-  pointer-events: none;
+  bottom: 0;
+  width: 4px;
+  background: var(--layer-accent, var(--vm-wc-blue));
+  opacity: 0.7;
 }
 
 .vm-tree-layer-card:hover {
-  transform: translateY(-3px);
-  background: var(--vm-glass-card-bg-hover);
-  border-color: var(--vm-glass-card-border-hover);
-  box-shadow: var(--vm-glass-card-shadow-hover);
+  transform: scale(1.015);
+  background: var(--vm-wc-paper-card-hover);
+  border-color: var(--vm-wc-border-hover);
+  box-shadow: var(--vm-wc-shadow-bloom);
+}
+
+.vm-tree-layer-card:active {
+  transform: scale(0.98);
 }
 
 .vm-tree-layer-lead {
@@ -837,14 +833,16 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--layer-accent, var(--vm-accent-gold));
+  background: var(--layer-accent, var(--vm-wc-blue));
+  box-shadow: 0 0 6px var(--layer-accent, var(--vm-wc-blue));
   flex-shrink: 0;
 }
 
 .vm-tree-layer-title {
+  font-family: var(--vm-font-serif);
   font-size: 14.5px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-weight: 600;
+  color: var(--vm-wc-text-main);
   line-height: 1.4;
   letter-spacing: -0.01em;
 }
@@ -852,19 +850,19 @@ TASTE_CSS = """
 .vm-tree-layer-divider {
   width: 1px;
   height: 22px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(74, 111, 165, 0.20);
   flex-shrink: 0;
 }
 
 .vm-tree-layer-detail {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.80);
+  color: #5a5a5a;
   line-height: 1.6;
   flex: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   5. 【量化成效】Stats 关键指标大卡 (夜航玻璃拟态版)
+   5. 【量化成效】Stats 关键指标大卡 (水彩画风版)
    ───────────────────────────────────────────────────────────── */
 .vm-stats-grid {
   display: flex;
@@ -874,15 +872,13 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
-  background: var(--vm-glass-tray-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--vm-glass-tray-border);
-  box-shadow: var(--vm-glass-tray-shadow);
+  background: rgba(240, 235, 227, 0.45);
+  border: 1px solid var(--vm-wc-border);
+  box-shadow: inset 0 1px 3px rgba(74, 111, 165, 0.04);
   border-radius: var(--vm-radius-xl);
   padding: 18px 20px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
 }
 
 .vm-stat-card {
@@ -890,17 +886,15 @@ TASTE_CSS = """
   min-width: 180px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-glass-card-bg);
-  backdrop-filter: blur(50px) saturate(180%);
-  -webkit-backdrop-filter: blur(50px) saturate(180%);
-  border: 1px solid var(--vm-glass-card-border);
+  background: var(--vm-wc-paper-card);
+  border: 1px solid var(--vm-wc-border);
   border-radius: var(--vm-radius-lg);
   padding: 18px 20px;
-  box-shadow: var(--vm-glass-card-shadow);
-  transition: transform var(--vm-duration) var(--vm-spring-easing),
-              box-shadow var(--vm-duration) var(--vm-spring-easing),
-              border-color var(--vm-duration) var(--vm-spring-easing),
-              background var(--vm-duration) var(--vm-spring-easing);
+  box-shadow: var(--vm-wc-shadow-md);
+  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
+              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
+              border-color var(--vm-wc-duration) var(--vm-wc-easing),
+              background var(--vm-wc-duration) var(--vm-wc-easing);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
@@ -912,16 +906,20 @@ TASTE_CSS = """
   top: 0;
   left: 0;
   right: 0;
-  height: 36px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
-  pointer-events: none;
+  height: 4px;
+  background: var(--stat-accent, var(--vm-wc-blue));
+  opacity: 0.65;
 }
 
 .vm-stat-card:hover {
-  transform: translateY(-4px);
-  background: var(--vm-glass-card-bg-hover);
-  border-color: var(--vm-glass-card-border-hover);
-  box-shadow: var(--vm-glass-card-shadow-hover);
+  transform: scale(1.015);
+  background: var(--vm-wc-paper-card-hover);
+  border-color: var(--vm-wc-border-hover);
+  box-shadow: var(--vm-wc-shadow-bloom);
+}
+
+.vm-stat-card:active {
+  transform: scale(0.98);
 }
 
 .vm-stat-card-header {
@@ -935,15 +933,16 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--stat-accent, var(--vm-accent-gold));
+  background: var(--stat-accent, var(--vm-wc-blue));
+  box-shadow: 0 0 6px var(--stat-accent, var(--vm-wc-blue));
   flex-shrink: 0;
 }
 
 .vm-stat-value {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--stat-accent, var(--vm-accent-gold));
-  text-shadow: 0 0 16px rgba(228, 184, 99, 0.25);
+  font-family: var(--vm-font-serif);
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--stat-accent, var(--vm-wc-blue));
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
   line-height: 1.35;
@@ -951,21 +950,18 @@ TASTE_CSS = """
 
 .vm-stat-label {
   font-size: 12.5px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.80);
+  color: var(--vm-wc-text-muted);
   line-height: 1.55;
   flex: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   6. 【时序图谱】Timeline 时间演进 (夜航玻璃拟态版)
+   6. 【时序图谱】Timeline 时间演进 (水彩画风版)
    ───────────────────────────────────────────────────────────── */
 .vm-timeline-canvas {
-  background: var(--vm-glass-tray-bg);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 1px solid var(--vm-glass-tray-border);
-  box-shadow: var(--vm-glass-tray-shadow);
+  background: rgba(240, 235, 227, 0.45);
+  border: 1px solid var(--vm-wc-border);
+  box-shadow: inset 0 1px 3px rgba(74, 111, 165, 0.04);
   border-radius: var(--vm-radius-xl);
   padding: 24px 20px 20px 20px;
 }
@@ -980,7 +976,7 @@ TASTE_CSS = """
   align-items: stretch;
   padding: 6px 12px 14px 12px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
 }
 
 .vm-timeline-col {
@@ -993,11 +989,10 @@ TASTE_CSS = """
 }
 
 .vm-timeline-time-label {
+  font-family: var(--vm-font-serif);
   font-size: 13.5px;
-  font-weight: 700;
-  font-family: var(--vm-font-mono), var(--vm-font-sans);
-  color: var(--event-accent, var(--vm-accent-gold-light));
-  text-shadow: 0 0 10px rgba(228, 184, 99, 0.2);
+  font-weight: 600;
+  color: var(--event-accent, var(--vm-wc-blue));
   text-align: center;
   margin-bottom: 10px;
   letter-spacing: 0.02em;
@@ -1027,7 +1022,7 @@ TASTE_CSS = """
   left: -8px;
   right: -8px;
   height: 2px;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(74, 111, 165, 0.22);
   transform: translateY(-50%);
   z-index: 1;
 }
@@ -1045,32 +1040,30 @@ TASTE_CSS = """
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #0B1322;
-  border: 3px solid var(--event-accent, var(--vm-accent-gold));
-  box-shadow: 0 0 12px var(--event-accent, var(--vm-accent-gold)), 0 0 0 3px rgba(255, 255, 255, 0.12);
-  transition: transform 0.3s var(--vm-spring-easing), box-shadow 0.3s ease;
+  background: #faf8f5;
+  border: 3px solid var(--event-accent, var(--vm-wc-blue));
+  box-shadow: 0 0 8px rgba(74, 111, 165, 0.20), 0 0 0 3px rgba(74, 111, 165, 0.10);
+  transition: transform var(--vm-wc-duration) var(--vm-wc-easing), box-shadow var(--vm-wc-duration) ease;
 }
 
 .vm-timeline-col:hover .vm-timeline-dot {
-  transform: scale(1.3);
-  box-shadow: 0 0 16px var(--event-accent, var(--vm-accent-gold)), 0 0 0 4px rgba(255, 255, 255, 0.25);
+  transform: scale(1.25);
+  box-shadow: 0 0 12px rgba(74, 111, 165, 0.35), 0 0 0 4px rgba(74, 111, 165, 0.15);
 }
 
 .vm-timeline-card {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--vm-glass-card-bg);
-  backdrop-filter: blur(50px) saturate(180%);
-  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  background: var(--vm-wc-paper-card);
   border-radius: var(--vm-radius-lg);
   padding: 18px 20px 16px 20px;
-  border: 1px solid var(--vm-glass-card-border);
-  box-shadow: var(--vm-glass-card-shadow);
-  transition: transform var(--vm-duration) var(--vm-spring-easing),
-              box-shadow var(--vm-duration) var(--vm-spring-easing),
-              border-color var(--vm-duration) var(--vm-spring-easing),
-              background var(--vm-duration) var(--vm-spring-easing);
+  border: 1px solid var(--vm-wc-border);
+  box-shadow: var(--vm-wc-shadow-md);
+  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
+              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
+              border-color var(--vm-wc-duration) var(--vm-wc-easing),
+              background var(--vm-wc-duration) var(--vm-wc-easing);
   box-sizing: border-box;
   text-align: left;
   position: relative;
@@ -1083,29 +1076,34 @@ TASTE_CSS = """
   top: 0;
   left: 0;
   right: 0;
-  height: 36px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
-  pointer-events: none;
+  height: 4px;
+  background: var(--event-accent, var(--vm-wc-blue));
+  opacity: 0.65;
 }
 
 .vm-timeline-col:hover .vm-timeline-card {
-  transform: translateY(-4px);
-  background: var(--vm-glass-card-bg-hover);
-  border-color: var(--vm-glass-card-border-hover);
-  box-shadow: var(--vm-glass-card-shadow-hover);
+  transform: scale(1.015);
+  background: var(--vm-wc-paper-card-hover);
+  border-color: var(--vm-wc-border-hover);
+  box-shadow: var(--vm-wc-shadow-bloom);
+}
+
+.vm-timeline-col:active .vm-timeline-card {
+  transform: scale(0.98);
 }
 
 .vm-timeline-title {
+  font-family: var(--vm-font-serif);
   font-size: 14px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-weight: 600;
+  color: var(--vm-wc-text-main);
   line-height: 1.45;
   margin-bottom: 6px;
 }
 
 .vm-timeline-detail {
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.80);
+  color: #5a5a5a;
   line-height: 1.6;
   margin-top: 4px;
   flex: 1;
@@ -1113,7 +1111,7 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   夜航高级毛玻璃滚动条 (Sleek Glass Scrollbar)
+   水彩柔和质感滚动条 (Soft Watercolor Scrollbar)
    ───────────────────────────────────────────────────────────── */
 .vm-master-grid::-webkit-scrollbar,
 .vm-flow-track::-webkit-scrollbar,
@@ -1129,7 +1127,7 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-track,
 .vm-timeline-track::-webkit-scrollbar-track,
 .vm-table-wrap::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(74, 111, 165, 0.05);
   border-radius: 4px;
 }
 
@@ -1138,7 +1136,7 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-thumb,
 .vm-timeline-track::-webkit-scrollbar-thumb,
 .vm-table-wrap::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.20);
+  background: rgba(74, 111, 165, 0.20);
   border-radius: 4px;
   transition: background 0.2s ease;
 }
@@ -1148,7 +1146,7 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-thumb:hover,
 .vm-timeline-track::-webkit-scrollbar-thumb:hover,
 .vm-table-wrap::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(74, 111, 165, 0.35);
 }
 
 /* 响应式精修 */

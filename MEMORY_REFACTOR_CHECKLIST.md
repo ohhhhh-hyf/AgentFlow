@@ -225,11 +225,53 @@
   1. **新增决策**（`new_decisions`）：本场新拍板的决议；
   2. **延续待办**（`open_actions`）：历史上遗留、当前仍需跟进的待办；
   3. **已闭环待办**（`closed_actions`）：本场已解决、落实的待办；
-- 无论是 Markdown 正文的 `## 与历史对比`，还是 HTML 的右栏 `【状态演进】` 看板，**数据源 100% 同构，顺序固定，彻底消灭歧义**。
+- 无论是 Markdown 正文的 `## 历史状态演进`，还是 HTML 的右栏 `【状态演进】` 看板，**数据源 100% 同构，顺序固定，彻底消灭歧义**。
 
-### 3. Markdown 输出效果对比（彻底解决历史记忆神隐）
+### 3. Markdown 输出效果对比（统一改名与最终版式定稿）
 
-#### ❌ 重构前（正文换个词，文末历史原话就全部神隐）：
+#### 栏目标题统一规范：
+* **第一栏（宏观状态机演进账本）**：统一命名为 **`## 历史状态演进`**（英文：`## Historical State Evolution`）。
+  * 废弃原先模糊的 `## 与历史对比` / `## 历史对照`；
+  * `render.py` 中的清洗正则已预先支持 `(?:历史对照|状态演进|与历史对比)`，改名零回归。
+* **第二栏（微观发言原话与证据溯源）**：统一命名为 **`## 历史记忆溯源`**（英文：`## Historical Memory Traceability`）。
+  * 废弃原先的 `## 历史记忆引用`，与下属子标题 `#### 溯源 memory-N` 在心智和命名上完全闭环。
+
+---
+
+#### 最终排版规范与优雅降级（Graceful Degradation）规则：
+
+##### 1. 第一栏【历史状态演进】（方案 B：加粗分组标签，彻底抛弃合计与场次噪音）：
+* **彻底拔除合计统计行**：完全删掉 `本场历史对照合计：新增决策 X 条...` 这类机械日志行，回归自然高级的阅读质感；
+* **三看板独占加粗分组**：固定顺序输出 `**新增决策**：` ➔ `**延续事项**：` ➔ `**已闭环**：`（利用 `minutes_render._format_list_lines` 对独占加粗行的原生支持能力）；
+* **彻底抛弃“第几场”**：演进区条目格式统一为 `- 模块名：具体内容`，删掉 `自第1场`、`第2场关闭` 等场次信息（场次证据留给溯源区）；
+* **降级与空栏目规则**：
+  * 若提取到模块名：`- 鉴权模块：统一网关鉴权协议改造待完成`
+  * 若无模块名：直接输出 `- 统一网关鉴权协议改造待完成`（不带空冒号）
+  * 某类条目为 0 时：该加粗分类整块不输出（不留空占位）
+  * 三类全为 0 时：整节 `## 历史状态演进` 完全不渲染。
+
+##### 2. 第二栏【历史记忆溯源】（精简卡片，严格无值不占位）：
+* **状态行精简**：
+  - 移除内部冗余的跨场信息（如 `第1场·项目启动会 起，最近 第2场·架构评审会`）；
+  - 括号内**仅保留负责人与时限**：`状态：{label}（负责人 {owner}，时限 {timing}）`；
+  - **降级规则**：
+    - 两者皆有：`状态：未闭环（负责人 赵工，时限 9月15日前）`
+    - 仅负责人：`状态：未闭环（负责人 赵工）`
+    - 仅时限：`状态：未闭环（时限 9月15日前）`
+    - 皆无：`状态：未闭环`（不带括号，不强凑“无/未知”）
+    - 连状态都无：整行不渲染
+* **来源与时间合并行**：
+  - 将原先分散的两行（`来源会议：...` + `会议时间：...`）合并为单一清晰行；
+  - 去掉技术编号“第几场”，采用标准格式：**`来源：{开会时间}/{会议名称}`**；
+  - **降级规则**：
+    - 时间 + 名称皆有：`来源：2026-09-01/项目启动会`
+    - 仅时间：`来源：2026-09-01`
+    - 仅名称：`来源：项目启动会`
+    - 皆无：`来源：历史会议`（或整行不渲染）
+
+---
+
+#### ❌ 重构前（格式冗长繁琐、正文换词文末就神隐）：
 ```markdown
 # 研发例会
 
@@ -240,25 +282,41 @@
 - 延续事项（自第1场）：赵工负责搜索时延压到50ms
 - 本场历史对照合计：延续未决 1 条
 
-（结束了！因为大模型正文把“搜索时延”写成“接口响应性能”，字面没搜到词，文末的历史记忆原话全部被丢弃！）
+## 历史记忆引用
+#### 溯源 memory-1
+> 赵工：网关时延争取在9月15日前压到50ms以内。
+状态：未闭环（负责人 赵工，时限 9月15日前，第1场·项目启动会 起，最近 第2场·架构评审会）
+来源会议：第1场·项目启动会
+会议时间：2026-09-01
 ```
 
-#### ✅ 重构后（解绑搜词，无论正文措辞怎么变，文末发言证据 100% 必定展示）：
+#### ✅ 重构后（标题专业、排版利落、证据链确凿防扯皮）：
 ```markdown
 # 研发例会
 
 ## 全文摘要
 ……团队围绕接口响应性能进行了研讨……
 
-## 与历史对比
-- 延续事项（自第1场）：赵工负责搜索时延压到50ms
-- 本场历史对照合计：延续未决 1 条
+## 历史状态演进
 
-## 往期会议事实与发言出处
-#### 来源 1 · 延续事项
-- 对应事项：赵工负责搜索时延压到50ms（负责人：赵工，时限：9月15日前）
-- 来源会议：第1场·项目启动会 (2026-09-01)
-- 现场原话：> “赵工：网关时延争取在9月15日前压到50ms以内。”
+**新增决策**：
+- 统一网关：全站统一接入新网关，老网关下月底前下线
+
+**延续事项**：
+- 鉴权模块：统一网关鉴权协议改造待完成
+- 监控告警：Prometheus 告警指标接入延迟优化
+
+**已闭环**：
+- 基础组件：数据库连接池泄露补丁已合并发布
+
+---
+
+## 历史记忆溯源
+
+#### 溯源 memory-1
+> 赵工：网关时延争取在9月15日前压到50ms以内。
+状态：未闭环（负责人 赵工，时限 9月15日前）
+来源：2026-09-01/项目启动会
 ```
 
 ---
@@ -268,13 +326,13 @@
 | 序号 | 目标文件路径 | 改造类型 | 详细修改要点与拔除内容 |
 | :---: | :--- | :---: | :--- |
 | **1** | [domains/meeting/memory/state.py](file:///d:/study/demo/domains/meeting/memory/state.py) | **核心裁剪** | 1. 彻底删除 `_upsert_risks`、`_apply_dormant`、`_close_items` 中的风险分支；<br>2. 彻底删除 `events` 审计数组生成与更新；<br>3. 彻底删除 `summary` 字段拼接；<br>4. 合并 `_upsert_open`，只维护单一的 `actions` 列表，删除跨列表 `other=opens` 查重包袱；<br>5. 简化单条 item 字段（去掉 `time_source`、合并 `meeting_id`）。 |
-| **2** | [domains/meeting/memory/inject.py](file:///d:/study/demo/domains/meeting/memory/inject.py) | **核心裁剪** | 1. 删除 `preview_comparison` 中的风险对比行；<br>2. 删除 `build_memory_context` 中的 `elif dormant:` 分支及 `_risk_meta`；<br>3. `ranked_open` 直接从合并后的 `state["actions"]` 过滤，消除列表拼接；<br>4. 产出的 `comparison` 纯粹由三类构成（新增决策、延续事项、已闭环 + 合计行）。 |
-| **3** | [domains/meeting/memory/render.py](file:///d:/study/demo/domains/meeting/memory/render.py) | **深度瘦身** | 1. 彻底拔除 500+ 行字符级超链接扫描逻辑（包括 `_scan_spans`、`_append_markers`、`_NeedleStats`、`_GENERIC_NEEDLES`、`_LATIN_SKIP` 等）；<br>2. 重构 `apply_memory_citations`：保留确定的 `## 历史对照` 与文末 `## 历史记忆引用` 证据卡片输出，不再破坏正文字符串；<br>3. `_ledger_cards_html` 稳定消费三类看板数据，删除无用正则。 |
+| **2** | [domains/meeting/memory/inject.py](file:///d:/study/demo/domains/meeting/memory/inject.py) | **核心裁剪** | 1. 删除 `preview_comparison` 中的风险对比行；<br>2. 删除 `build_memory_context` 中的 `elif dormant:` 分支及 `_risk_meta`；<br>3. `ranked_open` 直接从合并后的 `state["actions"]` 过滤，消除列表拼接；<br>4. 产出的 `comparison` 纯粹由三类构成（新增决策、延续事项、已闭环），**彻底拔除末尾合计统计行**；条目采用 `模块名：具体内容` 纯净格式，**彻底删除“自第X场/第X场关闭”场次噪音**。 |
+| **3** | [domains/meeting/memory/render.py](file:///d:/study/demo/domains/meeting/memory/render.py) | **深度瘦身** | 1. 彻底拔除 500+ 行字符级超链接扫描逻辑（包括 `_scan_spans`、`_append_markers`、`_NeedleStats`、`_GENERIC_NEEDLES`、`_LATIN_SKIP` 等）；<br>2. **统一标题规范**：设置 `SECTION_TITLE = "历史记忆溯源"` 与 `COMPARISON_TITLE = "历史状态演进"`，清洗正则同步兼容；<br>3. **加粗分组与卡片精简**：历史状态演进输出为独占加粗组（`**新增决策**：`、`**延续事项**：`、`**已闭环**：`），空类别不占位；重构 `_status_line`（仅保留负责人与时限，剔除内部冗余跨场文字）；合并来源与时间为单一紧凑行 `来源：{时间}/{名称}`（无值不硬凑占位符）；<br>4. 重构 `apply_memory_citations`：直接由本场事项稳定输出文末证据卡片，不再强行篡改或破坏正文字符串；<br>5. `_ledger_cards_html` 稳定消费三类看板数据，删除无用正则。 |
 | **4** | [domains/meeting/memory/runtime.py](file:///d:/study/demo/domains/meeting/memory/runtime.py) | **解耦精简** | 1. 彻底删除 `_semantic_bind_fallback` 及其内部对 `infra.memory.embed` 的调用；<br>2. 彻底删除 `_sync_meeting_vectors` 向量同步函数；<br>3. `resolve_bind` 流程精简为：显式 ➔ 规则打分 ➔ 单项目先验 ➔ 自动新建 ➔ 独立单场；<br>4. `persist_after_run` 写入新数据结构（无 events/risks/summary）。 |
 | **5** | [domains/meeting/memory/bind.py](file:///d:/study/demo/domains/meeting/memory/bind.py) | **适配清理** | 1. `_fact_blob` 中移除对 `fact.risks` 的拼接（避免死词干扰）；<br>2. 纯粹基于名称、别名与专有强锚点（strong_anchors）进行规则评分。 |
 | **6** | [domains/meeting/memory/extract.py](file:///d:/study/demo/domains/meeting/memory/extract.py) | **字段适配** | 1. `_quotes` 提取时仅保留对 `actions` 和 `decisions` 的原话截取，不再截取无意义的风险原话；<br>2. 简化 `MeetingFact` 的回写投影。 |
-| **7** | [domains/meeting/tasks/minutes/steps/minutes_render.py](file:///d:/study/demo/domains/meeting/tasks/minutes/steps/minutes_render.py) | **格式校验** | 保持原有对 `history_comparison` 的呈现逻辑不变（自然兼容精简后的三看板内容）。 |
-| **8** | [tests/ 目录相关测试用例](file:///d:/study/demo/tests/) | **单测更新** | 同步更新 `test_meeting_memory.py`、`test_memory_purge.py` 等单测，移除对 risks、events 断言，增加三看板确定性断言。 |
+| **7** | [domains/meeting/tasks/minutes/steps/minutes_render.py](file:///d:/study/demo/domains/meeting/tasks/minutes/steps/minutes_render.py) | **格式校验** | 1. 将兜底纪要与议题纪要中的历史对比大标题统一更新为 **`## 历史状态演进`**（英文：`## Historical State Evolution`）；<br>2. 文末附录解析标记更新为 `marker = "## 历史记忆溯源"`（同时兼容旧版 `## 历史记忆引用` 剔除逻辑）；<br>3. 保持原有对 `history_comparison` 的呈现逻辑（天然通过 `_format_list_lines` 支持 `**组名**：` 独占加粗行格式）。 |
+| **8** | [tests/ 目录相关测试用例](file:///d:/study/demo/tests/) | **单测更新** | 同步更新 `test_meeting_memory.py`、`test_memory_purge.py` 等单测，移除对 risks、events 断言，增加三看板确定性断言与新标题断言。 |
 
 ---
 
@@ -332,7 +390,10 @@ flowchart TD
 
 ### 核心验收用例矩阵
 1. **用例 1（同一项目跨场演进）**：第 1 场留下待办 A 和 B；第 2 场 A 完成、B 仍在推进、新定决策 C。  
-   👉 **验收标准**：`## 与历史对比` 必须且仅包含：新增决策 C、延续事项 B、已闭环 A；无任何幽灵风险出现；`states` 文件中无 `events` 和 `summary` 字段。
+   👉 **验收标准**：
+   - 包含 **`## 历史状态演进`**，且采用加粗独占分组（`**新增决策**：`、`**延续事项**：`、`**已闭环**：`）呈现，无任何合计统计行，无幽灵风险出现，无场次编号噪声；
+   - 包含文末 **`## 历史记忆溯源`**，卡片严格遵守精简格式（`状态：未闭环（负责人 赵工，时限 9月15日前）`、`来源：2026-09-01/项目启动会`，无字段时不产生多余占位）；
+   - `states` 文件中无 `events` 和 `summary` 冗余字段。
 2. **用例 2（不传 project 自动认亲）**：第 1 场标题《用户中心二期推进会》，第 2 场标题《周会》但在正文大谈“用户中心二期”。  
    👉 **验收标准**：第 2 场通过规则打分精准绑定回第 1 场的项目，成功调出待办；无向量服务介入。
 3. **用例 3（关闭记忆 memory=False 隔离性验证）**：传参 `memory=False`，执行普通纪要与议题纪要。  
