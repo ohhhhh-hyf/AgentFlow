@@ -1,4 +1,4 @@
-"""Visual Minutes 商业级设计系统与通用样式（飞书文档质感与色彩系统）。"""
+"""Visual Minutes 商业级设计系统与通用样式（夜航高级毛玻璃拟态 Nocturne Glassmorphism 规范）。"""
 from __future__ import annotations
 
 import html
@@ -11,8 +11,9 @@ SVG_ICON_TABLE = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" strok
 SVG_ICON_TREE = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>'
 SVG_ICON_STATS = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>'
 SVG_ICON_TIMELINE = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>'
+SVG_ICON_LOOP = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>'
 
-# 新拟物 5 轮转色阶体系 (蓝、青、紫、绿、橙)
+# 夜航玻璃拟态 5 轮转微光色阶体系（月光蓝、水晶青、月华紫、极光绿、香槟金）
 NEU_5_COLORS = [
     ("var(--vm-accent-blue)", "var(--vm-accent-blue-bg)", "var(--vm-accent-blue-border)"),
     ("var(--vm-accent-cyan)", "var(--vm-accent-cyan-bg)", "var(--vm-accent-cyan-border)"),
@@ -21,63 +22,84 @@ NEU_5_COLORS = [
     ("var(--vm-accent-amber)", "var(--vm-accent-amber-bg)", "var(--vm-accent-amber-border)"),
 ]
 
-SVG_ICON_LOOP = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>'
-
-
 TASTE_CSS = """
 :root {
-  /* 飞书商务色彩系统 */
-  --vm-accent-blue: #3370FF;
-  --vm-accent-blue-bg: #F0F4FE;
-  --vm-accent-blue-border: #BED5FE;
-
-  --vm-accent-cyan: #00B5B5;
-  --vm-accent-cyan-bg: #E8FFFB;
-  --vm-accent-cyan-border: #87E8DE;
-
-  --vm-accent-purple: #722ED1;
-  --vm-accent-purple-bg: #F9F0FF;
-  --vm-accent-purple-border: #D3ADF7;
-
-  --vm-accent-emerald: #00B42A;
-  --vm-accent-emerald-bg: #E8FFEA;
-  --vm-accent-emerald-border: #AFF0B5;
-
-  --vm-accent-amber: #FF7D00;
-  --vm-accent-amber-bg: #FFF7E8;
-  --vm-accent-amber-border: #FFD591;
-
   /* ─────────────────────────────────────────────────────────────
-     新拟物软质触感 UI 规范 (Neumorphism Tactile Tokens)
-     专用于 Flow、Timeline、Tree 三类核心图表卡片
+     夜航玻璃拟态 UI 规范 (Nocturne Glassmorphism Tokens)
+     无色白玻璃（5%~10%），高斯模糊与饱和度增强，方向性高光与暗缘
      ───────────────────────────────────────────────────────────── */
-  --vm-neu-bg: #EEF2F7;
-  --vm-neu-card: #F4F7FC;
-  --vm-neu-dark-shadow: rgba(166, 180, 200, 0.40);
-  --vm-neu-light-shadow: #FFFFFF;
-  --vm-neu-card-border: rgba(255, 255, 255, 0.9);
-  --vm-neu-tray-shadow: inset 3px 3px 8px var(--vm-neu-dark-shadow), inset -3px -3px 8px var(--vm-neu-light-shadow);
-  --vm-neu-raised-shadow: 4px 4px 10px var(--vm-neu-dark-shadow), -4px -4px 10px var(--vm-neu-light-shadow);
-  --vm-neu-raised-hover: 6px 6px 14px rgba(166, 180, 200, 0.52), -6px -6px 14px var(--vm-neu-light-shadow);
-  --vm-neu-inset-shadow: inset 2px 2px 4px var(--vm-neu-dark-shadow), inset -2px -2px 4px var(--vm-neu-light-shadow);
+  /* 夜景场景底色 */
+  --vm-bg-night: #0B1322;
+  --vm-bg-night-deep: #060A13;
+  --vm-bg-elevated: #16233A;
 
-  /* 文字墨水规范（保持全局字体大小稳定） */
-  --vm-ink-title: #1D2129;
-  --vm-ink-body: #4E5969;
-  --vm-ink-muted: #646A73;
-  --vm-ink-subtle: #86909C;
-  --vm-ink-faint: #C9CDD4;
+  /* 唯一主强调色：香槟金 (Champagne Gold Accents) */
+  --vm-accent-gold: #E4B863;
+  --vm-accent-gold-light: #F3DCA8;
+  --vm-accent-gold-bg: rgba(228, 184, 99, 0.12);
+  --vm-accent-gold-border: rgba(228, 184, 99, 0.40);
 
-  /* 底色阶与边框 */
-  --vm-tone-canvas: #FAFAFA;
-  --vm-tone-card: #FFFFFF;
-  --vm-tone-stone: #F2F3F5;
-  --vm-tone-stone-light: #F7F8FA;
-  --vm-border: #E5E6EB;
+  /* 夜航月光与微光色彩系统 (Moonlight Astral Palette) */
+  --vm-accent-blue: #7C9CC4;
+  --vm-accent-blue-bg: rgba(124, 156, 196, 0.12);
+  --vm-accent-blue-border: rgba(124, 156, 196, 0.35);
 
-  /* 基础尺寸 */
-  --vm-radius: 8px;
-  --vm-radius-lg: 12px;
+  --vm-accent-cyan: #87E8DE;
+  --vm-accent-cyan-bg: rgba(135, 232, 222, 0.12);
+  --vm-accent-cyan-border: rgba(135, 232, 222, 0.35);
+
+  --vm-accent-purple: #B8A9D9;
+  --vm-accent-purple-bg: rgba(184, 169, 217, 0.12);
+  --vm-accent-purple-border: rgba(184, 169, 217, 0.35);
+
+  --vm-accent-emerald: #7FB69E;
+  --vm-accent-emerald-bg: rgba(127, 182, 158, 0.12);
+  --vm-accent-emerald-border: rgba(127, 182, 158, 0.35);
+
+  --vm-accent-amber: #E4B863;
+  --vm-accent-amber-bg: rgba(228, 184, 99, 0.12);
+  --vm-accent-amber-border: rgba(228, 184, 99, 0.40);
+
+  /* 玻璃外托盘 / 容器底盘 (Outer Frosted Tray) */
+  --vm-glass-tray-bg: rgba(255, 255, 255, 0.04);
+  --vm-glass-tray-border: rgba(255, 255, 255, 0.12);
+  --vm-glass-tray-shadow: 0 20px 48px rgba(3, 7, 18, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(2, 6, 16, 0.4);
+
+  /* 玻璃卡片 (Inner Glass Card - 5%~10% 白玻璃，绝不上色) */
+  --vm-glass-card-bg: rgba(255, 255, 255, 0.07);
+  --vm-glass-card-bg-hover: rgba(255, 255, 255, 0.12);
+  --vm-glass-card-border: rgba(255, 255, 255, 0.15);
+  --vm-glass-card-border-hover: rgba(255, 255, 255, 0.32);
+
+  /* 方向性阴影：顶边高光 + 底边暗缘 + 外层深阴影 */
+  --vm-glass-card-shadow: 0 16px 40px rgba(3, 7, 18, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(2, 6, 16, 0.35);
+  --vm-glass-card-shadow-hover: 0 24px 64px rgba(3, 7, 18, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 0 rgba(2, 6, 16, 0.35);
+
+  /* 嵌入式凹槽小盒 (Glass Inset Pill / Box) */
+  --vm-glass-inset-bg: rgba(6, 10, 19, 0.45);
+  --vm-glass-inset-border: rgba(255, 255, 255, 0.10);
+  --vm-glass-inset-shadow: inset 0 2px 5px rgba(2, 6, 16, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+
+  /* 文字墨水规范（针对深色玻璃夜景调优） */
+  --vm-ink-title: #FFFFFF;
+  --vm-ink-body: rgba(255, 255, 255, 0.85);
+  --vm-ink-muted: rgba(255, 255, 255, 0.65);
+  --vm-ink-subtle: rgba(255, 255, 255, 0.45);
+  --vm-ink-faint: rgba(255, 255, 255, 0.25);
+
+  /* 底色阶与边框兼容 */
+  --vm-tone-canvas: #0B1322;
+  --vm-tone-card: rgba(255, 255, 255, 0.07);
+  --vm-tone-stone: rgba(255, 255, 255, 0.05);
+  --vm-tone-stone-light: rgba(255, 255, 255, 0.03);
+  --vm-border: rgba(255, 255, 255, 0.12);
+
+  /* 基础尺寸与缓动规范 */
+  --vm-radius: 12px;
+  --vm-radius-lg: 16px;
+  --vm-radius-xl: 24px;
+  --vm-spring-easing: cubic-bezier(0.16, 1, 0.3, 1);
+  --vm-duration: 0.5s;
   --vm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --vm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -94,7 +116,7 @@ TASTE_CSS = """
 .vm-visual {
   font-family: var(--vm-font-sans);
   color: var(--vm-ink-body);
-  margin: 30px 0;
+  margin: 32px 0;
   width: 100%;
   box-sizing: border-box;
 }
@@ -108,19 +130,19 @@ TASTE_CSS = """
   align-items: center;
   font-size: 15px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   margin: 0 0 14px 0;
   line-height: 1.4;
   letter-spacing: -0.01em;
 }
 
-/* 飞书出版物图注规范 (Figure Caption) */
+/* 玻璃拟态图注规范 (Figure Caption) */
 .vm-figure-caption {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 16px;
   font-size: 12.5px;
   color: var(--vm-ink-subtle);
   letter-spacing: 0.02em;
@@ -129,7 +151,7 @@ TASTE_CSS = """
 
 .vm-caption-prefix {
   font-weight: 700;
-  color: var(--vm-accent-blue);
+  color: var(--vm-accent-gold);
   font-size: 11.5px;
 }
 
@@ -143,7 +165,7 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   1. 【开篇统领】Master Infographic (全景通览大图 - 无外框自然融入版)
+   1. 【开篇统领】Master Infographic (全景通览大图 - 玻璃拟态版)
    ───────────────────────────────────────────────────────────── */
 .vm-master-card {
   background: transparent;
@@ -160,10 +182,11 @@ TASTE_CSS = """
   gap: 6px;
   font-size: 11.5px;
   font-weight: 700;
-  color: var(--vm-accent-blue);
-  background: rgba(51, 112, 255, 0.08);
-  border: 1px solid rgba(51, 112, 255, 0.15);
-  padding: 3px 10px;
+  color: var(--vm-accent-gold-light);
+  background: rgba(228, 184, 99, 0.12);
+  border: 1px solid rgba(228, 184, 99, 0.35);
+  box-shadow: 0 2px 10px rgba(228, 184, 99, 0.15);
+  padding: 4px 12px;
   border-radius: 100px;
   margin-bottom: 12px;
   letter-spacing: 0.03em;
@@ -172,10 +195,10 @@ TASTE_CSS = """
 .vm-master-headline {
   font-size: 22px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   letter-spacing: -0.02em;
   line-height: 1.35;
-  margin: 0 0 12px 0;
+  margin: 0 0 14px 0;
 }
 
 .vm-master-widgets-container {
@@ -191,7 +214,7 @@ TASTE_CSS = """
 .vm-widget-title {
   font-size: 14.5px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   margin-bottom: 12px;
 }
 
@@ -207,13 +230,15 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-tray-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 14px;
-  padding: 16px;
+  background: var(--vm-glass-tray-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--vm-glass-tray-border);
+  box-shadow: var(--vm-glass-tray-shadow);
+  border-radius: var(--vm-radius-xl);
+  padding: 18px 20px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .vm-master-block {
@@ -221,22 +246,44 @@ TASTE_CSS = """
   min-width: 220px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-neu-card);
-  border-radius: 12px;
-  padding: 18px 20px 16px 20px;
-  border: 1px solid var(--vm-neu-card-border);
-  box-shadow: var(--vm-neu-raised-shadow);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  background: var(--vm-glass-card-bg);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border-radius: var(--vm-radius-lg);
+  padding: 20px 22px 18px 22px;
+  border: 1px solid var(--vm-glass-card-border);
+  box-shadow: var(--vm-glass-card-shadow);
+  transition: transform var(--vm-duration) var(--vm-spring-easing),
+              box-shadow var(--vm-duration) var(--vm-spring-easing),
+              border-color var(--vm-duration) var(--vm-spring-easing),
+              background var(--vm-duration) var(--vm-spring-easing);
   box-sizing: border-box;
   position: relative;
+  overflow: hidden;
+}
+
+/* 顶边内发光 (Inner Top Luminance) */
+.vm-master-block::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
+  pointer-events: none;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
 }
 
 .vm-master-block:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--vm-neu-raised-hover);
+  transform: translateY(-4px);
+  background: var(--vm-glass-card-bg-hover);
+  border-color: var(--vm-glass-card-border-hover);
+  box-shadow: var(--vm-glass-card-shadow-hover);
 }
 
-/* 飞书主题分色体系 */
+/* 夜航主题微光分色体系 */
 .vm-theme-blue {
   --block-accent: var(--vm-accent-blue);
   --block-accent-bg: var(--vm-accent-blue-bg);
@@ -281,23 +328,23 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--block-accent, var(--vm-accent-blue));
-  background-color: var(--block-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 8px var(--block-accent, var(--vm-accent-gold));
+  background-color: var(--block-accent, var(--vm-accent-gold));
   flex-shrink: 0;
 }
 
 .vm-master-block-title {
   font-size: 15px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   line-height: 1.4;
 }
 
 .vm-master-block-summary {
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--vm-ink-body);
-  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.6;
   margin-bottom: 12px;
 }
 
@@ -306,8 +353,8 @@ TASTE_CSS = """
   padding: 0;
   list-style: none;
   font-size: 12px;
-  color: var(--vm-ink-muted);
-  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.6;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -327,47 +374,48 @@ TASTE_CSS = """
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background-color: var(--block-accent, var(--vm-accent-blue));
-  box-shadow: 0 0 4px var(--block-accent, var(--vm-accent-blue));
+  background-color: var(--block-accent, var(--vm-accent-gold));
+  box-shadow: 0 0 6px var(--block-accent, var(--vm-accent-gold));
 }
 
-/* 嵌入式专属高光底盒 (Neumorphic Inset Pill) */
+/* 嵌入式高光底盒 (Glass Inset Pill) */
 .vm-master-block-highlight {
   margin-top: auto;
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-inset-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 8px;
-  padding: 8px 12px;
+  background: var(--vm-glass-inset-bg);
+  box-shadow: var(--vm-glass-inset-shadow);
+  border: 1px solid var(--vm-glass-inset-border);
+  border-radius: 10px;
+  padding: 10px 14px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .vm-highlight-tag-wrap {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .vm-highlight-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background-color: var(--block-accent, var(--vm-accent-blue));
+  background-color: var(--block-accent, var(--vm-accent-gold));
+  box-shadow: 0 0 6px var(--block-accent, var(--vm-accent-gold));
 }
 
 .vm-highlight-tag {
   font-size: 11px;
   font-weight: 700;
-  color: var(--block-accent, var(--vm-accent-blue));
-  letter-spacing: 0.03em;
+  color: var(--vm-accent-gold-light);
+  letter-spacing: 0.04em;
 }
 
 .vm-highlight-value {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   line-height: 1.4;
   word-break: break-word;
 }
@@ -376,48 +424,53 @@ TASTE_CSS = """
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  border-top: 1px solid var(--vm-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   padding-top: 20px;
 }
 
 .vm-master-metric {
   flex: 1 1 180px;
-  background: var(--vm-tone-stone-light);
+  background: var(--vm-glass-card-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
   border-radius: var(--vm-radius);
   padding: 12px 16px;
-  border: 1px solid var(--vm-border);
-  border-left: 3px solid var(--vm-accent-blue);
+  border: 1px solid var(--vm-glass-card-border);
+  border-left: 3px solid var(--vm-accent-gold);
 }
 
 .vm-master-metric-value {
   display: block;
   font-size: 20px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+  text-shadow: 0 0 12px rgba(228, 184, 99, 0.2);
 }
 
 .vm-master-metric-label {
   display: block;
   font-size: 12px;
-  color: var(--vm-ink-subtle);
+  color: rgba(255, 255, 255, 0.65);
   margin-top: 3px;
   font-weight: 500;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   2. 【链路闭环】Flow & Closed Loop 渲染 (飞书旗舰流转版)
+   2. 【链路闭环】Flow & Closed Loop 渲染 (夜航玻璃流转版)
    ───────────────────────────────────────────────────────────── */
 .vm-flow-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-tray-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 14px;
-  padding: 16px;
+  background: var(--vm-glass-tray-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--vm-glass-tray-border);
+  box-shadow: var(--vm-glass-tray-shadow);
+  border-radius: var(--vm-radius-xl);
+  padding: 18px 20px;
 }
 
 .vm-flow-track {
@@ -430,7 +483,7 @@ TASTE_CSS = """
   align-items: stretch;
   padding: 6px 4px 12px 4px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .vm-flow-step-card {
@@ -438,19 +491,40 @@ TASTE_CSS = """
   min-width: 200px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-neu-card);
-  border-radius: 12px;
-  padding: 16px 18px 14px 18px;
-  border: 1px solid var(--vm-neu-card-border);
-  box-shadow: var(--vm-neu-raised-shadow);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  background: var(--vm-glass-card-bg);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border-radius: var(--vm-radius-lg);
+  padding: 18px 20px 16px 20px;
+  border: 1px solid var(--vm-glass-card-border);
+  box-shadow: var(--vm-glass-card-shadow);
+  transition: transform var(--vm-duration) var(--vm-spring-easing),
+              box-shadow var(--vm-duration) var(--vm-spring-easing),
+              border-color var(--vm-duration) var(--vm-spring-easing),
+              background var(--vm-duration) var(--vm-spring-easing);
   box-sizing: border-box;
   position: relative;
+  overflow: hidden;
+}
+
+.vm-flow-step-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
+  pointer-events: none;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
 }
 
 .vm-flow-step-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--vm-neu-raised-hover);
+  transform: translateY(-4px);
+  background: var(--vm-glass-card-bg-hover);
+  border-color: var(--vm-glass-card-border-hover);
+  box-shadow: var(--vm-glass-card-shadow-hover);
 }
 
 .vm-step-card-header {
@@ -470,14 +544,14 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--step-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 8px var(--step-accent, var(--vm-accent-gold));
   flex-shrink: 0;
 }
 
 .vm-flow-node-title {
   font-size: 14.5px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   line-height: 1.4;
 }
 
@@ -487,8 +561,9 @@ TASTE_CSS = """
   justify-content: center;
   flex-shrink: 0;
   width: 20px;
-  color: #A0ABC0;
+  color: rgba(255, 255, 255, 0.35);
   user-select: none;
+  transition: color 0.3s ease;
 }
 
 .vm-connector-arrow {
@@ -500,20 +575,24 @@ TASTE_CSS = """
   opacity: 1;
 }
 
+.vm-flow-track:hover .vm-flow-connector {
+  color: var(--vm-accent-gold);
+}
+
 .vm-flow-node-detail {
   font-size: 12.5px;
-  color: var(--vm-ink-body);
+  color: rgba(255, 255, 255, 0.75);
   line-height: 1.6;
   flex: 1;
 }
 
 .vm-flow-delivery {
-  margin-top: 10px;
-  padding: 6px 10px;
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-inset-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 6px;
+  margin-top: 12px;
+  padding: 7px 12px;
+  background: var(--vm-glass-inset-bg);
+  box-shadow: var(--vm-glass-inset-shadow);
+  border: 1px solid var(--vm-glass-inset-border);
+  border-radius: 8px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -522,27 +601,30 @@ TASTE_CSS = """
 }
 
 .vm-delivery-arrow {
-  color: var(--step-accent, var(--vm-accent-blue));
+  color: var(--step-accent, var(--vm-accent-gold));
   flex-shrink: 0;
 }
 
 .vm-delivery-text {
   font-weight: 600;
+  color: rgba(255, 255, 255, 0.90);
   line-height: 1.35;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   3. 【对比矩阵】Table / Matrix 对比表 (新拟物软质触感版)
+   3. 【对比矩阵】Table / Matrix 对比表 (夜航玻璃拟态版)
    ───────────────────────────────────────────────────────────── */
 .vm-table-wrap {
   overflow-x: auto;
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-tray-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 14px;
-  padding: 14px 16px;
+  background: var(--vm-glass-tray-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--vm-glass-tray-border);
+  box-shadow: var(--vm-glass-tray-shadow);
+  border-radius: var(--vm-radius-xl);
+  padding: 16px 20px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .vm-table {
@@ -554,22 +636,21 @@ TASTE_CSS = """
 }
 
 .vm-table th {
-  padding: 8px 14px 6px 14px;
+  padding: 10px 16px 8px 16px;
   text-align: left;
   font-weight: 700;
-  color: var(--vm-ink-title);
-  font-size: 13px;
+  color: #FFFFFF;
+  font-size: 13.5px;
   border: none;
 }
 
 .vm-th-dim {
   width: 17%;
   min-width: 100px;
-  color: var(--vm-ink-muted);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .vm-th-col {
-  /* 释放充足横向排布宽度，避免多字数挤压折行 */
   width: auto;
 }
 
@@ -587,44 +668,52 @@ TASTE_CSS = """
 }
 
 .vm-table-row {
-  filter: drop-shadow(0 2px 5px rgba(166, 180, 200, 0.35));
-  transition: filter 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(0 4px 12px rgba(3, 7, 18, 0.45));
+  transition: filter var(--vm-duration) var(--vm-spring-easing);
 }
 
 .vm-table-row:hover {
-  filter: drop-shadow(0 4px 10px rgba(166, 180, 200, 0.48));
+  filter: drop-shadow(0 8px 24px rgba(3, 7, 18, 0.65));
 }
 
 .vm-table td {
-  padding: 12px 16px;
+  padding: 14px 18px;
   text-align: left;
   vertical-align: middle;
-  background: var(--vm-neu-card);
-  border-top: 1px solid var(--vm-neu-card-border);
-  border-bottom: 1px solid var(--vm-neu-card-border);
+  background: var(--vm-glass-card-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-top: 1px solid var(--vm-glass-card-border);
+  border-bottom: 1px solid var(--vm-glass-card-border);
   color: var(--vm-ink-body);
-  line-height: 1.55;
+  line-height: 1.6;
+  transition: background var(--vm-duration) var(--vm-spring-easing), border-color var(--vm-duration) var(--vm-spring-easing);
+}
+
+.vm-table-row:hover td {
+  background: var(--vm-glass-card-bg-hover);
+  border-color: var(--vm-glass-card-border-hover);
 }
 
 .vm-td-dim {
   width: 17%;
   min-width: 100px;
-  border-left: 1px solid var(--vm-neu-card-border);
-  border-top-left-radius: 10px;
-  border-bottom-left-radius: 10px;
+  border-left: 1px solid var(--vm-glass-card-border);
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
 }
 
 .vm-dim-badge {
   display: inline-block;
   font-size: 11.5px;
   font-weight: 700;
-  color: var(--vm-ink-title);
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-inset-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  padding: 3px 8px;
-  border-radius: 6px;
-  letter-spacing: 0.02em;
+  color: #FFFFFF;
+  background: var(--vm-glass-inset-bg);
+  box-shadow: var(--vm-glass-inset-shadow);
+  border: 1px solid var(--vm-glass-inset-border);
+  padding: 4px 10px;
+  border-radius: 8px;
+  letter-spacing: 0.03em;
 }
 
 .vm-td-val {
@@ -632,41 +721,63 @@ TASTE_CSS = """
 }
 
 .vm-table tr td:last-child {
-  border-right: 1px solid var(--vm-neu-card-border);
-  border-top-right-radius: 10px;
-  border-bottom-right-radius: 10px;
+  border-right: 1px solid var(--vm-glass-card-border);
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   4. 【分层架构】Tree / Layered Architecture (飞书旗舰分层卡)
+   4. 【分层架构】Tree / Layered Architecture (夜航玻璃分层版)
    ───────────────────────────────────────────────────────────── */
 .vm-tree-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-tray-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 14px;
-  padding: 18px 20px;
+  gap: 14px;
+  background: var(--vm-glass-tray-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--vm-glass-tray-border);
+  box-shadow: var(--vm-glass-tray-shadow);
+  border-radius: var(--vm-radius-xl);
+  padding: 20px 22px;
 }
 
 .vm-tree-layer-card {
-  background: var(--vm-neu-card);
-  border: 1px solid var(--vm-neu-card-border);
-  border-radius: 10px;
-  padding: 13px 18px;
+  background: var(--vm-glass-card-bg);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 1px solid var(--vm-glass-card-border);
+  border-radius: var(--vm-radius-md);
+  padding: 15px 20px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  box-shadow: var(--vm-neu-raised-shadow);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  gap: 18px;
+  box-shadow: var(--vm-glass-card-shadow);
+  transition: transform var(--vm-duration) var(--vm-spring-easing),
+              box-shadow var(--vm-duration) var(--vm-spring-easing),
+              border-color var(--vm-duration) var(--vm-spring-easing),
+              background var(--vm-duration) var(--vm-spring-easing);
   box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.vm-tree-layer-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
+  pointer-events: none;
 }
 
 .vm-tree-layer-card:hover {
-  transform: translateY(-1.5px);
-  box-shadow: var(--vm-neu-raised-hover);
+  transform: translateY(-3px);
+  background: var(--vm-glass-card-bg-hover);
+  border-color: var(--vm-glass-card-border-hover);
+  box-shadow: var(--vm-glass-card-shadow-hover);
 }
 
 .vm-tree-layer-lead {
@@ -681,35 +792,34 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--layer-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 8px var(--layer-accent, var(--vm-accent-gold));
   flex-shrink: 0;
 }
 
 .vm-tree-layer-title {
   font-size: 14.5px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   line-height: 1.4;
   letter-spacing: -0.01em;
 }
 
 .vm-tree-layer-divider {
-  width: 2px;
-  height: 20px;
-  background: #DCE3EC;
-  border-right: 1px solid #FFFFFF;
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.18);
   flex-shrink: 0;
 }
 
 .vm-tree-layer-detail {
   font-size: 13px;
-  color: var(--vm-ink-body);
+  color: rgba(255, 255, 255, 0.80);
   line-height: 1.6;
   flex: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   5. 【量化成效】Stats 关键指标大卡 (新拟物软质触感版)
+   5. 【量化成效】Stats 关键指标大卡 (夜航玻璃拟态版)
    ───────────────────────────────────────────────────────────── */
 .vm-stats-grid {
   display: flex;
@@ -717,15 +827,17 @@ TASTE_CSS = """
   flex-wrap: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
-  gap: 14px;
+  gap: 16px;
   align-items: stretch;
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-tray-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 14px;
-  padding: 16px;
+  background: var(--vm-glass-tray-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--vm-glass-tray-border);
+  box-shadow: var(--vm-glass-tray-shadow);
+  border-radius: var(--vm-radius-xl);
+  padding: 18px 20px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .vm-stat-card {
@@ -733,39 +845,60 @@ TASTE_CSS = """
   min-width: 180px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-neu-card);
-  border: 1px solid var(--vm-neu-card-border);
-  border-radius: 12px;
-  padding: 16px 18px;
-  box-shadow: var(--vm-neu-raised-shadow);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  background: var(--vm-glass-card-bg);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 1px solid var(--vm-glass-card-border);
+  border-radius: var(--vm-radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--vm-glass-card-shadow);
+  transition: transform var(--vm-duration) var(--vm-spring-easing),
+              box-shadow var(--vm-duration) var(--vm-spring-easing),
+              border-color var(--vm-duration) var(--vm-spring-easing),
+              background var(--vm-duration) var(--vm-spring-easing);
   box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.vm-stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
+  pointer-events: none;
 }
 
 .vm-stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--vm-neu-raised-hover);
+  transform: translateY(-4px);
+  background: var(--vm-glass-card-bg-hover);
+  border-color: var(--vm-glass-card-border-hover);
+  box-shadow: var(--vm-glass-card-shadow-hover);
 }
 
 .vm-stat-card-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .vm-stat-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--stat-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 8px var(--stat-accent, var(--vm-accent-gold));
   flex-shrink: 0;
 }
 
 .vm-stat-value {
-  font-size: 15.5px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--stat-accent, var(--vm-accent-blue));
+  color: var(--stat-accent, var(--vm-accent-gold));
+  text-shadow: 0 0 16px rgba(228, 184, 99, 0.25);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
   line-height: 1.35;
@@ -774,20 +907,22 @@ TASTE_CSS = """
 .vm-stat-label {
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--vm-ink-body);
+  color: rgba(255, 255, 255, 0.80);
   line-height: 1.55;
   flex: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   6. 【时序图谱】Timeline 时间演进（轴线贯穿 + 顶置时间 + 纯净内容卡）
+   6. 【时序图谱】Timeline 时间演进 (夜航玻璃拟态版)
    ───────────────────────────────────────────────────────────── */
 .vm-timeline-canvas {
-  background: var(--vm-neu-bg);
-  box-shadow: var(--vm-neu-tray-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 14px;
-  padding: 22px 18px 18px 18px;
+  background: var(--vm-glass-tray-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--vm-glass-tray-border);
+  box-shadow: var(--vm-glass-tray-shadow);
+  border-radius: var(--vm-radius-xl);
+  padding: 24px 20px 20px 20px;
 }
 
 .vm-timeline-track {
@@ -798,12 +933,11 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
-  padding: 6px 12px 12px 12px;
+  padding: 6px 12px 14px 12px;
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
-/* 纵向列容器：时间、轴线圆点、卡片纵向严格中心对齐 */
 .vm-timeline-col {
   flex: 1 1 220px;
   min-width: 200px;
@@ -813,14 +947,14 @@ TASTE_CSS = """
   box-sizing: border-box;
 }
 
-/* 1. 顶层：时间刻度（纯净文本，无【】括号） */
 .vm-timeline-time-label {
   font-size: 13.5px;
   font-weight: 700;
   font-family: var(--vm-font-mono), var(--vm-font-sans);
-  color: var(--event-accent, var(--vm-ink-title));
+  color: var(--event-accent, var(--vm-accent-gold-light));
+  text-shadow: 0 0 10px rgba(228, 184, 99, 0.2);
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   letter-spacing: 0.02em;
   white-space: nowrap;
   line-height: 1.4;
@@ -832,7 +966,6 @@ TASTE_CSS = """
   transform: translateY(-1px);
 }
 
-/* 2. 中层：贯通轴线与圆点锚点 */
 .vm-timeline-node {
   position: relative;
   display: flex;
@@ -842,7 +975,6 @@ TASTE_CSS = """
   margin-bottom: 14px;
 }
 
-/* 贯穿水平直线（向左右各延展 8px 完美弥合列间 gap: 16px） */
 .vm-timeline-node::before {
   content: "";
   position: absolute;
@@ -850,12 +982,11 @@ TASTE_CSS = """
   left: -8px;
   right: -8px;
   height: 2px;
-  background: #CBD5E1;
+  background: rgba(255, 255, 255, 0.22);
   transform: translateY(-50%);
   z-index: 1;
 }
 
-/* 首末节点向外侧适度延展，形成自然贯通视感 */
 .vm-timeline-col:first-child .vm-timeline-node::before {
   left: -14px;
 }
@@ -863,55 +994,73 @@ TASTE_CSS = """
   right: -14px;
 }
 
-/* 轴线上的高亮圆点（立体微光） */
 .vm-timeline-dot {
   position: relative;
   z-index: 2;
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #FFFFFF;
-  border: 3px solid var(--event-accent, var(--vm-accent-blue));
-  box-shadow: 0 0 0 3px var(--event-accent-bg, rgba(51, 112, 255, 0.15)), 0 2px 4px rgba(0, 0, 0, 0.08);
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  background: #0B1322;
+  border: 3px solid var(--event-accent, var(--vm-accent-gold));
+  box-shadow: 0 0 12px var(--event-accent, var(--vm-accent-gold)), 0 0 0 3px rgba(255, 255, 255, 0.12);
+  transition: transform 0.3s var(--vm-spring-easing), box-shadow 0.3s ease;
 }
 
 .vm-timeline-col:hover .vm-timeline-dot {
   transform: scale(1.3);
-  box-shadow: 0 0 0 4px var(--event-accent-bg, rgba(51, 112, 255, 0.25)), 0 0 8px var(--event-accent, var(--vm-accent-blue));
+  box-shadow: 0 0 16px var(--event-accent, var(--vm-accent-gold)), 0 0 0 4px rgba(255, 255, 255, 0.25);
 }
 
-/* 3. 下层：纯净事件卡片（无重复时间标签） */
 .vm-timeline-card {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--vm-neu-card);
-  border-radius: 12px;
-  padding: 16px 18px 16px 18px;
-  border: 1px solid var(--vm-neu-card-border);
-  box-shadow: var(--vm-neu-raised-shadow);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  background: var(--vm-glass-card-bg);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border-radius: var(--vm-radius-lg);
+  padding: 18px 20px 16px 20px;
+  border: 1px solid var(--vm-glass-card-border);
+  box-shadow: var(--vm-glass-card-shadow);
+  transition: transform var(--vm-duration) var(--vm-spring-easing),
+              box-shadow var(--vm-duration) var(--vm-spring-easing),
+              border-color var(--vm-duration) var(--vm-spring-easing),
+              background var(--vm-duration) var(--vm-spring-easing);
   box-sizing: border-box;
   text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+
+.vm-timeline-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
+  pointer-events: none;
 }
 
 .vm-timeline-col:hover .vm-timeline-card {
-  transform: translateY(-2px);
-  box-shadow: var(--vm-neu-raised-hover);
+  transform: translateY(-4px);
+  background: var(--vm-glass-card-bg-hover);
+  border-color: var(--vm-glass-card-border-hover);
+  box-shadow: var(--vm-glass-card-shadow-hover);
 }
 
 .vm-timeline-title {
   font-size: 14px;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   line-height: 1.45;
   margin-bottom: 6px;
 }
 
 .vm-timeline-detail {
   font-size: 12.5px;
-  color: var(--vm-ink-body);
+  color: rgba(255, 255, 255, 0.80);
   line-height: 1.6;
   margin-top: 4px;
   flex: 1;
@@ -919,7 +1068,7 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   飞书质感精细滚动条 (Feishu Sleek Scrollbar)
+   夜航高级毛玻璃滚动条 (Sleek Glass Scrollbar)
    ───────────────────────────────────────────────────────────── */
 .vm-master-grid::-webkit-scrollbar,
 .vm-flow-track::-webkit-scrollbar,
@@ -935,7 +1084,7 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-track,
 .vm-timeline-track::-webkit-scrollbar-track,
 .vm-table-wrap::-webkit-scrollbar-track {
-  background: #F2F3F5;
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
 }
 
@@ -944,7 +1093,7 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-thumb,
 .vm-timeline-track::-webkit-scrollbar-thumb,
 .vm-table-wrap::-webkit-scrollbar-thumb {
-  background: #C9CDD4;
+  background: rgba(255, 255, 255, 0.20);
   border-radius: 4px;
   transition: background 0.2s ease;
 }
@@ -954,15 +1103,15 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-thumb:hover,
 .vm-timeline-track::-webkit-scrollbar-thumb:hover,
 .vm-table-wrap::-webkit-scrollbar-thumb:hover {
-  background: #86909C;
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* 响应式精修 */
 @media (max-width: 640px) {
-  .vm-master-card { padding: 20px 16px; }
+  .vm-master-card { padding: 16px 12px; }
   .vm-tree-layer-card {
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
 }
 """

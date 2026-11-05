@@ -29,7 +29,7 @@ MARKDOWN_BODY_CSS = """
 .markdown-body h1 {
   font-size: clamp(1.4rem, 2.2vw, 1.8rem);
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   margin: 36px 0 18px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--vm-border);
@@ -40,7 +40,7 @@ MARKDOWN_BODY_CSS = """
 .markdown-body h2 {
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   margin: 40px 0 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--vm-border);
@@ -51,7 +51,7 @@ MARKDOWN_BODY_CSS = """
 .markdown-body h3 {
   font-size: 1.05rem;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   margin: 28px 0 14px;
   line-height: 1.4;
   scroll-margin-top: 24px;
@@ -76,12 +76,13 @@ MARKDOWN_BODY_CSS = """
 }
 
 .markdown-body blockquote {
-  margin: 8px 0 24px;
-  padding: 4px 0 4px 14px;
-  background: transparent;
-  border-left: 3px solid rgb(78, 205, 196);
-  border-radius: 0;
+  margin: 12px 0 24px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid var(--vm-accent-gold);
+  border-radius: 0 8px 8px 0;
   color: var(--vm-ink-body);
+  backdrop-filter: blur(10px);
 }
 
 .markdown-body blockquote p {
@@ -93,16 +94,27 @@ MARKDOWN_BODY_CSS = """
 .markdown-body code {
   font-family: var(--vm-font-mono);
   font-size: 85%;
-  background: var(--vm-tone-stone);
-  padding: .15em .35em;
+  background: rgba(6, 10, 19, 0.55);
+  color: var(--vm-accent-gold-light);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: .15em .4em;
   border-radius: 4px;
 }
 
 .markdown-body pre {
   overflow-x: auto;
   padding: 16px;
-  background: var(--vm-tone-stone);
+  background: rgba(6, 10, 19, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--vm-radius);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.markdown-body pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--vm-ink-body);
 }
 
 .markdown-body table {
@@ -110,7 +122,11 @@ MARKDOWN_BODY_CSS = """
   border-collapse: collapse;
   table-layout: fixed;
   word-break: break-word;
-  margin: 18px 0;
+  margin: 20px 0;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--vm-radius);
+  overflow: hidden;
+  border: 1px solid var(--vm-border);
 }
 
 .markdown-body th, .markdown-body td {
@@ -119,13 +135,19 @@ MARKDOWN_BODY_CSS = """
 }
 
 .markdown-body th {
-  background: var(--vm-tone-stone);
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
   font-weight: 700;
+}
+
+.markdown-body tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .markdown-body img {
   max-width: 100%;
   height: auto;
+  border-radius: var(--vm-radius);
 }
 """
 
@@ -138,10 +160,31 @@ html {
 
 body {
   margin: 0;
-  background: #FFFFFF;
+  background-color: var(--vm-bg-night);
+  background-image:
+    radial-gradient(circle 600px at 85% 15%, rgba(124, 156, 196, 0.25) 0%, transparent 65%),
+    radial-gradient(circle 750px at 10% 45%, rgba(51, 81, 122, 0.32) 0%, transparent 65%),
+    radial-gradient(circle 500px at 70% 85%, rgba(228, 184, 99, 0.10) 0%, transparent 60%);
+  background-attachment: fixed;
   color: var(--vm-ink-body);
   font-family: var(--vm-font-sans);
   -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* 全屏微质感噪点叠加 (2.5% SVG feTurbulence 噪点颗粒层) */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
 /* 飞书同款：全屏通透无界画板，视口动态流式比例弹性自适应 (Fluid Responsive Layout) */
@@ -155,9 +198,11 @@ body {
   margin: 0;
   padding: 24px clamp(20px, 2.5vw, 48px) 60px clamp(20px, 2.5vw, 48px);
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
 }
 
-/* 左侧飞书导航目录栏 (TOC Sidebar - 动态流式弹性自适应，无边框纯净自然融入背景) */
+/* 左侧目录导航栏 (TOC Sidebar - 玻璃拟态风格) */
 .vm-toc-sidebar {
   width: clamp(200px, 15vw, 280px);
   flex-shrink: 0;
@@ -165,13 +210,15 @@ body {
   top: 24px;
   max-height: calc(100vh - 48px);
   overflow-y: auto;
-  padding: 8px 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  padding: 12px 6px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius-lg);
+  box-shadow: 0 16px 40px rgba(3, 7, 18, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(2, 6, 16, 0.3);
   scrollbar-width: thin;
-  scrollbar-color: #C9CDD4 transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .vm-toc-header {
@@ -180,15 +227,15 @@ body {
   gap: 8px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--vm-ink-title);
-  padding: 0 8px 10px 8px;
-  margin-bottom: 4px;
-  border-bottom: none;
+  color: #FFFFFF;
+  padding: 4px 8px 10px 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   letter-spacing: 0.02em;
 }
 
 .vm-toc-icon {
-  color: var(--vm-accent-blue);
+  color: var(--vm-accent-gold);
   flex-shrink: 0;
 }
 
@@ -219,10 +266,11 @@ body {
   padding: 6px 10px;
   font-size: 12.5px;
   line-height: 1.45;
-  color: var(--vm-ink-body);
+  color: var(--vm-ink-muted);
   text-decoration: none;
-  border-radius: 6px;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.3s var(--vm-spring-easing);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -230,21 +278,25 @@ body {
 
 .vm-toc-level-3 .vm-toc-link {
   font-size: 12px;
-  color: var(--vm-ink-muted);
+  color: var(--vm-ink-subtle);
 }
 
 .vm-toc-link:hover {
-  background-color: rgba(31, 35, 41, 0.06);
-  color: var(--vm-accent-blue);
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
+  transform: translateX(2px);
 }
 
 .vm-toc-link.active {
-  background-color: #E8F0FE;
-  color: var(--vm-accent-blue);
+  background: var(--vm-accent-gold-bg);
+  border-color: var(--vm-accent-gold-border);
+  color: var(--vm-accent-gold-light);
   font-weight: 600;
+  box-shadow: 0 4px 16px rgba(228, 184, 99, 0.15), inset 0 1px 0 rgba(243, 220, 168, 0.3);
 }
 
-/* 右侧主文档画布：无边框自然融入背景，视口动态黄金版心 (780px ~ 1080px)，右侧留白弹性自适应 */
+/* 右侧主文档画布：无边框自然融入夜航背景 */
 .vm-doc {
   flex: 0 1 clamp(780px, 56vw, 1080px);
   width: 100%;
@@ -262,7 +314,7 @@ body {
 .vm-overview-heading {
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--vm-ink-title);
+  color: #FFFFFF;
   margin: 0 0 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--vm-border);
@@ -316,8 +368,7 @@ body {
     position: static;
     width: 100%;
     max-height: none;
-    border-radius: 10px;
-    box-shadow: none;
+    border-radius: var(--vm-radius-lg);
   }
   .vm-doc {
     max-width: 100%;
