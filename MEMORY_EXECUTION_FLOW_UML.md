@@ -30,6 +30,7 @@
 展示首场会议《小艺慧记Agent基座模型部署与架构评审会》中，如何由空项目起步，完成纪要交付与初创数据三表落盘：
 
 ```mermaid
+%%{init: {'theme': 'default', 'themeVariables': {'fontSize': '16px', 'actorFontSize': '16px', 'messageFontSize': '15px', 'noteFontSize': '14px'}, 'sequence': {'mirrorActors': false, 'messageMargin': 15, 'noteMargin': 8}}}%%
 sequenceDiagram
     autonumber
     actor User as 用户
@@ -63,6 +64,7 @@ sequenceDiagram
 展示第二场会议《小艺慧记Agent多智能体架构推进会》中，如何读取历史状态、比对本场完成宣告，生成带超链接演进的纪要，并驱动状态机闭环：
 
 ```mermaid
+%%{init: {'theme': 'default', 'themeVariables': {'fontSize': '16px', 'actorFontSize': '16px', 'messageFontSize': '15px', 'noteFontSize': '14px'}, 'sequence': {'mirrorActors': false, 'messageMargin': 15, 'noteMargin': 8}}}%%
 sequenceDiagram
     autonumber
     actor User as 用户
@@ -101,6 +103,7 @@ sequenceDiagram
 展示未传入 `project`（传空或未指定）时，系统如何进行智能认亲，并在命中或新建两种场景下，完整操作三张存储表：
 
 ```mermaid
+%%{init: {'theme': 'default', 'themeVariables': {'fontSize': '16px', 'actorFontSize': '16px', 'messageFontSize': '15px', 'noteFontSize': '14px'}, 'sequence': {'mirrorActors': false, 'messageMargin': 15, 'noteMargin': 8}}}%%
 sequenceDiagram
     autonumber
     actor User as 用户

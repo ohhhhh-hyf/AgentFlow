@@ -74,6 +74,7 @@
 当用户未提供议题时，会议必须经由【会议理解Agent】深度解析，梳理出事实底座后再组织纪要：
 
 ```mermaid
+%%{init: {'theme': 'default', 'themeVariables': {'fontSize': '16px', 'actorFontSize': '16px', 'messageFontSize': '15px', 'noteFontSize': '14px'}, 'sequence': {'mirrorActors': false, 'messageMargin': 15, 'noteMargin': 8}}}%%
 sequenceDiagram
     autonumber
     actor User as 用户 / 上游系统
@@ -117,6 +118,7 @@ sequenceDiagram
 当用户或会前日程已明确给出议题列表时，系统判定议题已知，**直接跳过会议理解Agent**：
 
 ```mermaid
+%%{init: {'theme': 'default', 'themeVariables': {'fontSize': '16px', 'actorFontSize': '16px', 'messageFontSize': '15px', 'noteFontSize': '14px'}, 'sequence': {'mirrorActors': false, 'messageMargin': 15, 'noteMargin': 8}}}%%
 sequenceDiagram
     autonumber
     actor User as 用户 / 上游系统
