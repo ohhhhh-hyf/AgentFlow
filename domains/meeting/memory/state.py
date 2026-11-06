@@ -69,10 +69,8 @@ def _next_id(rows: list[dict[str, Any]], prefix: str) -> str:
 
 def _touch(row: dict[str, Any], fact: Any, *, quote_kind: str, text: str) -> None:
     row["last_seen"] = fact.meeting_id
-    row["meeting_title"] = _clean(fact.title) or row.get("meeting_title") or ""
     if _clean(getattr(fact, "time", "")):
         row["time"] = _clean(fact.time)
-    row["time_source"] = getattr(fact, "time_source", "") or row.get("time_source") or "unknown"
     quote = _quote(fact, quote_kind, text)
     if quote:
         row["quote"] = quote
@@ -93,9 +91,7 @@ def _new_item(
         "status": status,
         "since": fact.meeting_id,
         "last_seen": fact.meeting_id,
-        "meeting_title": _clean(fact.title),
         "time": _clean(getattr(fact, "time", "")),
-        "time_source": getattr(fact, "time_source", "") or "unknown",
         "quote": _quote(fact, quote_kind, text),
     }
     if extra:
@@ -446,9 +442,7 @@ def _upsert_decisions(
                 "status": "active",
                 "meeting_id": fact.meeting_id,
                 "last_seen": fact.meeting_id,
-                "meeting_title": _clean(fact.title),
                 "time": _clean(getattr(fact, "time", "")),
-                "time_source": getattr(fact, "time_source", "") or "unknown",
                 "quote": _quote(fact, "decision", text),
                 "module": module,
                 "topic_title": topic_title,
@@ -488,9 +482,7 @@ def _upsert_decisions(
                 "status": "active",
                 "meeting_id": fact.meeting_id,
                 "last_seen": fact.meeting_id,
-                "meeting_title": _clean(fact.title),
                 "time": _clean(getattr(fact, "time", "")),
-                "time_source": getattr(fact, "time_source", "") or "unknown",
                 "quote": _quote(fact, "decision", text),
                 "supersedes": old_id,
                 "module": module,
@@ -510,8 +502,8 @@ def _upsert_decisions(
 
 
 def backfill_meeting_titles(state: dict[str, Any], meetings: list[dict[str, Any]]) -> dict[str, Any]:
-    titles: dict[str, str] = {}
-    for meeting in meetings:
+    titles: dict[str, str] = dict((state.get("meeting_names") or {}) if isinstance(state, dict) else {})
+    for meeting in meetings or []:
         mid = _clean(meeting.get("meeting_id"))
         title = _clean(meeting.get("title"))
         if mid and title:
@@ -592,6 +584,12 @@ def update_state(state: dict[str, Any], fact: Any, project_id: str, project_name
     out["project_id"] = project_id
     out["name"] = project_name or out.get("name") or project_id
     out["anchors"] = _merge_unique(out.get("anchors") or [], getattr(fact, "anchors", []) or [])
+    meeting_names = dict(out.get("meeting_names") or {})
+    mid = _clean(getattr(fact, "meeting_id", ""))
+    title = _clean(getattr(fact, "title", ""))
+    if mid and title:
+        meeting_names[mid] = title
+    out["meeting_names"] = meeting_names
 
     events: list[dict[str, Any]] = [e for e in (out.get("events") or []) if isinstance(e, dict)]
 
@@ -662,7 +660,7 @@ def update_state(state: dict[str, Any], fact: Any, project_id: str, project_name
     # 实测两场之后磁盘上只剩最后一场的审计，跨场轨迹全丢。
     keep = set(out["recent_meetings"])
     kept = [e for e in events if _clean(e.get("meeting_id")) in keep]
-    out["events"] = kept[-240:]
+    out["events"] = kept[-60:]
     return out
 
 

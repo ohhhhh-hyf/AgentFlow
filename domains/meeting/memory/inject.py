@@ -107,11 +107,11 @@ def _append_item(
     quote = _clean(item.get("quote"))
     if quote:
         parts.append(f"  原文摘录：{quote}")
-    title = _clean(item.get("meeting_title"))
-    if title:
-        parts.append(f"  来源会议：{title}")
     mid = _clean(item.get("last_seen") or item.get("meeting_id") or item.get("closed_at") or item.get("since"))
     info = seq_map.get(mid) or {}
+    title = _clean(item.get("meeting_title")) or _clean(info.get("title"))
+    if title:
+        parts.append(f"  来源会议：{title}")
     time_val = _clean(item.get("time")) or _clean(info.get("time"))
     if time_val:
         parts.append(f"  会议时间：{time_val}")
@@ -254,8 +254,8 @@ def preview_comparison(
     """程序拼的历史对照（不依赖词面重合，正文锚点挂不上时它是唯一可见溯源）。
 
     每类给 1–3 条而不是各 1 条：实测第二场只出 4 行时，"记忆挂载"看起来几乎为空，
-    而状态里其实有 19 条未决、若干闭环与风险演变可说。顺序固定：
-    新增决策 / 延续事项 / 已闭环 / 风险演变，末尾追加一行计数汇总。
+    而状态里其实有未决待办与已闭环可说。顺序固定：
+    新增决策 / 延续事项 / 已闭环，末尾追加一行计数汇总。
 
     每条都带**主题词**（``延续事项（网关核心架构·鉴权方案｜自第1场）``）：主题取自
     条目原生 module/topic_title（写入端从议题树回查，见 ``state._find_topic_for_item``），
@@ -276,10 +276,8 @@ def preview_comparison(
                 return label
         return ""
 
-    def head(topic: str, tail: str = "") -> str:
-        """括号里的拼接：有主题和场次说明就 ``（主题｜说明）``，只有一个就只写那个，都没有就空。"""
-        bits = [bit for bit in (topic, tail) if bit]
-        return f"（{'｜'.join(bits)}）" if bits else ""
+    def head(topic: str) -> str:
+        return f"（{topic}）" if topic else ""
 
     closed_now = [_clean(x) for x in (getattr(fact, "closed_items", None) or []) if _clean(x)]
 
@@ -310,12 +308,11 @@ def preview_comparison(
 
     seen_open: set[str] = set()
     for item in ranked_open:
-        since = session_label(seq_map, _clean(item.get("since")))
         text = _clean(item.get("text"))
         if text in seen_open:
             continue
         seen_open.add(text)
-        lines.append(f"延续事项{head(label_for(item), f'自{since}')}：{text}")
+        lines.append(f"延续事项{head(label_for(item))}：{text}")
 
     closed_hist = [
         i for i in list(state.get("actions") or []) + list(state.get("open_items") or [])
@@ -331,27 +328,13 @@ def preview_comparison(
         if text in shown_closed:
             continue
         shown_closed.add(text)
-        closed_mid = _clean(item.get("closed_at"))
-        when = (
-            session_label(seq_map, closed_mid)
-            if item.get("status") == "done" and closed_mid in seq_map
-            else ""
-        )
-        lines.append(f"已闭环{head(label_for(item), when)}：{text}")
+        lines.append(f"已闭环{head(label_for(item))}：{text}")
     for text in closed_now[:5]:
         if any(text in shown for shown in shown_closed):
             continue
         shown_closed.add(text)
         lines.append(f"已闭环{head(label_for(text))}：{text}")
 
-    if lines:
-        counts = {
-            "新增决策": sum(1 for x in lines if x.startswith("新增决策")),
-            "延续未决": len(seen_open),
-            "已闭环": len(shown_closed),
-        }
-        summary = "、".join(f"{k} {v} 条" for k, v in counts.items() if v)
-        lines.append(f"本场历史对照合计：{summary}")
     return lines[:25]
 
 

@@ -174,7 +174,6 @@ def test_persist_agenda_uses_draft(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert captured["calls"] == ["draft"]
     assert captured["meeting"]["decisions"] == ["draft_d"]
-    assert captured["meeting"]["rendered_preview"] == "渲染正文"
 
 
 def test_persist_agenda_with_real_understanding_uses_old_path(

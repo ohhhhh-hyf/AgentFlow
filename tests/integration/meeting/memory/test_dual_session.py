@@ -291,19 +291,19 @@ def test_dual_session_15_items_benchmark() -> None:
 
         # 验证全量状态直传解耦：即使第 13 条（排查跨分片全局主键生成并发死锁隐患）未在 Prompt 文本中，
         # 只要正文提及且 candidate_items 包含，依然能生成溯源角标与文末卡片！
-        assert "(#memory-" in cited_doc, "正文必须挂载溯源锚点"
-        assert "## 历史记忆引用" in cited_doc, "文末必须包含历史记忆引用卡片"
+        assert "(#source-" in cited_doc, "正文必须挂载溯源锚点"
+        assert "## 记忆溯源" in cited_doc, "文末必须包含记忆溯源卡片"
         assert "排查跨分片全局主键生成并发死锁隐患" in cited_doc, "全量候选池中的条目即便未注入 Prompt 亦可溯源"
 
         # ── 4. 验证跨议题严格作用域隔离（Zero Cross-topic Mis-citation）──
         sec_gw, sec_rest = cited_doc.split("## 议题二：音视频推流SDK优化与收口", 1)
         sec_sdk, sec_db = sec_rest.split("## 议题三：数据库分库分表设计", 1)
 
-        # 提取各章节内挂载的 memory-N
+        # 提取各章节内挂载的 source-N
         import re
-        gw_mems = set(re.findall(r"\(#(memory-\d+)\)", sec_gw))
-        sdk_mems = set(re.findall(r"\(#(memory-\d+)\)", sec_sdk))
-        db_mems = set(re.findall(r"\(#(memory-\d+)\)", sec_db))
+        gw_mems = set(re.findall(r"\(#(source-\d+)\)", sec_gw))
+        sdk_mems = set(re.findall(r"\(#(source-\d+)\)", sec_sdk))
+        db_mems = set(re.findall(r"\(#(source-\d+)\)", sec_db))
 
         # 校验各章节记忆引用互不重叠，严格隔离
         assert gw_mems.isdisjoint(sdk_mems), f"网关章节与SDK章节锚点发生混淆: {gw_mems & sdk_mems}"
@@ -311,7 +311,7 @@ def test_dual_session_15_items_benchmark() -> None:
         assert gw_mems.isdisjoint(db_mems), f"网关章节与数据库章节锚点发生混淆: {gw_mems & db_mems}"
 
         # ── 5. 验证一事一挂（Each memory item cited at most once）──────
-        all_citations = re.findall(r"\(#(memory-\d+)\)", cited_doc)
+        all_citations = re.findall(r"\(#(source-\d+)\)", cited_doc)
         seen_cites = set()
         for c in all_citations:
             assert c not in seen_cites, f"记忆锚点 {c} 出现了多次，违背一事一挂原则"

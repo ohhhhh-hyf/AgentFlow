@@ -25,8 +25,6 @@ class BindResult:
             "confidence": self.confidence,
             "evidence": self.evidence,
         }
-        if self.candidates:
-            out["candidates"] = self.candidates
         if self.warning:
             out["warning"] = self.warning
         if self.core_name:

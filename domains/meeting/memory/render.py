@@ -4,7 +4,7 @@
 （延续事项 / 风险演变 / 历史决策 + 原文摘录），不再依赖旧
 ``tools.memory.citations`` 的【记忆命中 / 记忆来源索引】兼容格式。
 
-- ``apply_memory_citations``：正文锚点标注 + 文末「历史记忆引用」区。
+- ``apply_memory_citations``：正文锚点标注 + 文末「记忆溯源」区。
 - ``memory_review_html``：左正文高亮 / 右记忆来源卡片（复用现有 review CSS）。
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ from typing import Any
 
 from .state import _DOMAIN_ENTITIES, _module_overlap
 
-SECTION_TITLE = "历史记忆引用"
+SECTION_TITLE = "记忆溯源"
 
 # 记忆块总是追加在（生成/渲染）上下文末尾；贪婪到文末，小节头不参与块边界。
 _MEMORY_BLOCK_RE = re.compile(r"【(?:会议记忆|项目推进背景)】(.*)\Z", re.S)
@@ -62,8 +62,8 @@ _SINCE_RE = re.compile(r"自\s*([^\s，,]+)\s*，\s*最近\s*([^\s，,)）]+)")
 _LAST_RE = re.compile(r"最近\s*([^\s，,)）]+)")
 _SESSION_RE = re.compile(r"第\s*(\d+)\s*场")
 _DECISION_LEAD_RE = re.compile(r"^(m_[A-Za-z0-9_-]+)：(.+)$")
-_MEM_SECTION_RE = re.compile(r"\n(?:-{3,}\s*\n+)*## " + re.escape(SECTION_TITLE) + r"\b.*\Z", re.S)
-COMPARISON_TITLE = "历史对照"
+_MEM_SECTION_RE = re.compile(r"\n(?:-{3,}\s*\n+)*## (?:历史记忆引用|记忆溯源)\b.*\Z", re.S)
+COMPARISON_TITLE = "状态演进"
 _COMPARISON_SECTION_RE = re.compile(
     r"\n(?:-{3,}\s*\n+)*## (?:历史对照|状态演进|与历史对比)\b.*?(?=\n#{1,2} |\Z)", re.S
 )
@@ -71,10 +71,10 @@ _H_TAG_RE = re.compile(r"[\[(【]\s*H\d+\s*[\])】]", re.IGNORECASE)
 _ITEM_TAG_PREFIX_RE = re.compile(r"^\[H\d+\]\s*", re.IGNORECASE)
 # 台账行：- 类别（主题｜场次说明）：内容 / - 类别（场次说明）：内容 / - 类别：内容
 _LEDGER_LINE_RE = re.compile(
-    r"^(新增决策|延续事项|已闭环|风险演变)(?:[（(]([^）)]*)[)）])?[:：]\s*(.*)$"
+    r"^(新增决策|延续事项|已闭环)(?:[（(]([^）)]*)[)）])?[:：]\s*(.*)$"
 )
 _TAG_RE = re.compile(
-    r"(?:<sup>)?\[记忆\d+\]\(#memory-\d+\)(?:</sup>)?|class=\"memory-link\"|\[[^\]]+\]\(#memory-\d+\)"
+    r"(?:<sup>)?\[记忆\d+\]\(#(?:memory|source)-\d+\)(?:</sup>)?|class=\"memory-link\"|\[[^\]]+\]\(#(?:memory|source)-\d+\)"
 )
 _HAN = re.compile(r"[\u4e00-\u9fff]+")
 _LATIN_TERM = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{2,}")
@@ -111,22 +111,22 @@ _LATIN_SKIP = frozenset({
 })
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class MemoryItem:
-    """一条可溯源的历史记忆条目（含状态机字段）。"""
+    """一条可溯源的历史记忆条目。"""
 
     kind: str  # open / closed / risk / decision
     text: str
     quote: str = ""
-    meeting_id: str = ""  # 最近场次（open/risk 为 last_seen，decision 为 meeting_id）
-    since: str = ""
     meeting_title: str = ""  # 最近场次会议标题（引用区"来源会议"）
     meeting_time: str = ""  # 该场会议时间（请求体 time；空则不展示）
-    status: str = ""  # open / done / active / mitigated / dormant / reaffirmed …
-    owner: str = ""  # 待办负责人（有则展示）
-    timing: str = ""  # 时限（有则展示）
     module: str = ""  # 原生议题作用域（business module）
     topic_title: str = ""  # 原生议题标题
+    meeting_id: str = ""
+    since: str = ""
+    status: str = ""
+    owner: str = ""
+    timing: str = ""
 
 
 def _split_meta(body: str) -> tuple[str, str]:
@@ -493,6 +493,7 @@ def _append_markers(
     seen: list[MemoryItem] | None = None,
     stats: _NeedleStats | None = None,
     ref_items: list[MemoryItem] | None = None,
+    item_to_ref: dict[MemoryItem, str] | None = None,
 ) -> tuple[str, list[MemoryItem]]:
     if not items or _TAG_RE.search(line):
         return line, []
@@ -535,7 +536,12 @@ def _append_markers(
     for start, end, item in spans:
         out.append(escape(line[pos:start], quote=False))
         label = escape(line[start:end], quote=False)
-        ref_id = f"memory-{index_items.index(item) + 1}"
+        if item_to_ref is not None:
+            if item not in item_to_ref:
+                item_to_ref[item] = f"source-{len(item_to_ref) + 1}"
+            ref_id = item_to_ref[item]
+        else:
+            ref_id = f"source-{index_items.index(item) + 1}"
         out.append(f"[{label}](#{ref_id})")
         used.append(item)
         pos = end
@@ -544,35 +550,38 @@ def _append_markers(
 
 
 def history_comparison_section(lines: list[str]) -> str:
-    """「历史对照」小节：程序算好的四类对照（不依赖词面重合，永远可见）。
-
-    为什么单独成节：模型被明确要求"历史不写进正文"，而正文锚点只在**词面巧合**时
-    才挂得上（实测第二场 15 条只挂上 2 条，且都是在泛词上）。对照是程序用条目+场次
-    拼的确定性文本，落盘才有"记忆看得见"的兜底。
-    """
+    """「状态演进」小节：程序算好的分类演进（层级分组展示）。"""
     rows = [_clean(line) for line in (lines or []) if _clean(line)]
     if not rows:
         return ""
-    return "\n".join(
-        ["", f"## {COMPARISON_TITLE}", ""] + [f"- {row}" for row in rows]
-    )
+    groups: dict[str, list[tuple[str, str]]] = {
+        "新增决策": [],
+        "延续事项": [],
+        "已闭环": [],
+    }
+    for row in rows:
+        match = _LEDGER_LINE_RE.match(row)
+        if match:
+            kind, topic, text = match.group(1), _clean(match.group(2)), _clean(match.group(3))
+            if kind in groups:
+                groups[kind].append((topic, text))
+            else:
+                groups.setdefault(kind, []).append((topic, text))
+        else:
+            groups.setdefault("延续事项", []).append(("", row))
 
-
-def _status_line(item: MemoryItem) -> str:
-    """卡片上的状态行：``状态：未闭环（负责人 责任人，时限 8月19日前）``。"""
-    status = (item.status or "").strip()
-    bits: list[str] = []
-    if item.owner:
-        bits.append(f"负责人 {item.owner}")
-    if item.timing:
-        bits.append(f"时限 {item.timing}")
-    if item.since and item.meeting_id and item.since != item.meeting_id:
-        bits.append(f"{item.since} 起，最近 {item.meeting_id}")
-    if not status and not bits:
+    out: list[str] = ["", f"## {COMPARISON_TITLE}"]
+    for kind in ("新增决策", "延续事项", "已闭环"):
+        items = groups.get(kind) or []
+        if not items:
+            continue
+        out.append(f"\n**{kind}**：")
+        for topic, text in items:
+            prefix = f"{topic}：" if topic else ""
+            out.append(f"  - {prefix}{text}")
+    if len(out) <= 2:
         return ""
-    label = _STATUS_CN.get(status, status) or "历史"
-    tail = f"（{'，'.join(bits)}）" if bits else ""
-    return f"状态：{label}{tail}"
+    return "\n".join(out)
 
 
 # 作用域锚定阈值：章节标题与 module/topic_title 的 2-gram 覆盖率下限。
@@ -655,9 +664,9 @@ def _strip_h_markers(text: str) -> str:
 
 
 def _collect_ref_ids(text: str) -> list[str]:
-    """正文里已有的 memory-N 锚点（按出现顺序去重）。"""
+    """正文里已有的锚点（按出现顺序去重）。"""
     out: list[str] = []
-    for match in re.finditer(r"\(#(memory-\d+)\)", text or ""):
+    for match in re.finditer(r"\(#((?:source|memory)-\d+)\)", text or ""):
         ref = match.group(1)
         if ref not in out:
             out.append(ref)
@@ -670,11 +679,10 @@ def apply_memory_citations(
     comparison: list[str] | None = None,
     candidate_items: list[MemoryItem] | list[dict[str, Any]] | None = None,
 ) -> str:
-    """给渲染后的纪要加记忆引用标注 + 「历史对照」小节 + 文末「历史记忆引用」区。
+    """给渲染后的纪要加记忆引用标注 + 「状态演进」小节 + 文末「记忆溯源」区。
 
     正文锚点只来自写完后的字面重合，不认 ``[H1]``。模型若仍打出代号，先整段删掉。
-    ``comparison``：程序算好的历史对照（build_memory_context 的第二个返回值），
-    无条件写成固定小节——它是零锚点时的唯一可见溯源。
+    ``comparison``：程序算好的状态演进，无条件写成固定小节——它是零锚点时的唯一可见溯源。
 
     作用域锚定（2026-10 记忆 v2）：正文按 ``## `` 章节拆分后，带原生
     module/topic_title 的历史条目只允许锚进主题重合的章节——消灭"第 1 场鉴权
@@ -683,7 +691,7 @@ def apply_memory_citations(
     """
     body = markdown or ""
     comparison_section = history_comparison_section(list(comparison or []))
-    # 幂等：先摘掉已有的对照/溯源小节（重复调用不再叠加）
+    # 幂等：先摘掉已有的演进/溯源小节（重复调用不再叠加）
     body = _COMPARISON_SECTION_RE.sub("", body)
     body = _MEM_SECTION_RE.sub("", body).strip()
     body = _strip_h_markers(body)
@@ -724,13 +732,19 @@ def apply_memory_citations(
         return body + comparison_section
 
     used_items: list[MemoryItem] = []
+    item_to_ref: dict[MemoryItem, str] = {}
 
-    # 收集已有的 memory-N 引用（重复渲染时保持幂等）
+    # 收集已有的引用（重复渲染时保持幂等）
     existing = _collect_ref_ids(body)
-    by_ref = {f"memory-{index + 1}": item for index, item in enumerate(items)}
+    by_ref: dict[str, MemoryItem] = {}
+    for index, item in enumerate(items):
+        by_ref[f"source-{index + 1}"] = item
+        by_ref[f"memory-{index + 1}"] = item
     for ref in existing:
         if ref in by_ref and by_ref[ref] not in used_items:
-            used_items.append(by_ref[ref])
+            it = by_ref[ref]
+            used_items.append(it)
+            item_to_ref[it] = ref
 
     # 正文挂载：只按写完后的字面重合，不认代号
     uncited_items = [item for item in items if item not in used_items]
@@ -752,7 +766,7 @@ def apply_memory_citations(
                     else available
                 )
                 line, found = _append_markers(
-                    line, candidates, seen, stats, ref_items=items
+                    line, candidates, seen, stats, ref_items=items, item_to_ref=item_to_ref
                 )
                 for item in found:
                     if item not in used_items:
@@ -766,22 +780,18 @@ def apply_memory_citations(
         return f"{body.strip()}{comparison_section}"
 
     appendix = ["", f"## {SECTION_TITLE}", ""]
-    # 按在 items 中的顺序稳定排序，保证卡片从 1 到 N 顺序呈现
-    used_items.sort(key=lambda item: items.index(item))
+    # 按正文首次出现的先后顺序排布卡片，保证从 [1] 到 [N] 绝对自然连续
     for item in used_items:
-        ref_id = f"memory-{items.index(item) + 1}"
-        source = item.meeting_title or item.meeting_id or "历史会议"
+        ref_id = item_to_ref.get(item) or f"source-{used_items.index(item) + 1}"
+        num = ref_id.split("-")[-1]
+        source = item.meeting_title or "历史会议"
         quote = item.quote or item.text
+        mtime = f"（{item.meeting_time}）" if item.meeting_time else ""
         rows = [
-            f"#### 溯源 {ref_id}",
+            f"#### [{num}] {item.text}",
             f"> {quote}",
+            f"- **来源会议**：{source}{mtime}",
         ]
-        status_line = _status_line(item)
-        if status_line:
-            rows.append(status_line)
-        rows.append(f"来源会议：{source}")
-        if item.meeting_time:
-            rows.append(f"会议时间：{item.meeting_time}")
         appendix.extend(rows)
     return f"{body.strip()}{comparison_section}\n" + "\n".join(row for row in appendix if row)
 
@@ -790,19 +800,26 @@ from infra.exporters.html.paper_css import latex_paper_css as _latex_paper_css
 
 
 def _parse_memory_sources(markdown: str) -> dict[str, dict[str, str]]:
-    """从「历史记忆引用」区解析各 memory-N 的来源卡片数据。"""
+    """从「记忆溯源」区解析各 source-N / memory-N 的来源卡片数据。"""
     raw = markdown or ""
-    marker = f"## {SECTION_TITLE}"
-    if marker not in raw:
+    marker = None
+    for m in (f"## {SECTION_TITLE}", "## 记忆溯源", "## 历史记忆引用"):
+        if m in raw:
+            marker = m
+            break
+    if not marker:
         return {}
     chunk = raw.split(marker, 1)[1]
-    blocks = re.split(r"\n#### 溯源\s*", chunk)
+    blocks = re.split(r"\n####\s*(?:\[\d+\]|溯源\s*\S+)", chunk)
+    headings = re.findall(r"\n####\s*(\[\d+\]|溯源\s*\S+)", chunk)
     out: dict[str, dict[str, str]] = {}
-    for i in range(1, len(blocks)):
-        ref_id = blocks[i].strip().splitlines()[0].strip()
-        lines = [line.strip() for line in blocks[i].strip().splitlines()[1:] if line.strip()]
-        if not ref_id or not lines:
-            continue
+    for i, head in enumerate(headings):
+        if i + 1 >= len(blocks):
+            break
+        num_match = re.search(r"\d+", head)
+        num = num_match.group(0) if num_match else str(i + 1)
+        ref_id = f"source-{num}"
+        lines = [line.strip() for line in blocks[i + 1].strip().splitlines() if line.strip()]
         title = ""
         quote = ""
         mtime = ""
@@ -810,13 +827,21 @@ def _parse_memory_sources(markdown: str) -> dict[str, dict[str, str]]:
         for line in lines:
             if line.startswith(">"):
                 quote = line.lstrip("> ").strip()
-            elif line.startswith("来源会议："):
-                title = line.removeprefix("来源会议：").strip()
+            elif "来源会议" in line:
+                val = line.split("：", 1)[-1].strip()
+                if "（" in val and val.endswith("）"):
+                    title, mtime = val[:-1].split("（", 1)
+                elif "(" in val and val.endswith(")"):
+                    title, mtime = val[:-1].split("(", 1)
+                else:
+                    title = val
             elif line.startswith("会议时间："):
                 mtime = line.removeprefix("会议时间：").strip()
             elif line.startswith("状态："):
                 status = line.removeprefix("状态：").strip()
-        out[ref_id] = {"quote": quote, "title": title, "time": mtime, "status": status}
+        data = {"quote": quote, "title": title.strip(), "time": mtime.strip(), "status": status}
+        out[ref_id] = data
+        out[f"memory-{num}"] = data
     return out
 
 
@@ -924,7 +949,7 @@ def _format_minutes_html(
     def inline_format(s: str) -> str:
         parts: list[str] = []
         pos = 0
-        for m in re.finditer(r"\[([^\]]+)\]\(#(memory-\d+)\)", s):
+        for m in re.finditer(r"\[([^\]]+)\]\(#((?:memory|source)-\d+)\)", s):
             parts.append(escape(s[pos : m.start()], quote=False))
             entity = m.group(1)
             ref_id = m.group(2).strip()
@@ -1300,14 +1325,21 @@ _MEMORY_SCRIPT = """<script>
 
 
 def _parse_comparison_ledger(markdown: str) -> tuple[list[dict[str, str]], str]:
-    """从「历史对照」小节解析「状态演进」清单，返回 (条目列表, 汇总行)。
+    """从「状态演进」小节解析台账清单，返回 (条目列表, 汇总行)。
 
-    行格式：``- 延续事项（端侧待办｜自第1场·2026-09-01）：端侧大概什么时候带上版本``；
-    新增决策可能没有主题（``- 新增决策：…``），此时只有类别。
+    支持两种输入格式：
+    1. 新版分层格式：
+       **延续事项**：
+         - 端侧待办：端侧大概什么时候带上版本
+       或
+         - 端侧大概什么时候带上版本
+    2. 旧版扁平格式：
+       - 延续事项（端侧待办｜自第1场·2026-09-01）：端侧大概什么时候带上版本
+       - 新增决策：…
     """
     raw = markdown or ""
     marker = None
-    for m in (f"## {COMPARISON_TITLE}", "## 状态演进"):
+    for m in (f"## {COMPARISON_TITLE}", "## 状态演进", "## 历史对照"):
         if m in raw:
             marker = m
             break
@@ -1317,8 +1349,15 @@ def _parse_comparison_ledger(markdown: str) -> tuple[list[dict[str, str]], str]:
     chunk = re.split(r"\n#{1,2} ", chunk)[0]
     rows: list[dict[str, str]] = []
     summary = ""
+    current_kind = ""
     for line in chunk.splitlines():
         stripped = line.strip()
+        if not stripped:
+            continue
+        kind_header_match = re.match(r"^\*\*(新增决策|延续事项|已闭环)\*\*[:：]?$", stripped)
+        if kind_header_match:
+            current_kind = kind_header_match.group(1)
+            continue
         if not stripped.startswith("- "):
             continue
         body = stripped[2:].strip()
@@ -1326,26 +1365,34 @@ def _parse_comparison_ledger(markdown: str) -> tuple[list[dict[str, str]], str]:
             summary = body.split("：", 1)[-1].strip()
             continue
         match = _LEDGER_LINE_RE.match(body)
-        if not match:
+        if match:
+            kind, meta, text = match.group(1), _clean(match.group(2)), _clean(match.group(3))
+            topic = ""
+            tail = meta
+            if "｜" in meta:
+                topic, tail = (_clean(part) for part in meta.split("｜", 1))
+            rows.append({"kind": kind, "topic": topic, "meta": tail, "text": text})
             continue
-        kind, meta, text = match.group(1), _clean(match.group(2)), _clean(match.group(3))
-        topic = ""
-        tail = meta
-        if "｜" in meta:
-            topic, tail = (_clean(part) for part in meta.split("｜", 1))
-        rows.append({"kind": kind, "topic": topic, "meta": tail, "text": text})
+        if current_kind:
+            if "：" in body:
+                topic, text = body.split("：", 1)
+                rows.append({"kind": current_kind, "topic": _clean(topic), "meta": "", "text": _clean(text)})
+            elif ":" in body:
+                topic, text = body.split(":", 1)
+                rows.append({"kind": current_kind, "topic": _clean(topic), "meta": "", "text": _clean(text)})
+            else:
+                rows.append({"kind": current_kind, "topic": "", "meta": "", "text": _clean(body)})
     return rows, summary
 
 
-# 右栏「状态演进」只展示这三类，顺序固定（风险演变只保留在正文对照里）
+# 右栏「状态演进」固定展示这三类台账
 _LEDGER_PANEL_ORDER = ("延续事项", "已闭环", "新增决策")
 
 
 def _ledger_cards_html(rows: list[dict[str, str]]) -> str:
     """状态演进：**每类一张小灰卡，卡内条目各自编号 1. 2. 3.**。
 
-    只展示三类，顺序固定 延续事项 → 已闭环 → 新增决策（风险演变不进右栏，只在正文
-    「## 历史对照」里保留）。每卡卡头是类别 + 条数，卡内是该类的有序列表；整块灰底、
+    顺序固定：延续事项 → 已闭环 → 新增决策。每卡卡头是类别 + 条数，卡内是该类的有序列表；整块灰底、
     无 [n] 序号（不冒充正文证据）。
     """
     keep = [row for row in rows if row.get("kind", "") in _LEDGER_PANEL_ORDER]
@@ -1401,7 +1448,7 @@ def memory_review_html(markdown: str, title: str = "", data: dict | None = None)
     if hasattr(data, "model_dump"):
         data = data.model_dump()
 
-    # 分割正文与附录（历史记忆引用）
+    # 分割正文与附录（记忆溯源）
     splits = re.split(r"\n## " + re.escape(SECTION_TITLE) + r"\b", text, maxsplit=1)
     main = splits[0]
     sources = _parse_memory_sources(text)
@@ -1428,7 +1475,7 @@ def memory_review_html(markdown: str, title: str = "", data: dict | None = None)
     ref_id_to_num: dict[str, int] = {}
     ordered_ref_ids: list[str] = []
 
-    for m in re.finditer(r"\[([^\]]+)\]\(#(memory-\d+)\)", main):
+    for m in re.finditer(r"\[([^\]]+)\]\(#((?:memory|source)-\d+)\)", main):
         ref_id = m.group(2).strip()
         if ref_id not in ref_id_to_num:
             num = len(ordered_ref_ids) + 1

@@ -622,9 +622,6 @@ def persist_after_run(
         fact.project_id = resolved.project_id if resolved.is_bound else ""
         fact.bind = resolved.as_dict()
         meeting = fact.as_dict()
-        rendered = _report_text(reports, "minutes") or _report_text(reports, "minutes_styles")
-        if rendered:
-            meeting["rendered_preview"] = rendered[:1000]
         state_doc: dict[str, Any] | None = None
         project_entry: dict[str, Any] = {}
         if resolved.is_bound:

@@ -44,7 +44,6 @@ class MeetingFact:
             "title": self.title,
             "summary": self.summary,
             "anchors": self.anchors,
-            "project_candidates": self.project_candidates,
             "decisions": self.decisions,
             "open_items": self.open_items,
             "action_items": self.action_items,
@@ -397,6 +396,9 @@ def _quote_for(transcript: str, text: str) -> str:
         if score > best_score:
             best = sent
             best_score = score
+    if best:
+        cleaned = re.sub(r"^[^:：\n]{2,10}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?[:：]\s*", "", best).strip()
+        best = cleaned or best
     return best[:180]
 
 

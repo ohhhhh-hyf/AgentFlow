@@ -228,5 +228,6 @@ def test_meta_protocol_round_trip() -> None:
         "风险上，记忆可解释性不足仍未解决。\n"
     )
     out = apply_memory_citations(body, ctx)
-    expect("状态：未闭环" in out and "负责人 赵衡" in out and "时限 8月19日前" in out, "卡片带状态行（状态机终于有出口）", out[-400:])
-    expect("](#memory-" in out, "正文锚点挂在条目原文上", out)
+    expect("- **来源会议**：" in out, "卡片展示原句与来源会议", out[-400:])
+    expect("状态：未闭环" not in out and "负责人 赵衡" not in out, "溯源卡片不再输出状态与负责人", out[-400:])
+    expect("](#source-" in out, "正文锚点挂在条目原文上", out)

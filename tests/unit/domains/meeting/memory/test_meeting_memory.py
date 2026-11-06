@@ -35,9 +35,9 @@ def test_history_comparison_section() -> None:
     ctx = "【会议记忆】\n项目：X\n\n【延续事项】\n- 补齐记忆引用来源字段（第1场·2026-09-01起，最近第1场·2026-09-01，状态 open）\n"
     comp = ["新增决策：记忆引用展示放到文末", "已闭环（第1场·2026-09-01）：记忆可解释性不足"]
     out = apply_memory_citations(body, ctx, comparison=comp)
-    expect(f"## {COMPARISON_TITLE}" in out and "新增决策：记忆引用展示放到文末" in out, "零锚点也输出「历史对照」小节", out)
+    expect(f"## {COMPARISON_TITLE}" in out and "记忆引用展示放到文末" in out and "**新增决策**：" in out, "零锚点也输出「状态演进」小节", out)
     again = apply_memory_citations(out, ctx, comparison=comp)
-    expect(again.count(f"## {COMPARISON_TITLE}") == 1 and again.count("## 历史记忆引用") == 0, "重复调用不叠加对照/溯源小节", again)
+    expect(again.count(f"## {COMPARISON_TITLE}") == 1 and again.count("## 记忆溯源") == 0, "重复调用不叠加对照/溯源小节", again)
 
 
 def test_anchor_guards() -> None:
@@ -129,8 +129,8 @@ def test_comparison_topic_labels() -> None:
         meetings=meetings,
         current_fact=f2,
     )
-    expect(any("（引擎并发·现网流量拆解｜" in line for line in comparison), "条目对照行带原生主题", str(comparison))
-    expect(any("（标注链路·内部标注缺口｜" in line for line in comparison), "不同议题的条目各带自己的主题", str(comparison))
+    expect(any("（引擎并发·现网流量拆解）" in line for line in comparison), "条目对照行带原生主题", str(comparison))
+    expect(any("（标注链路·内部标注缺口）" in line for line in comparison), "不同议题的条目各带自己的主题", str(comparison))
     expect(any("新增决策（引擎并发·并发压测）" in line for line in comparison), "本场字符串条目（新增决策）用本场议题反查主题", str(comparison))
     expect(not any("（WeLink标注" in line or "（400min" in line for line in comparison), "旧版猜词标签不再出现", str(comparison))
     expect(any("主题：引擎并发·现网流量拆解" in line for line in ctx.splitlines()), "素材块以主题子行标注原生议题", ctx[-400:])
@@ -215,13 +215,13 @@ def test_scoped_citations() -> None:
     )
     out = apply_memory_citations(body, ctx)
     auth, render_sec = out.split("## 前端渲染改造", 1)
-    expect("(#memory-1)" in auth, "同议题章节内正常锚定", auth)
-    expect("(#memory-1)" not in render_sec, "跨议题不误锚（鉴权条目不进前端渲染章节）", render_sec)
-    expect("(#memory-2)" in render_sec and "(#memory-2)" not in auth, "另一议题条目只进自己的章节", out)
-    expect("#### 溯源 memory-1" in out and "#### 溯源 memory-2" in out, "锚点仍按完整条目表编号（溯源卡片对得上）", out[-300:])
+    expect("(#source-1)" in auth, "同议题章节内正常锚定", auth)
+    expect("(#source-1)" not in render_sec, "跨议题不误锚（鉴权条目不进前端渲染章节）", render_sec)
+    expect("(#source-2)" in render_sec and "(#source-2)" not in auth, "另一议题条目只进自己的章节", out)
+    expect("#### [1]" in out and "#### [2]" in out, "锚点仍按完整条目表编号（溯源卡片对得上）", out[-300:])
     # 幂等：重复调用不再叠加
     again = apply_memory_citations(out, ctx)
-    expect(again.count("(#memory-1)") == 1 and again.count("## 历史记忆引用") == 1, "重复调用不重复标注", again)
+    expect(again.count("(#source-1)") == 1 and again.count("## 记忆溯源") == 1, "重复调用不重复标注", again)
 
     # 旧数据（无原生作用域）保持全局匹配：零回归
     ctx_legacy = (
@@ -234,7 +234,7 @@ def test_scoped_citations() -> None:
         "前端渲染白屏排查收尾，历史遗留的对接口径顺带过了一遍。\n"
     )
     out2 = apply_memory_citations(body_legacy, ctx_legacy)
-    expect("(#memory-1)" in out2, "旧数据（无作用域）仍全局锚定（零回归）", out2)
+    expect("(#source-1)" in out2, "旧数据（无作用域）仍全局锚定（零回归）", out2)
 
     # 固定栏名正文（minutes_styles 形态）不触发作用域切池：保持全局
     styles_body = (
@@ -245,7 +245,7 @@ def test_scoped_citations() -> None:
         "前端渲染白屏排查收尾，整体顺利。\n"
     )
     out3 = apply_memory_citations(styles_body, ctx)
-    expect("(#memory-1)" in out3 and "(#memory-2)" in out3, "固定栏名正文不触发作用域切池（保留全局匹配）", out3)
+    expect("(#source-1)" in out3 and "(#source-2)" in out3, "固定栏名正文不触发作用域切池（保留全局匹配）", out3)
 
 
 def test_comparison_richness() -> None:
@@ -267,11 +267,11 @@ def test_comparison_richness() -> None:
     for row in meetings:
         row["project_id"] = "p1"  # list_meetings 的行都带 project_id，否则场次解析成"未知场次"
     lines = preview_comparison(st_pre, f2, session_index(meetings, "p1"))
-    expect(len(lines) >= 5, "对照行数 ≥ 5（改前封顶 4 行）", str(lines))
-    expect(sum(1 for x in lines if x.startswith("延续事项")) >= 2, "延续事项多条（改前只 1 条）", str(lines))
-    expect(any("第1场" in x for x in lines), "带场次标注", str(lines))
+    expect(len(lines) >= 4, "对照行数 ≥ 4", str(lines))
+    expect(sum(1 for x in lines if x.startswith("延续事项")) >= 2, "延续事项多条", str(lines))
     expect(any(x.startswith("已闭环") for x in lines), "含已闭环类", str(lines))
-    expect(lines and lines[-1].startswith("本场历史对照合计"), "末尾有计数汇总行", str(lines[-1:]))
+    expect(not any("本场历史对照合计" in x for x in lines), "末尾不追加计数汇总行", str(lines))
+    expect(not any("第1场" in x for x in lines), "条目不带自第N场机械后缀", str(lines))
 
 
 def test_selection_relevance_and_recency() -> None:

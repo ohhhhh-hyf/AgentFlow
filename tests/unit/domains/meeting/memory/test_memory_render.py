@@ -144,8 +144,7 @@ def test_review_panel_ledger_group() -> None:
         "- 延续事项（现网流量｜自第1场·2026-09-01）：范炳杰下来找他们拆现网流量数据\n"
         "- 已闭环（双录信号｜第1场·2026-09-01）：范炳杰这周更新一个版本把双录信号问题刷掉\n"
         "- 已闭环：解决了端侧麦克风加媒体音播报幻觉问题\n"
-        "- 风险演变（WeLink标注｜持续，第1场·2026-09-01）：内部WeLink标注还差400min\n"
-        "- 本场历史对照合计：新增决策 2 条、延续未决 1 条、已闭环 2 条、风险演变 1 条\n"
+        "- 本场历史对照合计：新增决策 2 条、延续未决 1 条、已闭环 2 条\n"
     )
     appendix = (
         "\n## 历史记忆引用\n\n#### 溯源 memory-1\n> WeLink标注进度\n"
@@ -167,7 +166,6 @@ def test_review_panel_ledger_group() -> None:
     expect('ck-ledger-count">（1）' in ledger_part and 'ck-ledger-count">（2）' in ledger_part, "卡头带类别与条数", "")
     expect(ledger_part.index('data-kind="延续事项"') < ledger_part.index('data-kind="已闭环"')
           < ledger_part.index('data-kind="新增决策"'), "卡片顺序固定 延续事项 → 已闭环 → 新增决策", "")
-    expect("风险演变" not in ledger_part and "内部WeLink标注还差400min" not in ledger_part, "右栏不出现风险演变（只在正文对照里）", "")
     expect("现网流量" in right and "自第1场·2026-09-01" in right, "演进条目带主题与场次", "")
     expect("（本场）" not in right and "· 本场" not in right, "不写无信息量的「本场」", "")
     expect("ck-ev ck-mem-card" in right, "证据卡片仍在（带行内锚点）", "")
@@ -229,9 +227,9 @@ def test_h_tag_mechanism_and_dynamic_gating() -> None:
         "团队针对核心模块进行复盘，网关鉴权接口已全量完成联调，后续继续优化Token缓存策略。\n"
     )
     out = apply_memory_citations(body, ctx, comparison=comp)
-    expect("(#memory-1)" in out, "TC-H-04: 网关鉴权接口挂上第一条", out)
-    expect("(#memory-2)" in out, "TC-H-04: Token缓存策略挂上第二条", out)
-    expect("#### 溯源 memory-1" in out and "#### 溯源 memory-2" in out, "TC-H-04: 文末生成对应数量的溯源卡片", out)
+    expect("(#source-1)" in out, "TC-H-04: 网关鉴权接口挂上第一条", out)
+    expect("(#source-2)" in out, "TC-H-04: Token缓存策略挂上第二条", out)
+    expect("#### [1]" in out and "#### [2]" in out, "TC-H-04: 文末生成对应数量的溯源卡片", out)
     expect("[H1]" not in out and "[H2]" not in out, "TC-H-04: 挂载不靠 [Hn]", out)
 
     # 5. 模型打出的代号只删除，不换成链接
@@ -241,7 +239,7 @@ def test_h_tag_mechanism_and_dynamic_gating() -> None:
     )
     out_hallucinated = apply_memory_citations(body_hallucinated, ctx)
     expect("[H99]" not in out_hallucinated and "[H1]" not in out_hallucinated, "TC-H-05: [H99] 与 [H1] 都被删除", out_hallucinated)
-    expect("(#memory-" not in out_hallucinated, "TC-H-05: 代号本身不产生溯源链接", out_hallucinated)
+    expect("(#source-" not in out_hallucinated and "(#memory-" not in out_hallucinated, "TC-H-05: 代号本身不产生溯源链接", out_hallucinated)
 
     # 6. 圆括号与中文括号里的代号同样删除
     body_flexible = (
@@ -250,8 +248,8 @@ def test_h_tag_mechanism_and_dynamic_gating() -> None:
     )
     out_flexible = apply_memory_citations(body_flexible, ctx)
     expect("(H1)" not in out_flexible and "【h2】" not in out_flexible and "【H2】" not in out_flexible, "TC-H-06: (H1) 与 【h2】 被删除", out_flexible)
-    expect("(#memory-2)" in out_flexible, "TC-H-06: Token 字面仍可挂上第二条", out_flexible)
-    expect(out_flexible.count("(#memory-") == 1, "TC-H-06: 没有 Token 以外的代号链接", out_flexible)
+    expect("(#source-1)" in out_flexible, "TC-H-06: Token 字面仍可挂上（按出现顺序分配 source-1）", out_flexible)
+    expect(out_flexible.count("(#source-") == 1, "TC-H-06: 没有 Token 以外的代号链接", out_flexible)
 
     # 7. HTML 渲染：字面挂载后仍是双栏 review HTML
     html = memory_review_html(out, title="网关会议纪要")
@@ -267,5 +265,5 @@ def test_h_tag_mechanism_and_dynamic_gating() -> None:
     )
     out_hybrid = apply_memory_citations(body_hybrid, ctx)
     expect("[H1]" not in out_hybrid, "TC-H-08: 正文代号被删除", out_hybrid)
-    expect("(#memory-1)" in out_hybrid, "TC-H-08: 网关鉴权接口按字面挂上", out_hybrid)
-    expect("(#memory-2)" not in out_hybrid, "TC-H-08: 未讨论的 Token 条目不硬挂", out_hybrid)
+    expect("(#source-1)" in out_hybrid, "TC-H-08: 网关鉴权接口按字面挂上", out_hybrid)
+    expect("(#source-2)" not in out_hybrid, "TC-H-08: 未讨论的 Token 条目不硬挂", out_hybrid)

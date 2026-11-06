@@ -14,14 +14,18 @@ from ..prompts import localize_agenda_headings_for_en
 def compact_untemplated_minutes(text: str) -> str:
     """普通纪要 / 溯源纪要：段与段只保留一个换行，去掉空行。
 
-    文末「历史记忆引用」附录单独保留；正文和附录之间的 ``---`` 全部去掉，
+    文末「记忆溯源」附录单独保留；正文和附录之间的 ``---`` 全部去掉，
     避免压缩时重复插入分隔线。
     """
     body = (text or "").replace("\r\n", "\n").replace("\r", "\n")
-    marker = "## 历史记忆引用"
-    en_marker = "## Historical Memory References"
     appendix = ""
-    for m in (marker, en_marker):
+    for m in (
+        "## 记忆溯源",
+        "## 历史记忆溯源",
+        "## 历史记忆引用",
+        "## Historical Memory Traceability",
+        "## Historical Memory References",
+    ):
         if m in body:
             body, appendix = body.split(m, 1)
             appendix = m + appendix
@@ -263,7 +267,7 @@ def render_fallback_minutes(
 
     history = _format_history_lines(_field_list(draft, "history_comparison"))
     if history:
-        history_heading = "## Historical Comparison" if is_en else "## 与历史对比"
+        history_heading = "## Historical State Evolution" if is_en else "## 状态演进"
         blocks.append(f"{history_heading}\n\n" + "\n".join(history))
 
     if not blocks:

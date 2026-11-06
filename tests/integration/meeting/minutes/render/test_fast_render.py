@@ -197,9 +197,10 @@ def test_produce_line_minutes_no_template_fallback_zero_llm() -> None:
             assert line_res["fill_mode"] == "draft"
             rendered_text = line_res["rendered"]
             assert "# 测试周会" in rendered_text
-            # 真实 apply_citations 成功挂载历史对照
-            assert "## 历史对照" in rendered_text
-            assert "- 延续事项（自第1场）：保持原有排期" in rendered_text
+            # 真实 apply_citations 成功挂载状态演进
+            assert "## 状态演进" in rendered_text
+            assert "保持原有排期" in rendered_text
+            assert "**延续事项**：" in rendered_text
 
         finally:
             dh.hooks_for = orig_hooks_for
@@ -378,9 +379,9 @@ def test_produce_line_template_with_real_meeting_hooks(caplog) -> None:
         line_st = state["lines"]["minutes"]
         rendered_text = line_st["rendered"]
         assert "### 模板纪要正文" in rendered_text
-        # 真实 meeting hooks 会生成 ## 历史对照
-        assert "## 历史对照" in rendered_text
-        assert "- 架构决策（自第1场）：统一采用Token网关鉴权" in rendered_text
+        # 真实 meeting hooks 会生成 ## 状态演进
+        assert "## 状态演进" in rendered_text
+        assert "架构决策（自第1场）：统一采用Token网关鉴权" in rendered_text
 
         citation_warnings = [
             rec.message for rec in caplog.records
