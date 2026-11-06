@@ -1,4 +1,12 @@
-"""Visual Minutes 商业级设计系统与通用样式（水彩画风 Watercolor Style 规范）。"""
+"""Visual Minutes 商业级设计系统与通用样式（企业简洁风 Corporate Clean Style 规范）。
+
+遵循现代企业级 UI 标准 (Corporate Clean)：
+- 纯白卡片：bg-white rounded-xl shadow-sm border border-gray-200
+- 悬停浮起：hover:-translate-y-0.5 hover:shadow-md
+- 触觉确认：active:scale-[0.98]
+- 专业蓝色系：blue-600 (#2563EB), blue-700 (#1D4ED8), blue-50 (#EFF6FF), blue-500 (#3B82F6)
+- 严禁鲜艳杂乱渐变，严禁 rounded-none，动效时长 <= 200ms。
+"""
 from __future__ import annotations
 
 import html
@@ -13,98 +21,103 @@ SVG_ICON_STATS = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" strok
 SVG_ICON_TIMELINE = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>'
 SVG_ICON_LOOP = '<svg class="vm-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>'
 
-# 水彩画风 5 轮转半透明水彩色阶体系（蓝灰色、蜜桃色、青绿色、玫瑰色、沙色）
+# Corporate Clean 5 轮转语义色彩体系 (Blue, Indigo, Emerald, Amber, Sky)
 NEU_5_COLORS = [
-    ("var(--vm-wc-blue)", "var(--vm-wc-blue-bg)", "var(--vm-wc-blue-border)"),
-    ("var(--vm-wc-peach-text)", "var(--vm-wc-peach-bg)", "var(--vm-wc-peach-border)"),
-    ("var(--vm-wc-teal-text)", "var(--vm-wc-teal-bg)", "var(--vm-wc-teal-border)"),
-    ("var(--vm-wc-rose-text)", "var(--vm-wc-rose-bg)", "var(--vm-wc-rose-border)"),
-    ("var(--vm-wc-sand-text)", "var(--vm-wc-sand-bg)", "var(--vm-wc-sand-border)"),
+    ("var(--vm-cc-blue)", "var(--vm-cc-blue-bg)", "var(--vm-cc-blue-border)"),
+    ("var(--vm-cc-indigo)", "var(--vm-cc-indigo-bg)", "var(--vm-cc-indigo-border)"),
+    ("var(--vm-cc-emerald)", "var(--vm-cc-emerald-bg)", "var(--vm-cc-emerald-border)"),
+    ("var(--vm-cc-amber)", "var(--vm-cc-amber-bg)", "var(--vm-cc-amber-border)"),
+    ("var(--vm-cc-sky)", "var(--vm-cc-sky-bg)", "var(--vm-cc-sky-border)"),
 ]
 
 TASTE_CSS = """
 :root {
   /* ─────────────────────────────────────────────────────────────
-     水彩画风 UI 规范 (Watercolor Style Design System Tokens)
-     温暖纸张色底、柔和半透明水彩晕染渗透、大圆角与柔和漫射阴影
+     Corporate Clean (企业简洁风) Design System Tokens
+     专业、可信、高效，严格遵守 WCAG AA 标准
      ───────────────────────────────────────────────────────────── */
 
-  /* 外部主文档纯白画布文字墨水规范 (Light Canvas Tokens) */
-  --vm-ink-title: #1F2329;
-  --vm-ink-body: #4E5969;
-  --vm-ink-muted: #86909C;
-  --vm-ink-subtle: #C9CDD4;
-  --vm-ink-faint: #E5E6EB;
+  /* 品牌与主操作色（Blue 蓝色系） */
+  --vm-cc-blue: #2563EB;          /* blue-600 主品牌色 */
+  --vm-cc-blue-hover: #1D4ED8;    /* blue-700 悬停深蓝 */
+  --vm-cc-blue-ring: #3B82F6;     /* blue-500 焦点环 */
+  --vm-cc-blue-bg: #EFF6FF;       /* blue-50 浅蓝背景 */
+  --vm-cc-blue-border: #BFDBFE;   /* blue-200 边框 */
 
-  /* 外部主文档底色阶与边框规范 */
-  --vm-tone-canvas: #FFFFFF;
-  --vm-tone-card: #FFFFFF;
-  --vm-tone-stone: #F2F3F5;
-  --vm-tone-stone-light: #F7F8FA;
-  --vm-border: #E5E6EB;
+  /* 辅助调色板（语义色彩体系） */
+  --vm-cc-indigo: #4F46E5;        /* indigo-600 架构/系统 */
+  --vm-cc-indigo-bg: #EEF2FF;     /* indigo-50 */
+  --vm-cc-indigo-border: #C7D2FE; /* indigo-200 */
 
-  /* ─────────────────────────────────────────────────────────────
-     水彩画风专属色彩系统 (Watercolor Palette)
-     ───────────────────────────────────────────────────────────── */
-  /* 主色调：蓝灰色与纸张色 */
-  --vm-wc-blue: #4a6fa5;
-  --vm-wc-blue-bg: rgba(74, 111, 165, 0.12);
-  --vm-wc-blue-border: rgba(74, 111, 165, 0.28);
+  --vm-cc-emerald: #059669;       /* emerald-600 达成/健康 */
+  --vm-cc-emerald-bg: #ECFDF5;    /* emerald-50 */
+  --vm-cc-emerald-border: #A7F3D0;/* emerald-200 */
 
-  --vm-wc-paper: #faf8f5;
-  --vm-wc-paper-subtle: #f0ebe3;
-  --vm-wc-paper-card: rgba(255, 255, 255, 0.78);
-  --vm-wc-paper-card-hover: rgba(255, 255, 255, 0.94);
+  --vm-cc-amber: #D97706;         /* amber-600 关注/进行中 */
+  --vm-cc-amber-bg: #FFFBEB;      /* amber-50 */
+  --vm-cc-amber-border: #FDE68A;  /* amber-200 */
 
-  /* 水彩色系（半透明扩散） */
-  --vm-wc-peach: #e8a87c;
-  --vm-wc-peach-text: #b36840;
-  --vm-wc-peach-bg: rgba(232, 168, 124, 0.15);
-  --vm-wc-peach-border: rgba(232, 168, 124, 0.35);
+  --vm-cc-sky: #0284C7;           /* sky-600 流程/集成 */
+  --vm-cc-sky-bg: #F0F9FF;        /* sky-50 */
+  --vm-cc-sky-border: #BAE6FD;    /* sky-200 */
 
-  --vm-wc-teal: #85cdca;
-  --vm-wc-teal-text: #37827f;
-  --vm-wc-teal-bg: rgba(133, 205, 202, 0.16);
-  --vm-wc-teal-border: rgba(133, 205, 202, 0.35);
+  /* 中性灰色系 (Slate / Gray Tokens) */
+  --vm-cc-canvas: #F8FAFC;        /* slate-50 容器底色 */
+  --vm-cc-card-bg: #FFFFFF;       /* white 卡片纯白基底 */
+  --vm-cc-subtle-bg: #F1F5F9;     /* slate-100 内嵌小盒 */
+  --vm-cc-border: #E2E8F0;        /* slate-200 / gray-200 边框 */
+  --vm-cc-border-hover: #CBD5E1;  /* slate-300 悬停边框 */
 
-  --vm-wc-rose: #c38d94;
-  --vm-wc-rose-text: #96535d;
-  --vm-wc-rose-bg: rgba(195, 141, 148, 0.15);
-  --vm-wc-rose-border: rgba(195, 141, 148, 0.35);
+  /* 文字颜色角色 (WCAG AA 合规) */
+  --vm-cc-text-title: #0F172A;    /* slate-900 / gray-900 标题墨色 */
+  --vm-cc-text-body: #334155;     /* slate-700 正文清晰可读 */
+  --vm-cc-text-muted: #64748B;    /* slate-500 次要辅助信息 */
+  --vm-cc-text-subtle: #94A3B8;   /* slate-400 弱化占位 */
 
-  --vm-wc-sand: #d4a373;
-  --vm-wc-sand-text: #9a6430;
-  --vm-wc-sand-bg: rgba(212, 163, 115, 0.15);
-  --vm-wc-sand-border: rgba(212, 163, 115, 0.35);
+  /* 阴影与微动效规范 (利落干脆，严禁 shadow-2xl 与 >200ms 慢动效) */
+  --vm-cc-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);                                   /* shadow-sm 静止状态 */
+  --vm-cc-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); /* shadow-md 悬浮状态 */
+  --vm-cc-ring-focus: 0 0 0 2px #FFFFFF, 0 0 0 4px #3B82F6;                             /* focus:ring-2 focus:ring-offset-2 */
 
-  /* 水彩文字角色 (WCAG AA 合规) */
-  --vm-wc-text-main: #3a3a3a;
-  --vm-wc-text-sub: #4a6fa5;
-  --vm-wc-text-muted: #8a8a8a;
-  --vm-wc-text-subtle: #a8a8a8;
+  --vm-cc-duration: 180ms;
+  --vm-cc-easing: cubic-bezier(0, 0, 0.2, 1); /* ease-out */
 
-  /* 水彩柔和边框与阴影规范 (Token 映射) */
-  --vm-wc-border: rgba(74, 111, 165, 0.18);
-  --vm-wc-border-hover: rgba(74, 111, 165, 0.35);
+  /* 圆角规范 (企业级 rounded-lg / rounded-xl，绝对禁止 rounded-none) */
+  --vm-radius-sm: 6px;
+  --vm-radius-md: 8px;     /* rounded-lg */
+  --vm-radius-lg: 12px;    /* rounded-xl */
+  --vm-radius-xl: 16px;    /* rounded-2xl 外容器 */
 
-  /* 柔和漫射阴影与晕染扩散 (Pigment Bloom Shadows) */
-  --vm-wc-shadow-sm: 0 2px 10px rgba(74, 111, 165, 0.08);
-  --vm-wc-shadow-md: 0 4px 20px rgba(74, 111, 165, 0.10);
-  --vm-wc-shadow-lg: 0 8px 30px rgba(74, 111, 165, 0.12);
-  --vm-wc-shadow-bloom: 0 10px 36px rgba(74, 111, 165, 0.22);
-
-  /* 基础尺寸与缓动规范 (液态慢速缓动) */
-  --vm-radius-md: 14px;
-  --vm-radius: 16px;
-  --vm-radius-lg: 20px;
-  --vm-radius-xl: 26px;
-  --vm-wc-duration: 0.4s;
-  --vm-wc-easing: ease-out;
-
-  /* 字体规范：标题艺术衬线，正文轻盈无衬线 */
-  --vm-font-serif: "Georgia", "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
+  /* 企业字体：利落清晰无衬线，数据等宽 */
   --vm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --vm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* 向下兼容旧别名映射 */
+  --vm-wc-blue: var(--vm-cc-blue);
+  --vm-wc-blue-bg: var(--vm-cc-blue-bg);
+  --vm-wc-blue-border: var(--vm-cc-blue-border);
+  --vm-wc-peach-text: var(--vm-cc-amber);
+  --vm-wc-peach-bg: var(--vm-cc-amber-bg);
+  --vm-wc-peach-border: var(--vm-cc-amber-border);
+  --vm-wc-teal-text: var(--vm-cc-emerald);
+  --vm-wc-teal-bg: var(--vm-cc-emerald-bg);
+  --vm-wc-teal-border: var(--vm-cc-emerald-border);
+  --vm-wc-rose-text: var(--vm-cc-indigo);
+  --vm-wc-rose-bg: var(--vm-cc-indigo-bg);
+  --vm-wc-rose-border: var(--vm-cc-indigo-border);
+  --vm-wc-sand-text: var(--vm-cc-sky);
+  --vm-wc-sand-bg: var(--vm-cc-sky-bg);
+  --vm-wc-sand-border: var(--vm-cc-sky-border);
+  --vm-wc-text-main: var(--vm-cc-text-title);
+  --vm-wc-text-muted: var(--vm-cc-text-muted);
+  --vm-wc-border: var(--vm-cc-border);
+  --vm-wc-border-hover: var(--vm-cc-border-hover);
+  --vm-wc-shadow-sm: var(--vm-cc-shadow-sm);
+  --vm-wc-shadow-md: var(--vm-cc-shadow-md);
+  --vm-wc-shadow-bloom: var(--vm-cc-shadow-md);
+  --vm-wc-duration: var(--vm-cc-duration);
+  --vm-wc-easing: var(--vm-cc-easing);
+  --vm-font-serif: var(--vm-font-sans);
 }
 
 .vm-svg-icon {
@@ -117,49 +130,26 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   水彩画风微画板容器 (Watercolor Canvas Stage)
-   嵌入纯白文档中，作为温暖水彩渗透纸面画板
+   企业简洁风卡片外容器 (Corporate Clean Stage)
+   以淡石板灰 (bg-slate-50) 作为微画板，高对比度突出内部纯白卡片
    ───────────────────────────────────────────────────────────── */
 .vm-visual {
-  /* 局部作用域重定义：水彩画板的文字与边框 */
-  --vm-ink-title: var(--vm-wc-text-main);
-  --vm-ink-body: var(--vm-wc-text-main);
-  --vm-ink-muted: var(--vm-wc-text-muted);
-  --vm-ink-subtle: var(--vm-wc-text-subtle);
-  --vm-border: var(--vm-wc-border);
-
-  /* 温暖水彩纸张底色 + 多个柔和水彩晕染径向渐变渗透 */
   position: relative;
-  overflow: hidden;
-  background-color: var(--vm-wc-paper);
-  background-image:
-    radial-gradient(circle 500px at 88% 12%, rgba(232, 168, 124, 0.20) 0%, transparent 65%),
-    radial-gradient(circle 550px at 12% 88%, rgba(133, 205, 202, 0.20) 0%, transparent 65%),
-    radial-gradient(circle 420px at 45% 35%, rgba(195, 141, 148, 0.14) 0%, transparent 60%),
-    radial-gradient(circle 380px at 78% 78%, rgba(212, 163, 115, 0.16) 0%, transparent 60%);
-  border: 1px solid var(--vm-wc-border);
+  background-color: var(--vm-cc-canvas);
+  background-image: none !important;
+  border: 1px solid var(--vm-cc-border);
   border-radius: var(--vm-radius-xl);
-  padding: 24px 26px 22px 26px;
-  box-shadow: 0 8px 30px rgba(74, 111, 165, 0.09), 0 2px 8px rgba(74, 111, 165, 0.04);
+  padding: 24px;
+  box-shadow: var(--vm-cc-shadow-sm);
   font-family: var(--vm-font-sans);
-  color: var(--vm-wc-text-main);
+  color: var(--vm-cc-text-body);
   margin: 32px 0;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* 细腻水彩纸张纤维微质感纹理 */
 .vm-visual::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.02;
-  pointer-events: none;
-  z-index: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  display: none !important; /* 严格禁止噪点与纸张纤维纹理 */
 }
 
 .vm-visual > * {
@@ -174,46 +164,46 @@ TASTE_CSS = """
 .vm-visual-title {
   display: flex;
   align-items: center;
-  font-family: var(--vm-font-serif);
-  font-size: 16px;
+  font-family: var(--vm-font-sans);
+  font-size: 15px;
   font-weight: 600;
-  color: var(--vm-wc-blue);
+  color: var(--vm-cc-text-title);
   margin: 0 0 14px 0;
   line-height: 1.4;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
 }
 
-/* 水彩画风图注规范 (Figure Caption) */
+/* 企业图注规范 (Figure Caption) */
 .vm-figure-caption {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   margin-top: 16px;
-  font-size: 12.5px;
-  color: var(--vm-wc-text-muted);
-  letter-spacing: 0.02em;
+  font-size: 12px;
+  color: var(--vm-cc-text-muted);
+  font-family: var(--vm-font-sans);
   user-select: none;
 }
 
 .vm-caption-prefix {
-  font-family: var(--vm-font-serif);
+  font-family: var(--vm-font-sans);
   font-weight: 600;
-  color: var(--vm-wc-blue);
-  font-size: 11.5px;
+  color: var(--vm-cc-blue);
+  font-size: 11px;
 }
 
 .vm-caption-divider {
-  color: var(--vm-wc-sand);
+  color: var(--vm-cc-border);
 }
 
 .vm-caption-title {
   font-weight: 500;
-  color: var(--vm-wc-text-muted);
+  color: var(--vm-cc-text-muted);
 }
 
 /* ─────────────────────────────────────────────────────────────
-   1. 【开篇统领】Master Infographic (全景通览大图 - 水彩画风版)
+   1. 【开篇统领】Master Infographic (全景通览大图 - 企业简洁风版)
    ───────────────────────────────────────────────────────────── */
 .vm-master-card {
   background: transparent;
@@ -228,33 +218,33 @@ TASTE_CSS = """
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
-  font-family: var(--vm-font-serif);
+  font-size: 12px;
+  font-family: var(--vm-font-sans);
   font-weight: 600;
-  color: var(--vm-wc-blue);
-  background: var(--vm-wc-blue-bg);
-  border: 1px solid var(--vm-wc-blue-border);
-  box-shadow: 0 2px 8px rgba(74, 111, 165, 0.08);
-  padding: 4px 14px;
-  border-radius: 100px;
+  color: var(--vm-cc-blue);
+  background: var(--vm-cc-blue-bg);
+  border: 1px solid var(--vm-cc-blue-border);
+  box-shadow: var(--vm-cc-shadow-sm);
+  padding: 4px 12px;
+  border-radius: var(--vm-radius-md); /* rounded-lg */
   margin-bottom: 12px;
-  letter-spacing: 0.03em;
+  letter-spacing: -0.01em;
 }
 
 .vm-master-headline {
-  font-family: var(--vm-font-serif);
-  font-size: 21px;
+  font-family: var(--vm-font-sans);
+  font-size: 18px;
   font-weight: 600;
-  color: var(--vm-wc-text-main);
-  letter-spacing: 0.02em;
-  line-height: 1.35;
-  margin: 0 0 14px 0;
+  color: var(--vm-cc-text-title);
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+  margin: 0 0 16px 0;
 }
 
 .vm-master-widgets-container {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
 }
 
 .vm-master-widget {
@@ -262,12 +252,12 @@ TASTE_CSS = """
 }
 
 .vm-widget-title {
-  font-family: var(--vm-font-serif);
-  font-size: 15px;
+  font-family: var(--vm-font-sans);
+  font-size: 14px;
   font-weight: 600;
-  color: var(--vm-wc-blue);
+  color: var(--vm-cc-text-title);
   margin-bottom: 12px;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
 }
 
 .vm-master-card .vm-visual {
@@ -282,13 +272,12 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
-  background: rgba(240, 235, 227, 0.45);
-  border: 1px solid var(--vm-wc-border);
-  box-shadow: inset 0 1px 3px rgba(74, 111, 165, 0.04);
-  border-radius: var(--vm-radius-xl);
-  padding: 18px 20px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px 2px 14px 2px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
+  scrollbar-color: var(--vm-cc-border) transparent;
 }
 
 .vm-master-block {
@@ -296,71 +285,70 @@ TASTE_CSS = """
   min-width: 220px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-wc-paper-card);
-  border-radius: var(--vm-radius-lg);
-  padding: 20px 22px 18px 22px;
-  border: 1px solid var(--vm-wc-border);
-  box-shadow: var(--vm-wc-shadow-md);
-  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
-              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
-              border-color var(--vm-wc-duration) var(--vm-wc-easing),
-              background var(--vm-wc-duration) var(--vm-wc-easing);
+  background: var(--vm-cc-card-bg); /* bg-white */
+  border-radius: var(--vm-radius-lg); /* rounded-xl (12px) */
+  padding: 20px 20px 18px 20px;       /* p-5 */
+  border: 1px solid var(--vm-cc-border); /* border border-gray-200 */
+  box-shadow: var(--vm-cc-shadow-sm);   /* shadow-sm */
+  transition: transform var(--vm-cc-duration) var(--vm-cc-easing),
+              box-shadow var(--vm-cc-duration) var(--vm-cc-easing),
+              border-color var(--vm-cc-duration) var(--vm-cc-easing);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
 }
 
+/* 顶部企业级精致 3px 纯色标识线 */
 .vm-master-block::before {
   content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: var(--block-accent, var(--vm-wc-blue));
-  opacity: 0.65;
+  height: 3px;
+  background: var(--block-accent, var(--vm-cc-blue));
 }
 
 .vm-master-block:hover {
-  transform: scale(1.015);
-  background: var(--vm-wc-paper-card-hover);
-  border-color: var(--vm-wc-border-hover);
-  box-shadow: var(--vm-wc-shadow-bloom);
+  transform: translateY(-2px); /* hover:-translate-y-0.5 */
+  border-color: var(--vm-cc-border-hover);
+  box-shadow: var(--vm-cc-shadow-md); /* hover:shadow-md */
 }
 
 .vm-master-block:active {
-  transform: scale(0.98);
+  transform: scale(0.98) translateY(0); /* active:scale-[0.98] */
+  box-shadow: var(--vm-cc-shadow-sm);
 }
 
-/* 水彩主题分色体系 */
+/* 主题分色体系 (Corporate Clean 语义色) */
 .vm-theme-blue {
-  --block-accent: var(--vm-wc-blue);
-  --block-accent-bg: var(--vm-wc-blue-bg);
-  --block-accent-border: var(--vm-wc-blue-border);
+  --block-accent: var(--vm-cc-blue);
+  --block-accent-bg: var(--vm-cc-blue-bg);
+  --block-accent-border: var(--vm-cc-blue-border);
 }
 
 .vm-theme-cyan {
-  --block-accent: var(--vm-wc-teal-text);
-  --block-accent-bg: var(--vm-wc-teal-bg);
-  --block-accent-border: var(--vm-wc-teal-border);
+  --block-accent: var(--vm-cc-sky);
+  --block-accent-bg: var(--vm-cc-sky-bg);
+  --block-accent-border: var(--vm-cc-sky-border);
 }
 
 .vm-theme-purple {
-  --block-accent: var(--vm-wc-rose-text);
-  --block-accent-bg: var(--vm-wc-rose-bg);
-  --block-accent-border: var(--vm-wc-rose-border);
+  --block-accent: var(--vm-cc-indigo);
+  --block-accent-bg: var(--vm-cc-indigo-bg);
+  --block-accent-border: var(--vm-cc-indigo-border);
 }
 
 .vm-theme-emerald {
-  --block-accent: var(--vm-wc-peach-text);
-  --block-accent-bg: var(--vm-wc-peach-bg);
-  --block-accent-border: var(--vm-wc-peach-border);
+  --block-accent: var(--vm-cc-emerald);
+  --block-accent-bg: var(--vm-cc-emerald-bg);
+  --block-accent-border: var(--vm-cc-emerald-border);
 }
 
 .vm-theme-amber {
-  --block-accent: var(--vm-wc-sand-text);
-  --block-accent-bg: var(--vm-wc-sand-bg);
-  --block-accent-border: var(--vm-wc-sand-border);
+  --block-accent: var(--vm-cc-amber);
+  --block-accent-bg: var(--vm-cc-amber-bg);
+  --block-accent-border: var(--vm-cc-amber-border);
 }
 
 .vm-block-header {
@@ -377,22 +365,22 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: var(--block-accent, var(--vm-wc-blue));
-  box-shadow: 0 0 6px var(--block-accent, var(--vm-wc-blue));
+  background-color: var(--block-accent, var(--vm-cc-blue));
   flex-shrink: 0;
 }
 
 .vm-master-block-title {
-  font-family: var(--vm-font-serif);
-  font-size: 15px;
+  font-family: var(--vm-font-sans);
+  font-size: 14.5px;
   font-weight: 600;
-  color: var(--vm-wc-text-main);
+  color: var(--vm-cc-text-title);
   line-height: 1.4;
+  letter-spacing: -0.01em;
 }
 
 .vm-master-block-summary {
   font-size: 12.5px;
-  color: #5a5a5a;
+  color: var(--vm-cc-text-body);
   line-height: 1.6;
   margin-bottom: 12px;
 }
@@ -402,7 +390,7 @@ TASTE_CSS = """
   padding: 0;
   list-style: none;
   font-size: 12px;
-  color: #5a5a5a;
+  color: var(--vm-cc-text-body);
   line-height: 1.6;
   display: flex;
   flex-direction: column;
@@ -423,47 +411,46 @@ TASTE_CSS = """
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background-color: var(--block-accent, var(--vm-wc-blue));
-  opacity: 0.75;
+  background-color: var(--block-accent, var(--vm-cc-blue));
 }
 
-/* 嵌入式纸质底盒 (Damp Paper Inset Box) */
+/* 嵌入式企业信息底盒 */
 .vm-master-block-highlight {
   margin-top: auto;
-  background: rgba(240, 235, 227, 0.60);
-  border: 1px solid var(--vm-wc-border);
-  border-radius: 12px;
-  padding: 10px 14px;
+  background: var(--vm-cc-canvas); /* bg-slate-50 */
+  border: 1px solid var(--vm-cc-border);
+  border-radius: var(--vm-radius-md); /* rounded-lg (8px) */
+  padding: 9px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .vm-highlight-tag-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .vm-highlight-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background-color: var(--block-accent, var(--vm-wc-blue));
+  background-color: var(--block-accent, var(--vm-cc-blue));
 }
 
 .vm-highlight-tag {
   font-size: 11px;
   font-weight: 600;
-  color: var(--block-accent, var(--vm-wc-blue));
-  letter-spacing: 0.03em;
+  color: var(--block-accent, var(--vm-cc-blue));
+  letter-spacing: 0.01em;
 }
 
 .vm-highlight-value {
-  font-family: var(--vm-font-serif);
-  font-size: 14px;
+  font-family: var(--vm-font-sans);
+  font-size: 13.5px;
   font-weight: 600;
-  color: var(--vm-wc-text-main);
+  color: var(--vm-cc-text-title);
   line-height: 1.4;
   word-break: break-word;
 }
@@ -472,26 +459,26 @@ TASTE_CSS = """
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  border-top: 1px solid var(--vm-wc-border);
-  padding-top: 20px;
+  border-top: 1px solid var(--vm-cc-border);
+  padding-top: 18px;
 }
 
 .vm-master-metric {
   flex: 1 1 180px;
-  background: var(--vm-wc-paper-card);
-  border-radius: var(--vm-radius);
+  background: var(--vm-cc-card-bg);
+  border-radius: var(--vm-radius-md);
   padding: 12px 16px;
-  border: 1px solid var(--vm-wc-border);
-  box-shadow: var(--vm-wc-shadow-sm);
-  border-left: 3px solid var(--vm-wc-blue);
+  border: 1px solid var(--vm-cc-border);
+  box-shadow: var(--vm-cc-shadow-sm);
+  border-left: 3px solid var(--vm-cc-blue);
 }
 
 .vm-master-metric-value {
   display: block;
-  font-family: var(--vm-font-serif);
+  font-family: var(--vm-font-sans);
   font-size: 20px;
-  font-weight: 600;
-  color: var(--vm-wc-blue);
+  font-weight: 700;
+  color: var(--vm-cc-blue);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
@@ -499,23 +486,22 @@ TASTE_CSS = """
 .vm-master-metric-label {
   display: block;
   font-size: 12px;
-  color: var(--vm-wc-text-muted);
+  color: var(--vm-cc-text-muted);
   margin-top: 3px;
-  font-weight: 400;
+  font-weight: 500;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   2. 【链路闭环】Flow & Closed Loop 渲染 (水彩流转版)
+   2. 【流程推进】Flow Process Pipeline (企业简洁风版)
    ───────────────────────────────────────────────────────────── */
 .vm-flow-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: rgba(240, 235, 227, 0.45);
-  border: 1px solid var(--vm-wc-border);
-  box-shadow: inset 0 1px 3px rgba(74, 111, 165, 0.04);
-  border-radius: var(--vm-radius-xl);
-  padding: 18px 20px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px 2px;
 }
 
 .vm-flow-track {
@@ -526,9 +512,9 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 14px;
   align-items: stretch;
-  padding: 6px 4px 12px 4px;
+  padding: 4px 2px 14px 2px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
+  scrollbar-color: var(--vm-cc-border) transparent;
 }
 
 .vm-flow-step-card {
@@ -536,15 +522,14 @@ TASTE_CSS = """
   min-width: 200px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-wc-paper-card);
-  border-radius: var(--vm-radius-lg);
-  padding: 18px 20px 16px 20px;
-  border: 1px solid var(--vm-wc-border);
-  box-shadow: var(--vm-wc-shadow-md);
-  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
-              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
-              border-color var(--vm-wc-duration) var(--vm-wc-easing),
-              background var(--vm-wc-duration) var(--vm-wc-easing);
+  background: var(--vm-cc-card-bg); /* bg-white */
+  border-radius: var(--vm-radius-lg); /* rounded-xl (12px) */
+  padding: 18px 18px 16px 18px;
+  border: 1px solid var(--vm-cc-border); /* border border-gray-200 */
+  box-shadow: var(--vm-cc-shadow-sm);   /* shadow-sm */
+  transition: transform var(--vm-cc-duration) var(--vm-cc-easing),
+              box-shadow var(--vm-cc-duration) var(--vm-cc-easing),
+              border-color var(--vm-cc-duration) var(--vm-cc-easing);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
@@ -556,20 +541,19 @@ TASTE_CSS = """
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: var(--step-accent, var(--vm-wc-blue));
-  opacity: 0.65;
+  height: 3px;
+  background: var(--step-accent, var(--vm-cc-blue));
 }
 
 .vm-flow-step-card:hover {
-  transform: scale(1.015);
-  background: var(--vm-wc-paper-card-hover);
-  border-color: var(--vm-wc-border-hover);
-  box-shadow: var(--vm-wc-shadow-bloom);
+  transform: translateY(-2px); /* hover:-translate-y-0.5 */
+  border-color: var(--vm-cc-border-hover);
+  box-shadow: var(--vm-cc-shadow-md); /* hover:shadow-md */
 }
 
 .vm-flow-step-card:active {
-  transform: scale(0.98);
+  transform: scale(0.98) translateY(0); /* active:scale-[0.98] */
+  box-shadow: var(--vm-cc-shadow-sm);
 }
 
 .vm-step-card-header {
@@ -589,17 +573,17 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--step-accent, var(--vm-wc-blue));
-  box-shadow: 0 0 6px var(--step-accent, var(--vm-wc-blue));
+  background: var(--step-accent, var(--vm-cc-blue));
   flex-shrink: 0;
 }
 
 .vm-flow-node-title {
-  font-family: var(--vm-font-serif);
+  font-family: var(--vm-font-sans);
   font-size: 14.5px;
   font-weight: 600;
-  color: var(--vm-wc-text-main);
+  color: var(--vm-cc-text-title);
   line-height: 1.4;
+  letter-spacing: -0.01em;
 }
 
 .vm-flow-connector {
@@ -608,14 +592,14 @@ TASTE_CSS = """
   justify-content: center;
   flex-shrink: 0;
   width: 20px;
-  color: rgba(74, 111, 165, 0.40);
+  color: var(--vm-cc-text-subtle);
   user-select: none;
-  transition: color 0.3s ease;
+  transition: color var(--vm-cc-duration) var(--vm-cc-easing);
 }
 
 .vm-connector-arrow {
-  opacity: 0.8;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  opacity: 0.7;
+  transition: opacity var(--vm-cc-duration) ease, transform var(--vm-cc-duration) ease;
 }
 
 .vm-flow-track:hover .vm-connector-arrow {
@@ -623,75 +607,81 @@ TASTE_CSS = """
 }
 
 .vm-flow-track:hover .vm-flow-connector {
-  color: var(--vm-wc-blue);
+  color: var(--vm-cc-blue);
 }
 
 .vm-flow-node-detail {
   font-size: 12.5px;
-  color: #5a5a5a;
+  color: var(--vm-cc-text-body);
   line-height: 1.6;
   flex: 1;
 }
 
 .vm-flow-delivery {
   margin-top: 12px;
-  padding: 7px 12px;
-  background: rgba(240, 235, 227, 0.60);
-  border: 1px solid var(--vm-wc-border);
-  border-radius: 10px;
+  padding: 6px 10px;
+  background: var(--vm-cc-blue-bg);
+  border: 1px solid var(--vm-cc-blue-border);
+  border-radius: var(--vm-radius-md); /* rounded-lg */
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 11.5px;
-  color: #5a5a5a;
+  color: var(--vm-cc-blue);
 }
 
 .vm-delivery-arrow {
-  color: var(--step-accent, var(--vm-wc-blue));
+  color: var(--vm-cc-blue);
   flex-shrink: 0;
 }
 
 .vm-delivery-text {
   font-weight: 600;
-  color: var(--vm-wc-text-main);
+  color: var(--vm-cc-blue);
   line-height: 1.35;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   3. 【对比矩阵】Table / Matrix 对比表 (水彩画风版)
+   3. 【对比矩阵】Table / Comparison Matrix (企业简洁风版)
    ───────────────────────────────────────────────────────────── */
 .vm-table-wrap {
   overflow-x: auto;
-  background: rgba(240, 235, 227, 0.40);
-  border: 1px solid var(--vm-wc-border);
-  border-radius: var(--vm-radius-xl);
-  padding: 16px 20px;
+  background: var(--vm-cc-card-bg); /* bg-white */
+  border: 1px solid var(--vm-cc-border); /* border border-gray-200 */
+  border-radius: var(--vm-radius-lg);   /* rounded-xl */
+  box-shadow: var(--vm-cc-shadow-sm);   /* shadow-sm */
+  padding: 0;
   scrollbar-width: thin;
-  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
+  scrollbar-color: var(--vm-cc-border) transparent;
 }
 
 .vm-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 8px;
+  border-collapse: collapse;
   font-size: 13px;
   min-width: 580px;
 }
 
+.vm-table thead {
+  background: var(--vm-cc-canvas); /* bg-slate-50 / bg-gray-50 */
+  border-bottom: 1px solid var(--vm-cc-border);
+}
+
 .vm-table th {
-  padding: 10px 16px 8px 16px;
+  padding: 12px 18px;
   text-align: left;
-  font-family: var(--vm-font-serif);
+  font-family: var(--vm-font-sans);
   font-weight: 600;
-  color: var(--vm-wc-blue);
-  font-size: 13.5px;
+  color: var(--vm-cc-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   border: none;
 }
 
 .vm-th-dim {
-  width: 17%;
+  width: 18%;
   min-width: 100px;
-  color: var(--vm-wc-text-muted);
 }
 
 .vm-th-col {
@@ -705,95 +695,78 @@ TASTE_CSS = """
 }
 
 .vm-th-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .vm-table-row {
-  filter: drop-shadow(0 2px 6px rgba(74, 111, 165, 0.06));
-  transition: filter var(--vm-wc-duration) var(--vm-wc-easing);
+  border-bottom: 1px solid var(--vm-cc-border);
+  transition: background-color 150ms var(--vm-cc-easing);
 }
 
+.vm-table-row:last-child {
+  border-bottom: none;
+}
+
+/* 企业简洁风标准表格行悬停高亮：hover:bg-gray-50 */
 .vm-table-row:hover {
-  filter: drop-shadow(0 6px 16px rgba(74, 111, 165, 0.14));
+  background-color: var(--vm-cc-canvas) !important;
 }
 
 .vm-table td {
   padding: 14px 18px;
   text-align: left;
   vertical-align: middle;
-  background: var(--vm-wc-paper-card);
-  border-top: 1px solid var(--vm-wc-border);
-  border-bottom: 1px solid var(--vm-wc-border);
-  color: var(--vm-wc-text-main);
+  background: transparent;
+  color: var(--vm-cc-text-body);
   line-height: 1.6;
-  transition: background var(--vm-wc-duration) var(--vm-wc-easing), border-color var(--vm-wc-duration) var(--vm-wc-easing);
-}
-
-.vm-table-row:hover td {
-  background: rgba(232, 168, 124, 0.12);
-  border-color: rgba(232, 168, 124, 0.35);
-}
-
-.vm-td-dim {
-  width: 17%;
-  min-width: 100px;
-  border-left: 1px solid var(--vm-wc-border);
-  border-top-left-radius: 14px;
-  border-bottom-left-radius: 14px;
+  border: none;
 }
 
 .vm-dim-badge {
   display: inline-block;
-  font-size: 11.5px;
-  font-family: var(--vm-font-serif);
+  font-size: 12px;
+  font-family: var(--vm-font-sans);
   font-weight: 600;
-  color: var(--vm-wc-blue);
-  background: var(--vm-wc-blue-bg);
-  border: 1px solid var(--vm-wc-blue-border);
-  padding: 4px 10px;
-  border-radius: 8px;
-  letter-spacing: 0.02em;
+  color: var(--vm-cc-text-title);
+  background: var(--vm-cc-subtle-bg);
+  border: 1px solid var(--vm-cc-border);
+  padding: 3px 8px;
+  border-radius: var(--vm-radius-sm);
 }
 
 .vm-td-val {
   font-size: 13px;
-}
-
-.vm-table tr td:last-child {
-  border-right: 1px solid var(--vm-wc-border);
-  border-top-right-radius: 14px;
-  border-bottom-right-radius: 14px;
+  color: var(--vm-cc-text-body);
 }
 
 /* ─────────────────────────────────────────────────────────────
-   4. 【分层架构】Tree / Layered Architecture (水彩分层版)
+   4. 【分层架构】Tree / Layered Architecture (企业简洁风版)
    ───────────────────────────────────────────────────────────── */
 .vm-tree-container {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  background: rgba(240, 235, 227, 0.40);
-  border: 1px solid var(--vm-wc-border);
-  border-radius: var(--vm-radius-xl);
-  padding: 20px 22px;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px 2px;
 }
 
 .vm-tree-layer-card {
-  background: var(--vm-wc-paper-card);
-  border: 1px solid var(--vm-wc-border);
-  border-radius: var(--vm-radius-md);
-  padding: 15px 20px;
+  background: var(--vm-cc-card-bg); /* bg-white */
+  border: 1px solid var(--vm-cc-border); /* border border-gray-200 */
+  border-radius: var(--vm-radius-lg);   /* rounded-xl (12px) */
+  padding: 14px 18px;
   display: flex;
   align-items: center;
-  gap: 18px;
-  box-shadow: var(--vm-wc-shadow-sm);
-  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
-              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
-              border-color var(--vm-wc-duration) var(--vm-wc-easing),
-              background var(--vm-wc-duration) var(--vm-wc-easing);
+  gap: 16px;
+  box-shadow: var(--vm-cc-shadow-sm);   /* shadow-sm */
+  transition: transform var(--vm-cc-duration) var(--vm-cc-easing),
+              box-shadow var(--vm-cc-duration) var(--vm-cc-easing),
+              border-color var(--vm-cc-duration) var(--vm-cc-easing);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
@@ -805,26 +778,25 @@ TASTE_CSS = """
   top: 0;
   left: 0;
   bottom: 0;
-  width: 4px;
-  background: var(--layer-accent, var(--vm-wc-blue));
-  opacity: 0.7;
+  width: 3px;
+  background: var(--layer-accent, var(--vm-cc-blue));
 }
 
 .vm-tree-layer-card:hover {
-  transform: scale(1.015);
-  background: var(--vm-wc-paper-card-hover);
-  border-color: var(--vm-wc-border-hover);
-  box-shadow: var(--vm-wc-shadow-bloom);
+  transform: translateY(-2px); /* hover:-translate-y-0.5 */
+  border-color: var(--vm-cc-border-hover);
+  box-shadow: var(--vm-cc-shadow-md); /* hover:shadow-md */
 }
 
 .vm-tree-layer-card:active {
-  transform: scale(0.98);
+  transform: scale(0.98) translateY(0);
+  box-shadow: var(--vm-cc-shadow-sm);
 }
 
 .vm-tree-layer-lead {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   flex-shrink: 0;
   min-width: 120px;
 }
@@ -833,36 +805,35 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--layer-accent, var(--vm-wc-blue));
-  box-shadow: 0 0 6px var(--layer-accent, var(--vm-wc-blue));
+  background: var(--layer-accent, var(--vm-cc-blue));
   flex-shrink: 0;
 }
 
 .vm-tree-layer-title {
-  font-family: var(--vm-font-serif);
-  font-size: 14.5px;
+  font-family: var(--vm-font-sans);
+  font-size: 14px;
   font-weight: 600;
-  color: var(--vm-wc-text-main);
+  color: var(--vm-cc-text-title);
   line-height: 1.4;
   letter-spacing: -0.01em;
 }
 
 .vm-tree-layer-divider {
   width: 1px;
-  height: 22px;
-  background: rgba(74, 111, 165, 0.20);
+  height: 20px;
+  background: var(--vm-cc-border);
   flex-shrink: 0;
 }
 
 .vm-tree-layer-detail {
   font-size: 13px;
-  color: #5a5a5a;
+  color: var(--vm-cc-text-body);
   line-height: 1.6;
   flex: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   5. 【量化成效】Stats 关键指标大卡 (水彩画风版)
+   5. 【量化成效】Stats 关键指标大卡 (企业简洁风版)
    ───────────────────────────────────────────────────────────── */
 .vm-stats-grid {
   display: flex;
@@ -872,13 +843,12 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
-  background: rgba(240, 235, 227, 0.45);
-  border: 1px solid var(--vm-wc-border);
-  box-shadow: inset 0 1px 3px rgba(74, 111, 165, 0.04);
-  border-radius: var(--vm-radius-xl);
-  padding: 18px 20px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px 2px 14px 2px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
+  scrollbar-color: var(--vm-cc-border) transparent;
 }
 
 .vm-stat-card {
@@ -886,15 +856,14 @@ TASTE_CSS = """
   min-width: 180px;
   display: flex;
   flex-direction: column;
-  background: var(--vm-wc-paper-card);
-  border: 1px solid var(--vm-wc-border);
-  border-radius: var(--vm-radius-lg);
+  background: var(--vm-cc-card-bg); /* bg-white */
+  border: 1px solid var(--vm-cc-border); /* border border-gray-200 */
+  border-radius: var(--vm-radius-lg);   /* rounded-xl (12px) */
   padding: 18px 20px;
-  box-shadow: var(--vm-wc-shadow-md);
-  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
-              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
-              border-color var(--vm-wc-duration) var(--vm-wc-easing),
-              background var(--vm-wc-duration) var(--vm-wc-easing);
+  box-shadow: var(--vm-cc-shadow-sm);   /* shadow-sm */
+  transition: transform var(--vm-cc-duration) var(--vm-cc-easing),
+              box-shadow var(--vm-cc-duration) var(--vm-cc-easing),
+              border-color var(--vm-cc-duration) var(--vm-cc-easing);
   box-sizing: border-box;
   position: relative;
   overflow: hidden;
@@ -906,20 +875,19 @@ TASTE_CSS = """
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: var(--stat-accent, var(--vm-wc-blue));
-  opacity: 0.65;
+  height: 3px;
+  background: var(--stat-accent, var(--vm-cc-blue));
 }
 
 .vm-stat-card:hover {
-  transform: scale(1.015);
-  background: var(--vm-wc-paper-card-hover);
-  border-color: var(--vm-wc-border-hover);
-  box-shadow: var(--vm-wc-shadow-bloom);
+  transform: translateY(-2px); /* hover:-translate-y-0.5 */
+  border-color: var(--vm-cc-border-hover);
+  box-shadow: var(--vm-cc-shadow-md); /* hover:shadow-md */
 }
 
 .vm-stat-card:active {
-  transform: scale(0.98);
+  transform: scale(0.98) translateY(0);
+  box-shadow: var(--vm-cc-shadow-sm);
 }
 
 .vm-stat-card-header {
@@ -933,37 +901,35 @@ TASTE_CSS = """
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--stat-accent, var(--vm-wc-blue));
-  box-shadow: 0 0 6px var(--stat-accent, var(--vm-wc-blue));
+  background: var(--stat-accent, var(--vm-cc-blue));
   flex-shrink: 0;
 }
 
 .vm-stat-value {
-  font-family: var(--vm-font-serif);
-  font-size: 19px;
-  font-weight: 600;
-  color: var(--stat-accent, var(--vm-wc-blue));
+  font-family: var(--vm-font-sans);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--stat-accent, var(--vm-cc-blue));
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-  line-height: 1.35;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
 .vm-stat-label {
   font-size: 12.5px;
-  color: var(--vm-wc-text-muted);
-  line-height: 1.55;
+  color: var(--vm-cc-text-muted);
+  line-height: 1.5;
   flex: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   6. 【时序图谱】Timeline 时间演进 (水彩画风版)
+   6. 【时序图谱】Timeline 时间演进 (企业简洁风版)
    ───────────────────────────────────────────────────────────── */
 .vm-timeline-canvas {
-  background: rgba(240, 235, 227, 0.45);
-  border: 1px solid var(--vm-wc-border);
-  box-shadow: inset 0 1px 3px rgba(74, 111, 165, 0.04);
-  border-radius: var(--vm-radius-xl);
-  padding: 24px 20px 20px 20px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 8px 2px 4px 2px;
 }
 
 .vm-timeline-track {
@@ -974,9 +940,9 @@ TASTE_CSS = """
   overflow-y: hidden;
   gap: 16px;
   align-items: stretch;
-  padding: 6px 12px 14px 12px;
+  padding: 4px 2px 14px 2px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(74, 111, 165, 0.2) transparent;
+  scrollbar-color: var(--vm-cc-border) transparent;
 }
 
 .vm-timeline-col {
@@ -989,21 +955,16 @@ TASTE_CSS = """
 }
 
 .vm-timeline-time-label {
-  font-family: var(--vm-font-serif);
-  font-size: 13.5px;
+  font-family: var(--vm-font-sans);
+  font-size: 12px;
   font-weight: 600;
-  color: var(--event-accent, var(--vm-wc-blue));
+  color: var(--event-accent, var(--vm-cc-blue));
   text-align: center;
   margin-bottom: 10px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   line-height: 1.4;
   user-select: none;
-  transition: transform 0.2s ease;
-}
-
-.vm-timeline-col:hover .vm-timeline-time-label {
-  transform: translateY(-1px);
 }
 
 .vm-timeline-node {
@@ -1012,7 +973,7 @@ TASTE_CSS = """
   align-items: center;
   justify-content: center;
   height: 20px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .vm-timeline-node::before {
@@ -1022,7 +983,7 @@ TASTE_CSS = """
   left: -8px;
   right: -8px;
   height: 2px;
-  background: rgba(74, 111, 165, 0.22);
+  background: var(--vm-cc-border);
   transform: translateY(-50%);
   z-index: 1;
 }
@@ -1037,33 +998,32 @@ TASTE_CSS = """
 .vm-timeline-dot {
   position: relative;
   z-index: 2;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #faf8f5;
-  border: 3px solid var(--event-accent, var(--vm-wc-blue));
-  box-shadow: 0 0 8px rgba(74, 111, 165, 0.20), 0 0 0 3px rgba(74, 111, 165, 0.10);
-  transition: transform var(--vm-wc-duration) var(--vm-wc-easing), box-shadow var(--vm-wc-duration) ease;
+  background: #FFFFFF;
+  border: 2px solid var(--event-accent, var(--vm-cc-blue));
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  transition: transform var(--vm-cc-duration) var(--vm-cc-easing), box-shadow var(--vm-cc-duration) ease;
 }
 
 .vm-timeline-col:hover .vm-timeline-dot {
-  transform: scale(1.25);
-  box-shadow: 0 0 12px rgba(74, 111, 165, 0.35), 0 0 0 4px rgba(74, 111, 165, 0.15);
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.20);
 }
 
 .vm-timeline-card {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--vm-wc-paper-card);
-  border-radius: var(--vm-radius-lg);
-  padding: 18px 20px 16px 20px;
-  border: 1px solid var(--vm-wc-border);
-  box-shadow: var(--vm-wc-shadow-md);
-  transition: transform var(--vm-wc-duration) var(--vm-wc-easing),
-              box-shadow var(--vm-wc-duration) var(--vm-wc-easing),
-              border-color var(--vm-wc-duration) var(--vm-wc-easing),
-              background var(--vm-wc-duration) var(--vm-wc-easing);
+  background: var(--vm-cc-card-bg); /* bg-white */
+  border-radius: var(--vm-radius-lg); /* rounded-xl (12px) */
+  padding: 16px 18px;
+  border: 1px solid var(--vm-cc-border); /* border border-gray-200 */
+  box-shadow: var(--vm-cc-shadow-sm);   /* shadow-sm */
+  transition: transform var(--vm-cc-duration) var(--vm-cc-easing),
+              box-shadow var(--vm-cc-duration) var(--vm-cc-easing),
+              border-color var(--vm-cc-duration) var(--vm-cc-easing);
   box-sizing: border-box;
   text-align: left;
   position: relative;
@@ -1076,34 +1036,34 @@ TASTE_CSS = """
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: var(--event-accent, var(--vm-wc-blue));
-  opacity: 0.65;
+  height: 3px;
+  background: var(--event-accent, var(--vm-cc-blue));
 }
 
 .vm-timeline-col:hover .vm-timeline-card {
-  transform: scale(1.015);
-  background: var(--vm-wc-paper-card-hover);
-  border-color: var(--vm-wc-border-hover);
-  box-shadow: var(--vm-wc-shadow-bloom);
+  transform: translateY(-2px); /* hover:-translate-y-0.5 */
+  border-color: var(--vm-cc-border-hover);
+  box-shadow: var(--vm-cc-shadow-md); /* hover:shadow-md */
 }
 
 .vm-timeline-col:active .vm-timeline-card {
-  transform: scale(0.98);
+  transform: scale(0.98) translateY(0);
+  box-shadow: var(--vm-cc-shadow-sm);
 }
 
 .vm-timeline-title {
-  font-family: var(--vm-font-serif);
+  font-family: var(--vm-font-sans);
   font-size: 14px;
   font-weight: 600;
-  color: var(--vm-wc-text-main);
-  line-height: 1.45;
+  color: var(--vm-cc-text-title);
+  line-height: 1.4;
   margin-bottom: 6px;
+  letter-spacing: -0.01em;
 }
 
 .vm-timeline-detail {
   font-size: 12.5px;
-  color: #5a5a5a;
+  color: var(--vm-cc-text-body);
   line-height: 1.6;
   margin-top: 4px;
   flex: 1;
@@ -1111,7 +1071,7 @@ TASTE_CSS = """
 }
 
 /* ─────────────────────────────────────────────────────────────
-   水彩柔和质感滚动条 (Soft Watercolor Scrollbar)
+   企业简洁风质感滚动条 (Corporate Clean Scrollbar)
    ───────────────────────────────────────────────────────────── */
 .vm-master-grid::-webkit-scrollbar,
 .vm-flow-track::-webkit-scrollbar,
@@ -1127,7 +1087,7 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-track,
 .vm-timeline-track::-webkit-scrollbar-track,
 .vm-table-wrap::-webkit-scrollbar-track {
-  background: rgba(74, 111, 165, 0.05);
+  background: var(--vm-cc-canvas);
   border-radius: 4px;
 }
 
@@ -1136,9 +1096,9 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-thumb,
 .vm-timeline-track::-webkit-scrollbar-thumb,
 .vm-table-wrap::-webkit-scrollbar-thumb {
-  background: rgba(74, 111, 165, 0.20);
+  background: var(--vm-cc-border);
   border-radius: 4px;
-  transition: background 0.2s ease;
+  transition: background var(--vm-cc-duration) ease;
 }
 
 .vm-master-grid::-webkit-scrollbar-thumb:hover,
@@ -1146,12 +1106,12 @@ TASTE_CSS = """
 .vm-stats-grid::-webkit-scrollbar-thumb:hover,
 .vm-timeline-track::-webkit-scrollbar-thumb:hover,
 .vm-table-wrap::-webkit-scrollbar-thumb:hover {
-  background: rgba(74, 111, 165, 0.35);
+  background: var(--vm-cc-border-hover);
 }
 
 /* 响应式精修 */
 @media (max-width: 640px) {
-  .vm-master-card { padding: 16px 12px; }
+  .vm-master-card { padding: 14px 10px; }
   .vm-tree-layer-card {
     flex-direction: column;
     gap: 6px;
@@ -1169,8 +1129,8 @@ def render_figure_caption(title: str) -> str:
         return ""
     return (
         f'<div class="vm-figure-caption">'
-        f'  <span class="vm-caption-prefix">▲ 图</span>'
-        f'  <span class="vm-caption-divider">·</span>'
+        f'  <span class="vm-caption-prefix">图表</span>'
+        f'  <span class="vm-caption-divider">/</span>'
         f'  <span class="vm-caption-title">{escape(title.strip())}</span>'
         f'</div>'
     )

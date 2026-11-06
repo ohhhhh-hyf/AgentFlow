@@ -20,6 +20,10 @@ def compact_untemplated_minutes(text: str) -> str:
     body = (text or "").replace("\r\n", "\n").replace("\r", "\n")
     appendix = ""
     for m in (
+        "## 状态演进",
+        "## 历史对照",
+        "## 与历史对比",
+        "## Historical State Evolution",
         "## 记忆溯源",
         "## 历史记忆溯源",
         "## 历史记忆引用",
@@ -36,7 +40,7 @@ def compact_untemplated_minutes(text: str) -> str:
     if appendix:
         appendix = re.sub(r"[ \t]+\n", "\n", appendix).strip()
         appendix = re.sub(r"^(?:-{3,}\s*)+", "", appendix).strip()
-        return f"{body}\n{appendix}\n"
+        return f"{body}\n\n{appendix}\n"
     return body
 
 

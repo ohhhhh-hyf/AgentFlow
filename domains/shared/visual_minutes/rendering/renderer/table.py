@@ -21,7 +21,7 @@ def render_table(model: TableVisual, in_master: bool = False) -> str:
             th_items.append(
                 f'<th class="vm-th-col">'
                 f'  <div class="vm-th-wrap">'
-                f'    <span class="vm-th-dot" style="background: {color}; box-shadow: 0 0 6px {color};"></span>'
+                f'    <span class="vm-th-dot" style="background: {color};"></span>'
                 f'    <span>{escape(c)}</span>'
                 f'  </div>'
                 f'</th>'

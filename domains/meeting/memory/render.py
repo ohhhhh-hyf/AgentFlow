@@ -570,7 +570,7 @@ def history_comparison_section(lines: list[str]) -> str:
         else:
             groups.setdefault("延续事项", []).append(("", row))
 
-    out: list[str] = ["", f"## {COMPARISON_TITLE}"]
+    out: list[str] = [f"## {COMPARISON_TITLE}"]
     for kind in ("新增决策", "延续事项", "已闭环"):
         items = groups.get(kind) or []
         if not items:
@@ -579,7 +579,7 @@ def history_comparison_section(lines: list[str]) -> str:
         for topic, text in items:
             prefix = f"{topic}：" if topic else ""
             out.append(f"  - {prefix}{text}")
-    if len(out) <= 2:
+    if len(out) <= 1:
         return ""
     return "\n".join(out)
 
@@ -729,7 +729,10 @@ def apply_memory_citations(
     if not items:
         items = parse_memory_items(context)
     if not items:
-        return body + comparison_section
+        sections = [body.strip()]
+        if comparison_section.strip():
+            sections.append(comparison_section.strip())
+        return "\n\n".join(sections)
 
     used_items: list[MemoryItem] = []
     item_to_ref: dict[MemoryItem, str] = {}
@@ -777,9 +780,12 @@ def apply_memory_citations(
         body = "\n".join(lines)
 
     if not used_items:
-        return f"{body.strip()}{comparison_section}"
+        sections = [body.strip()]
+        if comparison_section.strip():
+            sections.append(comparison_section.strip())
+        return "\n\n".join(sections)
 
-    appendix = ["", f"## {SECTION_TITLE}", ""]
+    cards: list[str] = []
     # 按正文首次出现的先后顺序排布卡片，保证从 [1] 到 [N] 绝对自然连续
     for item in used_items:
         ref_id = item_to_ref.get(item) or f"source-{used_items.index(item) + 1}"
@@ -787,13 +793,21 @@ def apply_memory_citations(
         source = item.meeting_title or "历史会议"
         quote = item.quote or item.text
         mtime = f"（{item.meeting_time}）" if item.meeting_time else ""
-        rows = [
+        card_lines = [
             f"#### [{num}] {item.text}",
             f"> {quote}",
             f"- **来源会议**：{source}{mtime}",
         ]
-        appendix.extend(rows)
-    return f"{body.strip()}{comparison_section}\n" + "\n".join(row for row in appendix if row)
+        cards.append("\n".join(card_lines))
+
+    provenance_section = f"## {SECTION_TITLE}\n\n" + "\n\n".join(cards) if cards else ""
+
+    sections = [body.strip()]
+    if comparison_section.strip():
+        sections.append(comparison_section.strip())
+    if provenance_section.strip():
+        sections.append(provenance_section.strip())
+    return "\n\n".join(sections)
 
 
 from infra.exporters.html.paper_css import latex_paper_css as _latex_paper_css
