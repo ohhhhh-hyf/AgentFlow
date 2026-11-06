@@ -25,9 +25,9 @@
 
 ---
 
-## 二、 UML 时序图一：显式指定 Project（以“小艺慧记Agent”为例）
+## 二、 UML 时序图 1.1：第一场会议（显式指定 Project ➔ 初创落盘）
 
-清晰展示 **用户**、**纪要Agent**、**大模型** 与 **三张存储表** 之间的明确交互时序，直观呈现每张表的读写时机：
+展示首场会议《小艺慧记Agent基座模型部署与架构评审会》中，如何由空项目起步，完成纪要交付与初创数据三表落盘：
 
 ```mermaid
 sequenceDiagram
@@ -39,7 +39,6 @@ sequenceDiagram
     participant State as 项目状态表 (states/{pid}.json)
     participant Meetings as 会议记录表 (meetings.jsonl)
 
-    Note over User, Meetings: ════════ 第一场：基座模型部署与架构评审会 (初创落盘) ════════
     User->>Agent: 提交会议音频/文本 (显式携带: project="小艺慧记Agent")
     Agent->>LLM: 1. 会议语义理解 (Meeting_understanding)
     LLM-->>Agent: 提取待办: "完成7B基座模型私有化部署与vLLM调优"<br/>提取决策: "采用FP8量化与Continuous Batching加速方案"
@@ -55,33 +54,49 @@ sequenceDiagram
     Agent->>Meetings: 4. 追加第1场会议记录 (保存发言原话、待办、决策)
     Agent->>Registry: 5. 注册新项目: {"name": "小艺慧记Agent", "anchors": ["基座模型部署", "vLLM调优"]}
     Agent->>State: 6. 创建项目状态表: 写入待办 (状态: 未闭环) 与首场决策
-
-    Note over User, Meetings: ════════ 第二场：多智能体架构推进会 (状态继承与闭环演进) ════════
-    User->>Agent: 提交会议音频/文本 (显式携带: project="小艺慧记Agent")
-    Agent->>LLM: 7. 会议语义理解 (Meeting_understanding)
-    LLM-->>Agent: 识别完成宣告: "7B基座模型已部署就绪，首字时延120ms"<br/>提取新决策: "启动多智能体协同规划(Planner-Executor)联调"
-
-    Agent->>Registry: 8. 查询项目索引 (project="小艺慧记Agent")
-    Registry-->>Agent: 命中已有项目【小艺慧记Agent】
-    Agent->>State: 9. 读取【小艺慧记Agent】历史状态
-    State-->>Agent: 返回未决待办: "完成7B基座模型私有化部署与vLLM调优" (未闭环)
-
-    Agent->>Agent: 10. 比对本场完成宣告 ➔ 预判历史待办已达成【已闭环】
-    Agent->>LLM: 11. 注入历史记忆背景，生成第二场纪要正文
-    LLM-->>Agent: 交付正文 (提及"基座模型私有化部署已顺利收口")
-
-    Agent->>Agent: 12. 正文匹配标注 [词条](#source-1)，渲染 ## 状态演进 与 ## 记忆溯源
-    Agent-->>User: 交付第二场纪要产物 (含跨场演进看板与证据卡片)
-
-    Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
-    Agent->>Meetings: 13. 追加第2场会议记录 (保存新决策与完成宣告)
-    Agent->>Registry: 14. 追加本场新别名与新锚点 (如: "多智能体协同", "Planner-Executor")
-    Agent->>State: 15. 状态机流转重算: 历史待办状态翻转为【已闭环】，追加新决策
 ```
 
 ---
 
-## 三、 UML 时序图二：未指定 Project（自动锚点认亲 ➔ 生成 ➔ 持久化）
+## 三、 UML 时序图 1.2：第二场会议（显式指定 Project ➔ 状态继承与闭环演进）
+
+展示第二场会议《小艺慧记Agent多智能体架构推进会》中，如何读取历史状态、比对本场完成宣告，生成带超链接演进的纪要，并驱动状态机闭环：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 用户
+    participant Agent as 纪要Agent
+    participant LLM as 大模型 (LLM)
+    participant Registry as 项目索引表 (registry.json)
+    participant State as 项目状态表 (states/{pid}.json)
+    participant Meetings as 会议记录表 (meetings.jsonl)
+
+    User->>Agent: 提交会议音频/文本 (显式携带: project="小艺慧记Agent")
+    Agent->>LLM: 1. 会议语义理解 (Meeting_understanding)
+    LLM-->>Agent: 识别完成宣告: "7B基座模型已部署就绪，首字时延120ms"<br/>提取新决策: "启动多智能体协同规划(Planner-Executor)联调"
+
+    Agent->>Registry: 2. 查询项目索引 (project="小艺慧记Agent")
+    Registry-->>Agent: 命中已有项目【小艺慧记Agent】
+    Agent->>State: 3. 读取【小艺慧记Agent】历史状态
+    State-->>Agent: 返回未决待办: "完成7B基座模型私有化部署与vLLM调优" (未闭环)
+
+    Agent->>Agent: 4. 比对本场完成宣告 ➔ 预判历史待办已达成【已闭环】
+    Agent->>LLM: 5. 注入历史记忆背景，生成第二场纪要正文
+    LLM-->>Agent: 交付正文 (提及"基座模型私有化部署已顺利收口")
+
+    Agent->>Agent: 6. 正文匹配标注 [词条](#source-1)，渲染 ## 状态演进 与 ## 记忆溯源
+    Agent-->>User: 交付第二场纪要产物 (含跨场演进看板与证据卡片)
+
+    Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
+    Agent->>Meetings: 7. 追加第2场会议记录 (保存新决策与完成宣告)
+    Agent->>Registry: 8. 追加本场新别名与新锚点 (如: "多智能体协同", "Planner-Executor")
+    Agent->>State: 9. 状态机流转重算: 历史待办状态翻转为【已闭环】，追加新决策
+```
+
+---
+
+## 四、 UML 时序图 2：未指定 Project（自动锚点认亲 ➔ 流程分流 ➔ 三表落盘）
 
 展示未传入 `project`（传空或未指定）时，系统如何进行智能认亲，并在命中或新建两种场景下，完整操作三张存储表：
 
@@ -124,7 +139,7 @@ sequenceDiagram
 
 ---
 
-## 四、 实战示例：小艺慧记Agent每一步各存了什么
+## 五、 实战示例：小艺慧记Agent每一步各存了什么
 
 以核心项目 **“小艺慧记Agent”**（用户：`user_001`，项目编号：`p_xiaoyi_agent`）围绕**大模型基座部署与多智能体协同研发**的两场会议为例，展示三张物理存储表的极简演变：
 
@@ -315,7 +330,7 @@ data/user_001/memory/minutes/
 
 ---
 
-## 五、 核心架构总结
+## 六、 核心架构总结
 
 | 表名称 | 物理路径 | 核心定位与职责 |
 | :--- | :--- | :--- |
