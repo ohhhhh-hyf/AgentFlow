@@ -39,21 +39,21 @@ sequenceDiagram
     participant State as 项目状态表 (states/{pid}.json)
     participant Meetings as 会议记录表 (meetings.jsonl)
 
-    User->>Agent: 提交会议音频/文本 (显式携带: project="小艺慧记Agent")
+    User->>Agent: 提交会议音频/文本<br/>(显式携带: project="小艺慧记Agent")
     Agent->>LLM: 1. 会议语义理解 (Meeting_understanding)
-    LLM-->>Agent: 提取待办: "完成7B基座模型私有化部署与vLLM调优"<br/>提取决策: "采用FP8量化与Continuous Batching加速方案"
+    LLM-->>Agent: 提取待办: "完成7B基座模型私有化部署与vLLM调优"<br/>提取决策: "采用FP8量化与Continuous Batching方案"
     
     Agent->>Registry: 2. 查验项目是否存在 (project="小艺慧记Agent")
     Registry-->>Agent: 未收录该项目 (首场，暂无历史记忆)
 
     Agent->>LLM: 3. 组织提示词，生成首场纪要正文
     LLM-->>Agent: 交付纪要初稿
-    Agent-->>User: 交付第一场纪要结果 (首场无历史对比，标准单场格式)
+    Agent-->>User: 交付第一场纪要结果<br/>(首场无历史对比，标准单场格式)
 
     Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
-    Agent->>Meetings: 4. 追加第1场会议记录 (保存发言原话、待办、决策)
-    Agent->>Registry: 5. 注册新项目: {"name": "小艺慧记Agent", "anchors": ["基座模型部署", "vLLM调优"]}
-    Agent->>State: 6. 创建项目状态表: 写入待办 (状态: 未闭环) 与首场决策
+    Agent->>Meetings: 4. 追加第1场会议记录<br/>(保存发言原话、待办、决策)
+    Agent->>Registry: 5. 注册新项目: {"name": "小艺慧记Agent",<br/>"anchors": ["基座模型部署", "vLLM调优"]}
+    Agent->>State: 6. 创建项目状态表:<br/>写入待办 (状态: 未闭环) 与首场决策
 ```
 
 ---
@@ -72,26 +72,26 @@ sequenceDiagram
     participant State as 项目状态表 (states/{pid}.json)
     participant Meetings as 会议记录表 (meetings.jsonl)
 
-    User->>Agent: 提交会议音频/文本 (显式携带: project="小艺慧记Agent")
+    User->>Agent: 提交会议音频/文本<br/>(显式携带: project="小艺慧记Agent")
     Agent->>LLM: 1. 会议语义理解 (Meeting_understanding)
     LLM-->>Agent: 识别完成宣告: "7B基座模型已部署就绪，首字时延120ms"<br/>提取新决策: "启动多智能体协同规划(Planner-Executor)联调"
 
     Agent->>Registry: 2. 查询项目索引 (project="小艺慧记Agent")
     Registry-->>Agent: 命中已有项目【小艺慧记Agent】
     Agent->>State: 3. 读取【小艺慧记Agent】历史状态
-    State-->>Agent: 返回未决待办: "完成7B基座模型私有化部署与vLLM调优" (未闭环)
+    State-->>Agent: 返回未决待办:<br/>"完成7B基座模型私有化部署与vLLM调优" (未闭环)
 
-    Agent->>Agent: 4. 比对本场完成宣告 ➔ 预判历史待办已达成【已闭环】
-    Agent->>LLM: 5. 注入历史记忆背景，生成第二场纪要正文
-    LLM-->>Agent: 交付正文 (提及"基座模型私有化部署已顺利收口")
+    Agent->>Agent: 4. 比对本场完成宣告 ➔<br/>预判历史待办已达成【已闭环】
+    Agent->>LLM: 5. 注入历史记忆背景，<br/>生成第二场纪要正文
+    LLM-->>Agent: 交付正文<br/>(提及"基座模型私有化部署已顺利收口")
 
-    Agent->>Agent: 6. 正文匹配标注 [词条](#source-1)，渲染 ## 状态演进 与 ## 记忆溯源
-    Agent-->>User: 交付第二场纪要产物 (含跨场演进看板与证据卡片)
+    Agent->>Agent: 6. 正文匹配标注 [词条](#source-1)，<br/>渲染 ## 状态演进 与 ## 记忆溯源
+    Agent-->>User: 交付第二场纪要产物<br/>(含跨场演进看板与证据卡片)
 
     Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
-    Agent->>Meetings: 7. 追加第2场会议记录 (保存新决策与完成宣告)
-    Agent->>Registry: 8. 追加本场新别名与新锚点 (如: "多智能体协同", "Planner-Executor")
-    Agent->>State: 9. 状态机流转重算: 历史待办状态翻转为【已闭环】，追加新决策
+    Agent->>Meetings: 7. 追加第2场会议记录<br/>(保存新决策与完成宣告)
+    Agent->>Registry: 8. 追加本场新别名与新锚点<br/>(如: "多智能体协同", "Planner-Executor")
+    Agent->>State: 9. 状态机流转重算:<br/>历史待办状态翻转为【已闭环】，追加新决策
 ```
 
 ---
@@ -110,30 +110,30 @@ sequenceDiagram
     participant State as 项目状态表 (states/{pid}.json)
     participant Meetings as 会议记录表 (meetings.jsonl)
 
-    User->>Agent: 提交会议音频/文本 (未传 project: project="")
+    User->>Agent: 提交会议音频/文本<br/>(未传 project: project="")
     Agent->>LLM: 1. 会议语义理解 (Meeting_understanding)
-    LLM-->>Agent: 提取本场业务锚点 (如: ["基座模型部署", "vLLM调优"]) 与待办/决议
+    LLM-->>Agent: 提取本场业务锚点: ["基座模型部署", "vLLM调优"]<br/>与待办/决议
     
-    Agent->>Registry: 2. 遍历项目索引表，比对各项目的强弱锚点与别名相似度
+    Agent->>Registry: 2. 遍历项目索引表，<br/>比对各项目的强弱锚点与别名相似度
 
     alt 场景 A：命中已有项目 (如锚点高置信度匹配【小艺慧记Agent】)
         Registry-->>Agent: 3a. 认亲成功: 命中已有项目【小艺慧记Agent】
-        Agent->>State: 4a. 读取【小艺慧记Agent】最新历史状态 (调出未闭环待办)
-        Agent->>LLM: 5a. 注入历史记忆，生成正文并标注 [词条](#source-1)、## 状态演进、## 记忆溯源
-        Agent-->>User: 交付纪要结果 (含跨场演进看板与证据卡片)
+        Agent->>State: 4a. 读取【小艺慧记Agent】最新历史状态<br/>(调出未闭环待办)
+        Agent->>LLM: 5a. 注入历史记忆，生成正文并标注<br/>[词条](#source-1)、## 状态演进、## 记忆溯源
+        Agent-->>User: 交付纪要结果<br/>(含跨场演进看板与证据卡片)
         Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
-        Agent->>Meetings: 6a. 追加本场会议记录 (保存发言原话、新决策与完成宣告)
+        Agent->>Meetings: 6a. 追加本场会议记录<br/>(保存发言原话、新决策与完成宣告)
         Agent->>Registry: 7a. 扩展本场新产生的别名与业务锚点
-        Agent->>State: 8a. 状态机流转重算: 历史待办翻转为【已闭环】，追加新决策
+        Agent->>State: 8a. 状态机流转重算:<br/>历史待办翻转为【已闭环】，追加新决策
     else 场景 B：未命中任何已有项目 (全新独立业务，如"差旅报销规范")
         Registry-->>Agent: 3b. 无匹配项 (相似度均低于阈值，判定为全新业务)
-        Agent->>Agent: 4b. 自动为新业务生成项目编号 (首场无历史记忆注入)
+        Agent->>Agent: 4b. 自动为新业务生成项目编号<br/>(首场无历史记忆注入)
         Agent->>LLM: 5b. 组织提示词，生成首场纯净纪要正文
         Agent-->>User: 交付首场纪要结果 (标准单场格式)
         Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
-        Agent->>Meetings: 6b. 追加新项目第1场会议记录 (保存原始发言与新待办)
-        Agent->>Registry: 7b. 向项目索引表中注册该全新项目与初始业务锚点
-        Agent->>State: 8b. 创建该新项目的状态表 (写入初始待办，状态: 未闭环)
+        Agent->>Meetings: 6b. 追加新项目第1场会议记录<br/>(保存原始发言与新待办)
+        Agent->>Registry: 7b. 向项目索引表中注册该全新项目<br/>与初始业务锚点
+        Agent->>State: 8b. 创建该新项目的状态表<br/>(写入初始待办，状态: 未闭环)
     end
 ```
 
