@@ -1,7 +1,7 @@
 # 会议记忆系统完整执行时序与数据流转规范 (MEMORY_EXECUTION_FLOW_UML.md)
 
 > **修订日期**：2026-11-06  
-> **核心主题**：会议记忆系统（Memory v2）项目级生命周期、文件存储结构演变、显式/隐式绑定时序与贯穿示例。
+> **核心主题**：会议记忆系统项目级生命周期、清晰分层 UML 时序、小艺慧记Agent基座模型部署与多智能体研发实战贯穿示例。
 
 ---
 
@@ -9,202 +9,198 @@
 
 **结论：您的理解完全正确，且非常精准地抓住了整套会议记忆系统的核心运转骨架！**
 
-系统正是以 `project` 为主线，在用户隔离目录 `data/{user_id}/memory/minutes/` 下通过三大文件（**索引表**、**事实流水**、**状态账本**）实现多场会议的自闭环演进。
+系统以 `project` 为统一主线，在用户隔离目录 `data/{user_id}/memory/minutes/` 下，通过三大物理文件实现多场会议的自闭环演进：
 
-在底层工程实现上，有以下三个关键细节为您的理解提供有力支撑：
+1. **项目索引表 (`registry.json`)**：全局项目目录，记录项目编号、标准名称、历史会议别名及业务强弱锚点，负责快速“认亲”；
+2. **会议记录表 (`meetings.jsonl`)**：唯一的事实流水来源，每场会议追加一条独立记录（只增不改），保存发言原话摘录、提取出的待办与决议；
+3. **项目状态表 (`states/{pid}.json`)**：项目的最新宏观状态账本，由事实流水动态聚合生成，维护跨场待办生命周期（未闭环 ➔ 已闭环）、决策演进与记忆溯源出处。
 
-1. **读写时钟严格隔离（Before Gen 读历史，After Gen 写本场）**：
-   - **纪要生成前**（`build_line_extra`）：仅从 `states/{project_id}.json` 读取**上一场及更早**的既有状态，筛选 TopN 注入本场 Prompt，并预先计算状态演进草稿。严禁在生成前落盘本场数据，彻底杜绝“本场自己引用自己”的悖论；
-   - **纪要生成后**（`persist_after_run`）：当大模型生成正文且挂载完文末证据卡片后，系统才将本场事实追加到 `meetings.jsonl`，并刷新 `registry.json` 与 `states/{project_id}.json`。
-2. **状态账本的幂等重算机制（Rebuild State）**：
-   - `states/{project_id}.json` 不是简单的局部字段覆盖，而是通过 `rebuild_state` 从 `meetings.jsonl` 中过滤出属于该 project 的所有历史场次，按时间顺序重新模拟状态机流转（创建、认领、解决、沉寂）。这确保了即便某场会议被重新编辑或删除，状态账本依然能 100% 幂等恢复。
-3. **无缝平滑自适应认亲（规则打分优先）**：
-   - 未传 `project` 时，优先使用规则引擎比对 `fact.anchors`、`topics.module` 与 `registry.json` 中已有项目的强锚点（`strong_anchors`）与别名；只要 Jaccard/包含度超过阈值即可秒级精准绑定，零额外延迟。
+在底层执行上有两个关键设计支撑您的理解：
+
+- **读写时钟严格隔离（生成前读历史，生成后写本场）**：
+  - **纪要生成前**：只从项目状态表中读取**上一场及更早**的历史状态，筛选高相关记忆注入本场提示词，并预判本场状态演进草稿。此时绝不写入本场数据，彻底杜绝“自己引用自己”的悖论；
+  - **纪要生成后**：大模型生成完正文并挂载好引用链接后，才将本场记录追加至会议记录表，并刷新项目索引表与项目状态表。
+- **状态流转确定性重算**：
+  - 项目状态表不是简单覆盖，而是基于会议记录表中该项目的全部历史记录，按时间顺序模拟状态机流转。无论中间某场是否重跑，状态演进永远 100% 幂等可靠。
 
 ---
 
-## 二、 UML 时序图一：显式指定 Project（第一场 ➔ 第二场）
+## 二、 UML 时序图一：显式指定 Project（以“小艺慧记Agent”为例）
 
-展示显式传入 `project="网关高可用重构"` 时，第 1 场新建与第 2 场继承演进的完整时序：
+清晰展示 **用户**、**纪要Agent**、**大模型** 与 **三张存储表** 之间的明确交互时序，直观呈现每张表的读写时机：
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as 用户/前端
-    participant Engine as 会议引擎 (Runner)
-    participant Memory as 记忆内核 (MemoryRuntime)
-    participant Registry as registry.json (项目索引)
-    participant State as states/{pid}.json (状态账本)
-    participant Meetings as meetings.jsonl (全量事实流水)
-    participant LLM as 大语言模型 (LLM)
+    actor User as 用户
+    participant Agent as 纪要Agent
+    participant LLM as 大模型 (LLM)
+    participant Registry as 项目索引表 (registry.json)
+    participant State as 项目状态表 (states/{pid}.json)
+    participant Meetings as 会议记录表 (meetings.jsonl)
 
-    Note over User, LLM: ════════ 第一场会议：项目初创期 (2026-09-01) ════════
-    User->>Engine: 提交会议音频/文本 (显式携带: project="网关高可用重构")
-    Engine->>LLM: 1. 会议语义理解 (Meeting Understanding)
-    LLM-->>Engine: 产出结构化 Understanding (议题/待办/结论/锚点)
+    Note over User, Meetings: ════════ 第一场：基座模型部署与架构评审会 (初创落盘) ════════
+    User->>Agent: 提交会议音频/文本 (显式携带: project="小艺慧记Agent")
+    Agent->>LLM: 1. 会议语义理解 (Meeting_understanding)
+    LLM-->>Agent: 提取待办: "完成7B基座模型私有化部署与vLLM调优"<br/>提取决策: "采用FP8量化与Continuous Batching加速方案"
     
-    Engine->>Memory: 2. 生成前注入准备 build_line_extra(project="网关高可用重构")
-    Memory->>Registry: 查询 project 索引
-    Registry-->>Memory: 暂未收录该项目 (未绑定/需新建)
-    Memory-->>Engine: InjectResult (无历史记忆注入, 纯新单场模式)
+    Agent->>Registry: 2. 查验项目是否存在 (project="小艺慧记Agent")
+    Registry-->>Agent: 未收录该项目 (首场，暂无历史记忆)
 
-    Engine->>LLM: 3. 驱动纪要生成 Prompt (无历史上下文)
-    LLM-->>Engine: 产出初稿 (首场纪要正文)
-    Engine->>Memory: 4. apply_memory_citations (首场无历史比对, 原样输出)
-    Engine-->>User: 交付第一场会议纪要产物
+    Agent->>LLM: 3. 组织提示词，生成首场纪要正文
+    LLM-->>Agent: 交付纪要初稿
+    Agent-->>User: 交付第一场纪要结果 (首场无历史对比，标准单场格式)
 
-    Note over Engine, Meetings: ──── 后置持久化 (persist_after_run) ────
-    Engine->>Memory: 5. 持久化落盘请求
-    Memory->>Meetings: 追加写入本场会议事实 (meeting_id="m_01", project_id="p_gateway", 抽取待办与原话)
-    Memory->>Registry: 注册/更新项目索引: {"name": "网关高可用重构", "anchors": ["网关鉴权", "Token缓存"]}
-    Memory->>State: 聚合生成 states/p_gateway.json (写入 1 条待办: 网关时延压到200ms以内, 状态 open)
+    Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
+    Agent->>Meetings: 4. 追加第1场会议记录 (保存发言原话、待办、决策)
+    Agent->>Registry: 5. 注册新项目: {"name": "小艺慧记Agent", "anchors": ["基座模型部署", "vLLM调优"]}
+    Agent->>State: 6. 创建项目状态表: 写入待办 (状态: 未闭环) 与首场决策
 
-    Note over User, LLM: ════════ 第二场会议：状态继承与演进闭环 (2026-09-08) ════════
-    User->>Engine: 提交会议音频/文本 (显式携带: project="网关高可用重构")
-    Engine->>LLM: 6. 会议语义理解 (提取本场完成宣告: 鉴权时延已压到180ms)
-    LLM-->>Engine: 产出本场 Understanding
+    Note over User, Meetings: ════════ 第二场：多智能体架构推进会 (状态继承与闭环演进) ════════
+    User->>Agent: 提交会议音频/文本 (显式携带: project="小艺慧记Agent")
+    Agent->>LLM: 7. 会议语义理解 (Meeting_understanding)
+    LLM-->>Agent: 识别完成宣告: "7B基座模型已部署就绪，首字时延120ms"<br/>提取新决策: "启动多智能体协同规划(Planner-Executor)联调"
 
-    Engine->>Memory: 7. 生成前注入准备 build_line_extra(project="网关高可用重构")
-    Memory->>Registry: 查询 project 索引
-    Registry-->>Memory: 命中已存在项目 (project_id="p_gateway")
-    Memory->>State: 加载 states/p_gateway.json
-    State-->>Memory: 返回历史待办 (网关时延压到200ms以内, open)
-    Memory->>Memory: 记忆选材评分 (TopN) & 预判状态演进 (发现待办已达成 -> 标记已闭环)
-    Memory-->>Engine: InjectResult (包含【会议记忆】Prompt块 & 状态演进比对数据)
+    Agent->>Registry: 8. 查询项目索引 (project="小艺慧记Agent")
+    Registry-->>Agent: 命中已有项目【小艺慧记Agent】
+    Agent->>State: 9. 读取【小艺慧记Agent】历史状态
+    State-->>Agent: 返回未决待办: "完成7B基座模型私有化部署与vLLM调优" (未闭环)
 
-    Engine->>LLM: 8. 结合【历史记忆背景】生成纪要正文
-    LLM-->>Engine: 产出正文 (提及"网关鉴权二级缓存策略优化已完成")
-    
-    Engine->>Memory: 9. apply_memory_citations (正文扫描 + 序号编排)
-    Memory->>Memory: 挂载自然序号角标 [词条](#source-1)
-    Memory->>Memory: 生成文末 ## 状态演进 (已闭环) 与 ## 记忆溯源 (#### [1] 引用第1场发言)
-    Engine-->>User: 交付第二场会议纪要产物 (含状态演进与证据溯源)
+    Agent->>Agent: 10. 比对本场完成宣告 ➔ 预判历史待办已达成【已闭环】
+    Agent->>LLM: 11. 注入历史记忆背景，生成第二场纪要正文
+    LLM-->>Agent: 交付正文 (提及"基座模型私有化部署已顺利收口")
 
-    Note over Engine, Meetings: ──── 后置持久化 (persist_after_run) ────
-    Engine->>Memory: 10. 持久化落盘请求
-    Memory->>Meetings: 追加写入第二场会议事实 (meeting_id="m_02")
-    Memory->>Registry: 追加本场新产生的锚点与别名
-    Memory->>State: 重算并更新 states/p_gateway.json (历史待办状态翻转为 done, 记录 closed_at="m_02")
+    Agent->>Agent: 12. 正文匹配标注 [词条](#source-1)，渲染 ## 状态演进 与 ## 记忆溯源
+    Agent-->>User: 交付第二场纪要产物 (含跨场演进看板与证据卡片)
+
+    Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
+    Agent->>Meetings: 13. 追加第2场会议记录 (保存新决策与完成宣告)
+    Agent->>Registry: 14. 追加本场新别名与新锚点 (如: "多智能体协同", "Planner-Executor")
+    Agent->>State: 15. 状态机流转重算: 历史待办状态翻转为【已闭环】，追加新决策
 ```
 
 ---
 
-## 三、 UML 时序图二：未指定 Project（自动锚点认亲 ➔ 自动新建/关联）
+## 三、 UML 时序图二：未指定 Project（自动锚点认亲 ➔ 生成 ➔ 持久化）
 
-展示未传入 `project`（留空）时，系统如何进行“自适应认亲”：
+展示未传入 `project`（传空或未指定）时，系统如何进行智能认亲，并在命中或新建两种场景下，完整操作三张存储表：
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as 用户/前端
-    participant Engine as 会议引擎 (Runner)
-    participant Memory as 记忆内核 (resolve_bind)
-    participant Registry as registry.json (项目索引)
-    participant State as states/{pid}.json (状态账本)
-    participant LLM as 大语言模型 (LLM)
+    actor User as 用户
+    participant Agent as 纪要Agent
+    participant LLM as 大模型 (LLM)
+    participant Registry as 项目索引表 (registry.json)
+    participant State as 项目状态表 (states/{pid}.json)
+    participant Meetings as 会议记录表 (meetings.jsonl)
 
-    User->>Engine: 提交会议音频/文本 (未传 project: project="")
-    Engine->>LLM: 1. 会议语义理解 (抽取 anchors, 议题 module, 标题)
-    LLM-->>Engine: 产出本场事实 Fact (如 anchors=["网关鉴权", "限流保护"])
+    User->>Agent: 提交会议音频/文本 (未传 project: project="")
+    Agent->>LLM: 1. 会议语义理解 (Meeting_understanding)
+    LLM-->>Agent: 提取本场业务锚点 (如: ["基座模型部署", "vLLM调优"]) 与待办/决议
+    
+    Agent->>Registry: 2. 遍历项目索引表，比对各项目的强弱锚点与别名相似度
 
-    Engine->>Memory: 2. 触发项目动态认亲 resolve_bind(fact, project="")
-    Memory->>Registry: 读取已有项目索引列表 load_registry()
-    Registry-->>Memory: 返回已注册的项目清单 (包含各项目的 name, aliases, anchors)
-
-    alt 场景 A：命中已有项目 (匹配度高)
-        Memory->>Memory: 计算专有强锚点重合度 (网关鉴权 ∈ p_gateway.anchors)
-        Note over Memory: 判定为老项目: project_id="p_gateway", mode="rule_high"
-        Memory->>State: 读取 states/p_gateway.json 历史记忆
-        State-->>Memory: 返回延续事项与决策
-        Memory-->>Engine: 成功绑定已知项目，后续完全复用【第二场】继承演进逻辑
-    else 场景 B：未命中任何已有项目 (全新独立业务)
-        Memory->>Memory: 遍历所有已有项目均无强锚点交集 (分值低于阈值)
-        Note over Memory: 自动创建新项目编号: pid="p_" + safe_id(fact.core_name)
-        Memory-->>Engine: mode="auto_create", project_id="p_new_service"
-        Note over Engine: 本场无历史记忆注入，后续完全复用【第一场】初创逻辑，<br/>在 persist_after_run 时将新项目注册进 registry.json
+    alt 场景 A：命中已有项目 (如锚点高置信度匹配【小艺慧记Agent】)
+        Registry-->>Agent: 3a. 认亲成功: 命中已有项目【小艺慧记Agent】
+        Agent->>State: 4a. 读取【小艺慧记Agent】最新历史状态 (调出未闭环待办)
+        Agent->>LLM: 5a. 注入历史记忆，生成正文并标注 [词条](#source-1)、## 状态演进、## 记忆溯源
+        Agent-->>User: 交付纪要结果 (含跨场演进看板与证据卡片)
+        Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
+        Agent->>Meetings: 6a. 追加本场会议记录 (保存发言原话、新决策与完成宣告)
+        Agent->>Registry: 7a. 扩展本场新产生的别名与业务锚点
+        Agent->>State: 8a. 状态机流转重算: 历史待办翻转为【已闭环】，追加新决策
+    else 场景 B：未命中任何已有项目 (全新独立业务，如"差旅报销规范")
+        Registry-->>Agent: 3b. 无匹配项 (相似度均低于阈值，判定为全新业务)
+        Agent->>Agent: 4b. 自动为新业务生成项目编号 (首场无历史记忆注入)
+        Agent->>LLM: 5b. 组织提示词，生成首场纯净纪要正文
+        Agent-->>User: 交付首场纪要结果 (标准单场格式)
+        Note over Agent, Meetings: ──── 纪要产出后：后置持久化落盘 ────
+        Agent->>Meetings: 6b. 追加新项目第1场会议记录 (保存原始发言与新待办)
+        Agent->>Registry: 7b. 向项目索引表中注册该全新项目与初始业务锚点
+        Agent->>State: 8b. 创建该新项目的状态表 (写入初始待办，状态: 未闭环)
     end
 ```
 
 ---
 
-## 四、 极简实战贯穿示例：每一步文件中都存了什么
+## 四、 实战示例：小艺慧记Agent每一步各存了什么
 
-以核心项目 **“网关高可用重构”**（用户 ID：`user_001`）两场会议流转为例，直观展示三个关键物理文件的内容演变：
+以核心项目 **“小艺慧记Agent”**（用户：`user_001`，项目编号：`p_xiaoyi_agent`）围绕**大模型基座部署与多智能体协同研发**的两场会议为例，展示三张物理存储表的极简演变：
 
 ```
 data/user_001/memory/minutes/
-  ├─ registry.json        # 项目别名与强锚点索引
-  ├─ meetings.jsonl       # 每场会议全量事实流水（只追加，不覆盖）
-  └─ states/              # 宏观任务状态机账本
-       └─ p_gateway.json  # 本项目的最新演进账本
+  ├─ 项目索引表 (registry.json)
+  ├─ 会议记录表 (meetings.jsonl)
+  └─ states/
+       └─ p_xiaoyi_agent.json  # 项目状态表
 ```
 
 ---
 
-### 阶段 1：第一场会议（2026-09-01 《网关鉴权方案评审会》）
+### 阶段 1：第一场会议（2026-09-01 《小艺慧记Agent基座模型部署与架构评审会》）
 
 #### 现场原话输入：
-> **李工**：“网关鉴权接口压测发现抖动，需要在一周内将时延指标压到 200ms 以内。”  
-> **张工**：“后续统一采用 Token 二级缓存保护方案。”
+> **李工**：“为了保障数据安全与端到端响应，小艺慧记7B基座模型私有化部署与vLLM服务调优必须在本周五前完成。”  
+> **张工**：“基座模型推理统一采用 FP8 权重量化与 Continuous Batching 加速方案。”
 
-#### 执行前（磁盘为空）：
+#### 执行前（文件为空）：
 - `registry.json`：`{"projects": {}}`
 - `meetings.jsonl`：空
-- `states/p_gateway.json`：不存在
+- `states/p_xiaoyi_agent.json`：不存在
 
-#### 执行中（纪要输出）：
-由于无前序历史，生成的纪要为标准单场格式（无状态演进与历史溯源小节）。
+#### 执行中（生成的纪要）：
+首场无历史比对，生成标准的常规纪要（无状态演进与记忆溯源栏目）。
 
 #### 执行后（写入磁盘后的文件内容）：
 
-##### 1. `registry.json`（自动收录新项目与首场锚点）
+##### 1. `项目索引表` (`registry.json`) —— 注册新项目
 ```json
 {
   "projects": {
-    "p_gateway": {
-      "name": "网关高可用重构",
-      "aliases": ["网关鉴权方案评审会"],
-      "anchors": ["网关鉴权", "Token缓存", "时延指标"],
-      "negative_anchors": [],
+    "p_xiaoyi_agent": {
+      "name": "小艺慧记Agent",
+      "aliases": ["小艺慧记Agent基座模型部署与架构评审会"],
+      "anchors": ["基座模型部署", "vLLM调优", "FP8量化", "Agent开发"],
       "updated_at": "2026-09-01"
     }
   }
 }
 ```
 
-##### 2. `meetings.jsonl`（追加第 1 场事实流水）
+##### 2. `会议记录表` (`meetings.jsonl`) —— 追加第 1 场流水
 ```jsonl
-{"meeting_id": "m_01", "time": "2026-09-01", "project_id": "p_gateway", "title": "网关鉴权方案评审会", "decisions": ["统一采用Token二级缓存保护方案"], "open_items": ["网关鉴权接口时延压到200ms以内"], "action_items": [{"text": "网关鉴权接口时延压到200ms以内", "owner": "李工", "timing": "一周内"}], "quotes": {"网关鉴权接口时延压到200ms以内": "网关鉴权接口压测发现抖动，需要在一周内将时延指标压到 200ms 以内。"}, "topics": [{"module": "网关核心架构", "title": "鉴权方案"}]}
+{"meeting_id": "m_01", "time": "2026-09-01", "project_id": "p_xiaoyi_agent", "title": "小艺慧记Agent基座模型部署与架构评审会", "decisions": ["基座模型推理统一采用FP8量化与Continuous Batching加速方案"], "open_items": ["完成小艺慧记7B基座模型私有化部署与vLLM服务调优"], "action_items": [{"text": "完成小艺慧记7B基座模型私有化部署与vLLM服务调优", "owner": "李工", "timing": "本周五前"}], "quotes": {"完成小艺慧记7B基座模型私有化部署与vLLM服务调优": "为了保障数据安全与端到端响应，小艺慧记7B基座模型私有化部署与vLLM服务调优必须在本周五前完成。"}, "topics": [{"module": "基座建设", "title": "模型部署"}]}
 ```
 
-##### 3. `states/p_gateway.json`（构建第 1 场初始状态账本）
+##### 3. `项目状态表` (`states/p_xiaoyi_agent.json`) —— 初始状态
 ```json
 {
-  "project_id": "p_gateway",
-  "name": "网关高可用重构",
+  "project_id": "p_xiaoyi_agent",
+  "name": "小艺慧记Agent",
   "meeting_names": {
-    "m_01": "网关鉴权方案评审会"
+    "m_01": "小艺慧记Agent基座模型部署与架构评审会"
   },
   "recent_meetings": ["m_01"],
   "decisions": [
     {
       "item_id": "d_01",
-      "text": "统一采用Token二级缓存保护方案",
+      "text": "基座模型推理统一采用FP8量化与Continuous Batching加速方案",
       "status": "active",
       "meeting_id": "m_01",
-      "quote": "统一采用Token二级缓存保护方案。"
+      "quote": "基座模型推理统一采用 FP8 权重量化与 Continuous Batching 加速方案。"
     }
   ],
   "actions": [
     {
       "item_id": "a_01",
-      "text": "网关鉴权接口时延压到200ms以内",
+      "text": "完成小艺慧记7B基座模型私有化部署与vLLM服务调优",
       "status": "open",
       "since": "m_01",
       "last_seen": "m_01",
       "owner": "李工",
-      "timing": "一周内",
-      "quote": "网关鉴权接口压测发现抖动，需要在一周内将时延指标压到 200ms 以内。"
+      "timing": "本周五前",
+      "quote": "为了保障数据安全与端到端响应，小艺慧记7B基座模型私有化部署与vLLM服务调优必须在本周五前完成。"
     }
   ],
   "open_items": [],
@@ -214,102 +210,102 @@ data/user_001/memory/minutes/
 
 ---
 
-### 阶段 2：第二场会议（2026-09-08 《网关鉴权优化与推流推进会》）
+### 阶段 2：第二场会议（2026-09-08 《小艺慧记Agent多智能体架构推进会》）
 
 #### 现场原话输入：
-> **李工**：“大家同步一下，网关鉴权接口压测时延已成功压到 180ms，指标已顺利达成。接下来重点安排音视频推流丢帧补偿算法测试。”
+> **李工**：“先同步下基座进展，小艺慧记7B基座模型已完成私有化部署，vLLM推理首字时延降至120ms以内，运行稳定。接下来重点启动多智能体协同规划（Planner-Executor）核心链路联调。”
 
-#### 执行前（读取磁盘）：
-1. 传入 `project="网关高可用重构"`（或未传 project，通过“网关鉴权”自动认亲到 `p_gateway`）；
-2. 读取 `states/p_gateway.json`，调取待办 `a_01`（时延压到200ms以内，状态 open）；
-3. 发现本场李工发言表示该指标已达成，程序自动比对生成【已闭环】演进条目。
+#### 执行前（读取磁盘与比对）：
+1. 传入 `project="小艺慧记Agent"`（或未传 project，通过“基座模型部署”自动认亲到已有项目【小艺慧记Agent】）；
+2. 读取该项目的状态表，调取待办 `a_01`（基座模型部署与vLLM调优，状态为 open）；
+3. 结合本场李工发言判定该待办已达成，系统自动识别为【已闭环】。
 
 #### 执行中（生成的纪要产物）：
-大模型正文带上自然超链接，文末自动附带【状态演进】与【记忆溯源】两大板块：
+正文自动带上自然连续的超链接，文末附带【状态演进】与【记忆溯源】板块：
 
 ```markdown
-# 网关鉴权优化与推流推进会
+# 小艺慧记Agent多智能体架构推进会
 
-## 会议决议
-团队针对核心指标进行复盘，[网关鉴权接口压测时延优化](#source-1)已顺利收口，后续全面转入推流算法灰度。
+## 核心决议
+架构组针对基座环境进行复盘，[小艺慧记7B基座模型私有化部署与vLLM服务调优](#source-1)已顺利收口，后续重点启动协同规划链路联调。
 
 ...
 
 ## 状态演进
 
 **新增决策**：
-  - 音视频推流：音视频推流丢帧补偿算法测试
+  - 智能体架构：启动多智能体协同规划（Planner-Executor）核心链路联调
 
 **已闭环**：
-  - 网关核心架构：网关鉴权接口时延压到200ms以内
+  - 基座建设：完成小艺慧记7B基座模型私有化部署与vLLM服务调优
 
 ## 记忆溯源
 
-#### [1] 网关鉴权接口时延压到200ms以内
-> 网关鉴权接口压测发现抖动，需要在一周内将时延指标压到 200ms 以内。
-- **来源会议**：网关鉴权方案评审会（2026-09-01）
+#### [1] 完成小艺慧记7B基座模型私有化部署与vLLM服务调优
+> 为了保障数据安全与端到端响应，小艺慧记7B基座模型私有化部署与vLLM服务调优必须在本周五前完成。
+- **来源会议**：小艺慧记Agent基座模型部署与架构评审会（2026-09-01）
 ```
 
 #### 执行后（写入磁盘后的文件内容）：
 
-##### 1. `registry.json`（增量更新别名与新发现的业务锚点）
+##### 1. `项目索引表` (`registry.json`) —— 增量扩展别名与新业务锚点
 ```json
 {
   "projects": {
-    "p_gateway": {
-      "name": "网关高可用重构",
-      "aliases": ["网关鉴权方案评审会", "网关鉴权优化与推流推进会"],
-      "anchors": ["网关鉴权", "Token缓存", "时延指标", "音视频推流", "丢帧补偿"],
-      "negative_anchors": [],
+    "p_xiaoyi_agent": {
+      "name": "小艺慧记Agent",
+      "aliases": ["小艺慧记Agent基座模型部署与架构评审会", "小艺慧记Agent多智能体架构推进会"],
+      "anchors": ["基座模型部署", "vLLM调优", "FP8量化", "Agent开发", "多智能体协同", "Planner-Executor"],
       "updated_at": "2026-09-08"
     }
   }
 }
 ```
 
-##### 2. `meetings.jsonl`（追加第 2 场事实流水，只增不改）
+##### 2. `会议记录表` (`meetings.jsonl`) —— 追加第 2 场流水（只增不改）
 ```jsonl
-{"meeting_id": "m_01", "time": "2026-09-01", "project_id": "p_gateway", "title": "网关鉴权方案评审会", ...}
-{"meeting_id": "m_02", "time": "2026-09-08", "project_id": "p_gateway", "title": "网关鉴权优化与推流推进会", "decisions": ["音视频推流丢帧补偿算法测试"], "open_items": [], "action_items": [], "closed_items": ["网关鉴权接口时延压到200ms以内"], "quotes": {"音视频推流丢帧补偿算法测试": "接下来重点安排音视频推流丢帧补偿算法测试。"}, "topics": [{"module": "音视频推流", "title": "推流优化"}]}
+{"meeting_id": "m_01", "time": "2026-09-01", "project_id": "p_xiaoyi_agent", "title": "小艺慧记Agent基座模型部署与架构评审会", ...}
+{"meeting_id": "m_02", "time": "2026-09-08", "project_id": "p_xiaoyi_agent", "title": "小艺慧记Agent多智能体架构推进会", "decisions": ["启动多智能体协同规划（Planner-Executor）核心链路联调"], "open_items": [], "action_items": [], "closed_items": ["完成小艺慧记7B基座模型私有化部署与vLLM服务调优"], "quotes": {"启动多智能体协同规划（Planner-Executor）核心链路联调": "接下来重点启动多智能体协同规划（Planner-Executor）核心链路联调。"}, "topics": [{"module": "智能体架构", "title": "协同规划"}]}
 ```
 
-##### 3. `states/p_gateway.json`（状态机驱动演进：老待办翻转为 done，记录 closed_at）
+##### 3. `项目状态表` (`states/p_xiaoyi_agent.json`) —— 状态机流转演进
+待办状态由 `open` 翻转为 `done`，记录关闭会议 `closed_at: "m_02"`，并追加新决策：
 ```json
 {
-  "project_id": "p_gateway",
-  "name": "网关高可用重构",
+  "project_id": "p_xiaoyi_agent",
+  "name": "小艺慧记Agent",
   "meeting_names": {
-    "m_01": "网关鉴权方案评审会",
-    "m_02": "网关鉴权优化与推流推进会"
+    "m_01": "小艺慧记Agent基座模型部署与架构评审会",
+    "m_02": "小艺慧记Agent多智能体架构推进会"
   },
   "recent_meetings": ["m_01", "m_02"],
   "decisions": [
     {
       "item_id": "d_01",
-      "text": "统一采用Token二级缓存保护方案",
+      "text": "基座模型推理统一采用FP8量化与Continuous Batching加速方案",
       "status": "active",
       "meeting_id": "m_01",
-      "quote": "统一采用Token二级缓存保护方案。"
+      "quote": "基座模型推理统一采用 FP8 权重量化与 Continuous Batching 加速方案。"
     },
     {
       "item_id": "d_02",
-      "text": "音视频推流丢帧补偿算法测试",
+      "text": "启动多智能体协同规划（Planner-Executor）核心链路联调",
       "status": "active",
       "meeting_id": "m_02",
-      "quote": "接下来重点安排音视频推流丢帧补偿算法测试。"
+      "quote": "接下来重点启动多智能体协同规划（Planner-Executor）核心链路联调。"
     }
   ],
   "actions": [
     {
       "item_id": "a_01",
-      "text": "网关鉴权接口时延压到200ms以内",
+      "text": "完成小艺慧记7B基座模型私有化部署与vLLM服务调优",
       "status": "done",
       "since": "m_01",
       "last_seen": "m_02",
       "closed_at": "m_02",
       "owner": "李工",
-      "timing": "一周内",
-      "quote": "网关鉴权接口压测发现抖动，需要在一周内将时延指标压到 200ms 以内。"
+      "timing": "本周五前",
+      "quote": "为了保障数据安全与端到端响应，小艺慧记7B基座模型私有化部署与vLLM服务调优必须在本周五前完成。"
     }
   ],
   "open_items": [],
@@ -319,11 +315,10 @@ data/user_001/memory/minutes/
 
 ---
 
-## 五、 总结要点
+## 五、 核心架构总结
 
-1. **`registry.json` 是路由入口**：负责快速认亲，维护项目身份（ID、标准名、历史会议别名、业务强弱锚点）；
-2. **`meetings.jsonl` 是唯一事实账目流水（Source of Truth）**：每场一条独立 JSON，真实保存该场会议的原始切片、提取的结论、完成宣告与发言原话；
-3. **`states/{project_id}.json` 是记忆投影与状态机**：由流水表动态驱动聚合，负责跨场状态流转（open ➔ done）、沉寂降噪（dormant）、以及为本场纪要提供溯源原话与演进分类。
-4. **两类调用的唯一区别在于认亲阶段**：
-   - 传 `project`：直接按显式项目名锁定 `project_id`；
-   - 不传 `project`：大模型理解提取锚点后，在 `registry.json` 中自适应扫描，能认亲则认亲，认不到则自动开辟新项目。认亲后两者后续的数据流转与沉淀过程 **100% 相同**。
+| 表名称 | 物理路径 | 核心定位与职责 |
+| :--- | :--- | :--- |
+| **项目索引表** | `registry.json` | **全局目录与路由认亲**：记录项目标准名、所有历史场次别名、业务强弱锚点，未传 project 时由此进行秒级相似度匹配。 |
+| **会议记录表** | `meetings.jsonl` | **唯一事实流水（Source of Truth）**：每场一条独立记录，只追加不修改，记录该场会议抽取出的原始事实、发言摘录与完成宣告。 |
+| **项目状态表** | `states/{pid}.json` | **宏观状态机演进账本**：由事实流水动态驱动聚合，维护待办生命周期（未闭环 ➔ 已闭环）、决策演进，并为当前纪要提供证据原话与来源出处。 |
