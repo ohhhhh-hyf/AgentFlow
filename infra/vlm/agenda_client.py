@@ -40,23 +40,22 @@ AGENDA_VISION_PROMPT = """你是一名「会议议程与日程结构化解析专
 
 【字段定义】：
 1. theme: 会议总主题/大会名称（字符串，未提及填 null）
-2. date_time: 会议举办日期或起止时间（字符串，未提及填 null）
-3. attendees: 全程主持人、大会主席或主要参会人员姓名列表（字符串数组，提取纯姓名，无则填 []）
-4. agenda_items: 实质性议题列表（对象数组，每个元素包含）：
+2. attendees: 全程主持人、大会主席、召集人或主要参会人员名单（字符串数组，提取纯真实姓名，无则填 []）
+3. agenda_items: 实质性议题列表（对象数组，每个元素仅包含以下 4 项）：
    - seq: 序号（按出现顺序格式化为补零数字，如 "01"、"02"……）
    - title: 议题全称（保留完整的技术报告名称、方案标题或审议事项，不擅自缩写）
    - presenters: 汇报人/主讲人姓名列表（字符串数组，仅保留纯真实姓名，无明确汇报人填 []）
-   - time_range: 预定起止时间（字符串，未注明填 null）
-   - duration: 预定时长（字符串，未注明填 null）
+   - time_range: 预定起止时间范围（字符串，如 "10:00-10:30"，未注明填 null）
 
 【提纯与清洗规约】：
-1. 人名去职化提纯：严格提取纯净真实姓名，自动剥离所属机构、所属部门以及头衔职称（如教授、研究员、博士、主任、工程师、专家、顾问、总等称谓），仅保留人名主体。
+1. 人名与工号去噪提纯：严格提取纯净真实姓名，自动剥离员工工号数字、所属机构/部门、以及头衔职称（如教授、研究员、博士、主任、工程师、专家、顾问、总等称谓）。
+   - 示例：“汇报人：王海涛 00977894” 提纯为 ["王海涛"]；“张三（芯片架构部）” 提纯为 ["张三"]。
 2. 研讨与后勤边界：聚焦提炼具有实质研讨、方案汇报、业务审议、主旨演讲或正式仪式的有效议程；自动过滤签到、餐饮茶歇、集合乘车、休会漫步等纯事务性后勤环节。
 3. 全量完整性规约：依序完整提取所有独立研讨事项，不因缺少序号标号或排版居于末尾而遗漏，严禁跳项、合并或截断。
 
 【输出约束】：
 只输出标准 JSON 文本，严禁包含 Markdown 代码块标记（```json ```）、前言、解释或任何多余文字。
-若图片内容与会议/议程完全无关，请输出：{"theme": null, "date_time": null, "attendees": [], "agenda_items": []}"""
+若图片内容与会议/议程完全无关，请输出：{"theme": null, "attendees": [], "agenda_items": []}"""
 
 
 # 英文议程图片专项规则（仅 lang=en 时插入，位置在【输出约束】之前）
@@ -65,8 +64,8 @@ AGENDA_VISION_EN_TAIL = """【英文识别规约】：
 2. 人名、公司名、产品名、技术术语、缩写按原文保留，不要意译、改写或擅自展开；保留原文大小写与标点。
 3. 职衔清洗需覆盖英文称谓：Professor、Dr.、Director、Manager、Engineer、Expert、Consultant、Chief、Lead、Head 等。
 4. 后勤过滤需覆盖英文环节：Registration、Networking、Coffee Break、Lunch、Reception、Shuttle、Recess 等。
-5. 若图片中混有中文（如中英双语议程），按原样保留对应文本，不做统一翻译。
-6. JSON 字段名保持英文原样（theme / date_time / attendees / agenda_items / seq / title / presenters / time_range / duration），不要翻译或改名。"""
+5. 若图片中混有中文（如中英双语议程），按原样保留对应文本，不做统一翻译文。
+6. JSON 字段名保持英文原样（theme / attendees / agenda_items / seq / title / presenters / time_range），不要翻译或改名。"""
 
 
 def build_agenda_vision_prompt(lang: str = "zh") -> str:

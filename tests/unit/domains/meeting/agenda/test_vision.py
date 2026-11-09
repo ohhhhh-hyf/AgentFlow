@@ -38,7 +38,6 @@ def test_vision_json_to_agenda_plan_mapping():
 
     plan = vision_json_to_agenda_plan(data)
     assert plan.meta.theme == "语音技术研讨会"
-    assert plan.meta.date_time == "2026-10-22"
     assert plan.meta.attendees == "高虹；俞凯"
 
     assert len(plan.items) == 2
@@ -50,7 +49,6 @@ def test_vision_json_to_agenda_plan_mapping():
     assert plan.items[1].seq == "02"
     assert plan.items[1].title == "语音大模型前沿"
     assert plan.items[1].presenters == ["俞凯"]
-    assert plan.items[1].duration == "45min"
 
 
 def test_vision_json_english_presenters_not_split():
@@ -118,9 +116,8 @@ def test_agenda_plan_to_markdown():
     md = agenda_plan_to_markdown(plan)
 
     assert "**会议主题**：芯片进度例会" in md
-    assert "**会议时间**：2026-10-22 14:00" in md
     assert "**全程与会人/主持人**：张三；李四" in md
-    assert "| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |" in md
+    assert "| 序号 | 议题名称 | 汇报人 | 时间段 |" in md
     assert "| 01 | 良率提升汇报 | 张三 | 14:00-14:30 |" in md
 
 

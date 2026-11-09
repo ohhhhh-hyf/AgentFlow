@@ -100,7 +100,6 @@ def vision_json_to_agenda_plan(
     """将视觉大模型输出的结构化字典转换为领域标准 AgendaPlan。"""
     meta = AgendaMeta()
     meta.theme = str(data.get("theme") or "").strip()
-    meta.date_time = str(data.get("date_time") or "").strip()
 
     raw_attendees = data.get("attendees")
     cleaned_attendees = clean_person_names(raw_attendees)
@@ -124,19 +123,15 @@ def vision_json_to_agenda_plan(
             # 汇报人键名防御性兼容：支持 presenters / attendees / reporter
             pres_raw = it.get("presenters") or it.get("attendees") or it.get("reporter")
             presenters = clean_person_names(pres_raw)
-            raw_presenter = "；".join(presenters)
 
             time_range = str(it.get("time_range") or it.get("time") or "").strip()
-            duration = str(it.get("duration") or "").strip()
 
             items.append(
                 AgendaItemParsed(
                     seq=seq,
                     title=title,
                     presenters=presenters,
-                    raw_presenter=raw_presenter,
                     time_range=time_range,
-                    duration=duration,
                 )
             )
 
@@ -180,7 +175,6 @@ def ensure_agenda_plan(
             meta_data = data.get("meta") or {}
             meta = AgendaMeta(
                 theme=str(meta_data.get("theme") or ""),
-                date_time=str(meta_data.get("date_time") or ""),
                 attendees=str(meta_data.get("attendees") or ""),
             )
             items = []
@@ -191,13 +185,7 @@ def ensure_agenda_plan(
                             seq=str(it.get("seq") or ""),
                             title=str(it.get("title") or ""),
                             presenters=list(it.get("presenters") or []),
-                            raw_presenter=str(it.get("raw_presenter") or ""),
-                            recorders=list(it.get("recorders") or []),
-                            members=list(it.get("members") or []),
-                            duration=str(it.get("duration") or ""),
                             time_range=str(it.get("time_range") or ""),
-                            category=str(it.get("category") or ""),
-                            description=str(it.get("description") or ""),
                         )
                     )
             return AgendaPlan(meta=meta, items=items)
@@ -217,21 +205,18 @@ def agenda_plan_to_markdown(plan: AgendaPlan) -> str:
     lines: list[str] = []
     if plan.meta.theme:
         lines.append(f"**会议主题**：{plan.meta.theme}")
-    if plan.meta.date_time:
-        lines.append(f"**会议时间**：{plan.meta.date_time}")
     if plan.meta.attendees:
         lines.append(f"**全程与会人/主持人**：{plan.meta.attendees}")
 
     if lines:
         lines.append("")
 
-    lines.append("| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |")
+    lines.append("| 序号 | 议题名称 | 汇报人 | 时间段 |")
     lines.append("| :--- | :--- | :--- | :--- |")
 
     for it in plan.items:
-        pres_str = "；".join(it.presenters) if it.presenters else (it.raw_presenter or "")
-        dur_str = it.duration or it.time_range or ""
-        lines.append(f"| {it.seq} | {it.title} | {pres_str} | {dur_str} |")
+        pres_str = "；".join(it.presenters) if it.presenters else ""
+        lines.append(f"| {it.seq} | {it.title} | {pres_str} | {it.time_range} |")
 
     return "\n".join(lines).strip()
 

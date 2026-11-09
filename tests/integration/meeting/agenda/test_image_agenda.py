@@ -7,7 +7,7 @@ import pytest
 
 from app.schemas import TaskRequest
 from app.tasks import _prepare
-from domains.meeting.agenda_vision import AgendaPlan
+from domains.meeting.agenda_vision import AgendaItemParsed, AgendaPlan
 
 pytestmark = pytest.mark.integration
 
@@ -20,7 +20,6 @@ def test_prepare_agenda_minutes_with_vlm_image(tmp_path, monkeypatch):
 
     mock_vlm_data = {
         "theme": "技术年会",
-        "date_time": "2026-10-22",
         "attendees": ["高虹", "俞凯"],
         "agenda_items": [
             {"seq": "01", "title": "语音模仿与鉴别", "presenters": ["陶建华"], "time_range": "09:30-10:15"}
@@ -36,10 +35,10 @@ def test_prepare_agenda_minutes_with_vlm_image(tmp_path, monkeypatch):
             docs=["agenda_img.png"],
         )
         prep = _prepare(domain="meeting", task="agenda_minutes", req=req, user_id="1")
-        assert "agenda_minutes" in prep.extra_line_inputs
-        agenda_val = prep.extra_line_inputs["agenda_minutes"]
-        assert "语音模仿与鉴别" in agenda_val
-        assert "陶建华" in agenda_val
+        assert "agenda_plan" in prep.extra_line_inputs
+        agenda_val = prep.extra_line_inputs["agenda_plan"]
+        assert agenda_val.items[0].title == "语音模仿与鉴别"
+        assert agenda_val.items[0].presenters == ["陶建华"]
 
 
 def test_prepare_minutes_with_vlm_image_enhanced_mode(tmp_path, monkeypatch):
@@ -50,7 +49,6 @@ def test_prepare_minutes_with_vlm_image_enhanced_mode(tmp_path, monkeypatch):
 
     mock_vlm_data = {
         "theme": "语音技术研讨",
-        "date_time": "2026-10-22",
         "attendees": ["高虹", "陶建华"],
         "agenda_items": [
             {"seq": "01", "title": "语音模仿与鉴别", "presenters": ["陶建华"], "time_range": "09:30-10:15"}
@@ -66,8 +64,8 @@ def test_prepare_minutes_with_vlm_image_enhanced_mode(tmp_path, monkeypatch):
             docs=["agenda_img.png"],
         )
         prep = _prepare(domain="meeting", task="minutes", req=req, user_id="1")
-        assert "agenda_text" in prep.extra_line_inputs
-        assert "语音模仿与鉴别" in prep.extra_line_inputs["agenda_text"]
+        assert "agenda_plan" in prep.extra_line_inputs
+        assert prep.extra_line_inputs["agenda_plan"].items[0].title == "语音模仿与鉴别"
 
 
 def test_prepare_minutes_with_vlm_fallback_to_ocr(tmp_path, monkeypatch):
@@ -80,8 +78,17 @@ def test_prepare_minutes_with_vlm_fallback_to_ocr(tmp_path, monkeypatch):
     mock_client = MagicMock()
     mock_client.extract_agenda.return_value = None
 
-    fallback_plan = AgendaPlan()
-    fallback_text = "| 序号 | 议题名称 | 汇报人/主讲人 | 预计时长 |\n| :--- | :--- | :--- | :--- |\n| 01 | 自研芯片量产汇报 | 张三 | 09:00-10:00 |"
+    fallback_plan = AgendaPlan(
+        items=[
+            AgendaItemParsed(
+                seq="01",
+                title="自研芯片量产汇报",
+                presenters=["张三"],
+                time_range="09:00-10:00",
+            )
+        ]
+    )
+    fallback_text = "| 序号 | 议题名称 | 汇报人 | 时间段 |\n| :--- | :--- | :--- | :--- |\n| 01 | 自研芯片量产汇报 | 张三 | 09:00-10:00 |"
 
     with patch("domains.meeting.agenda_vision.AgendaVisionClient", return_value=mock_client), patch(
         "domains.meeting.agenda_vision.ocr_fallback_single_agenda_doc",
@@ -92,5 +99,5 @@ def test_prepare_minutes_with_vlm_fallback_to_ocr(tmp_path, monkeypatch):
             docs=["agenda_img.png"],
         )
         prep = _prepare(domain="meeting", task="minutes", req=req, user_id="1")
-        assert "agenda_text" in prep.extra_line_inputs
-        assert "自研芯片量产汇报" in prep.extra_line_inputs["agenda_text"]
+        assert "agenda_plan" in prep.extra_line_inputs
+        assert prep.extra_line_inputs["agenda_plan"].items[0].title == "自研芯片量产汇报"

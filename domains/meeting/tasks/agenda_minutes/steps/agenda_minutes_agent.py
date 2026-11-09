@@ -777,7 +777,7 @@ class AgendaMinutesAgent:
 
         async def _extract_single_item(align: AgendaAlignment) -> dict[str, Any]:
             it = align.item
-            pres_str = "、".join(it.presenters) if it.presenters else (it.raw_presenter or "未指定")
+            pres_str = "、".join(it.presenters) if it.presenters else "未指定"
             async with semaphore:
                 budgeted_evidence = _extract_budgeted_evidence(align, max_chars=_EVIDENCE_CHAR_BUDGET)
                 user_prompt = (
@@ -841,7 +841,7 @@ class AgendaMinutesAgent:
         raw_draft = {
             "meeting_meta": {
                 "theme": plan.meta.theme or "会议纪要",
-                "date_time": plan.meta.date_time or "2026年度会议",
+                "date_time": "2026年度会议",
                 "attendees_summary": plan.meta.attendees or "全体与会人",
                 "agenda_stats": "",
             },
@@ -867,7 +867,7 @@ class AgendaMinutesAgent:
         if not meeting_meta.get("theme"):
             meeting_meta["theme"] = plan.meta.theme or "会议纪要"
         if not meeting_meta.get("date_time"):
-            meeting_meta["date_time"] = plan.meta.date_time or "2026年度会议"
+            meeting_meta["date_time"] = "2026年度会议"
         if not meeting_meta.get("attendees_summary") and plan.meta.attendees:
             meeting_meta["attendees_summary"] = plan.meta.attendees
         if not meeting_meta.get("agenda_stats"):
@@ -907,7 +907,7 @@ class AgendaMinutesAgent:
             it = align.item
             seq = it.seq
             raw_match = raw_items_map.get(seq) or {}
-            pres_str = "、".join(it.presenters) if it.presenters else (it.raw_presenter or "")
+            pres_str = "、".join(it.presenters) if it.presenters else ""
 
             # 1. 过滤纯物理动线、生活作息日程以及过场仪式（如拍照合影、开场视频播放、漫步大学城、茶歇等）
             if is_trivial_ceremonial_item(align):

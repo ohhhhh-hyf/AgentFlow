@@ -120,7 +120,6 @@ def test_agenda_parser_standard_numbered_list():
     plan = parse_agenda_text(txt_path.read_text(encoding="utf-8"))
 
     assert "智慧域商用发布评审" in plan.meta.theme
-    assert "2026/06/15" in plan.meta.date_time
     assert "全程与会人" in plan.meta.attendees
     assert len(plan.items) == 4
 
@@ -199,7 +198,6 @@ def test_agenda_parser_markdown_table_and_tabs():
     assert plan.items[0].seq == "01"
     assert "小艺慧记" in plan.items[0].title
     assert plan.items[0].presenters == ["申家坤"]
-    assert plan.items[0].duration == "15min"
     assert plan.items[0].time_range == "16:00-16:15"
 
     tab_text = "序号\t议题名称\t时长\t汇报人\n1\t大模型推理优化\t30分钟\t张三\n2\tAgent长期记忆\t30分钟\t李四"
@@ -394,24 +392,24 @@ def test_agenda_parser_table_format_without_presenter_column():
 
     assert plan.items[0].seq == "01"
     assert plan.items[0].title == "视频观看"
-    assert plan.items[0].description == "活动开场视频播放"
+    assert plan.items[0].time_range == "09:00-09:10"
     assert plan.items[0].presenters == []
 
     assert plan.items[1].seq == "02"
     assert plan.items[1].title == "何刚总致辞"
-    assert plan.items[1].description == "领导致辞"
+    assert plan.items[1].time_range == "09:10-09:30"
 
     assert plan.items[2].seq == "03"
     assert plan.items[2].title == "互动交流"
-    assert plan.items[2].description == "现场问答、自由交流与讨论"
+    assert plan.items[2].time_range == "09:30-10:30"
 
     assert plan.items[3].seq == "04"
     assert plan.items[3].title == "任务令签署与授予"
-    assert plan.items[3].description == "任务令签署仪式及授予环节"
+    assert plan.items[3].time_range == "10:30-10:40"
 
     assert plan.items[4].seq == "05"
     assert plan.items[4].title == "全体合影"
-    assert plan.items[4].description == "全体参会人员合影留念"
+    assert plan.items[4].time_range == "10:40-10:50"
 
 def test_paddle_ocr_join_row_texts_avoids_name_concatenation():
     """测试 PaddleOCR 同行拼接时，避免将汇报人与记录人无缝粘连为单个姓名。"""

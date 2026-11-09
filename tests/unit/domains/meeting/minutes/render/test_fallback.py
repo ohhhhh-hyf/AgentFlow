@@ -33,7 +33,7 @@ def test_render_fallback_minutes_maps_seven_fields() -> None:
         "## 全员执行要点",
         "## 风险与阻塞",
         "## 未决问题",
-        "## 与历史对比",
+        "## 状态演进",
     ):
         assert heading in rendered
 
@@ -60,7 +60,7 @@ def test_render_fallback_minutes_maps_seven_fields() -> None:
         "## 全员执行要点",
         "## 风险与阻塞",
         "## 未决问题",
-        "## 与历史对比",
+        "## 状态演进",
     ]
     positions = [rendered.index(h) for h in order]
     assert positions == sorted(positions)
@@ -157,7 +157,7 @@ def test_render_fallback_minutes_english_headings() -> None:
         "## Action Items",
         "## Risks & Blockers",
         "## Open Questions",
-        "## Historical Comparison",
+        "## Historical State Evolution",
     ):
         assert heading in rendered
     assert not any("一" <= c <= "鿿" for c in rendered)

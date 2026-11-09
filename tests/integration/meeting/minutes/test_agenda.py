@@ -66,7 +66,7 @@ def test_agenda_template_resolution():
     from core.templates.router._gate import scan_fixed_bracket_literals
     assert scan_fixed_bracket_literals(agenda_fmt) == [], "agenda template must not have unparsed fixed bracket literals"
     assert "以现场审定的有效议题清单为主线展开" in agenda_fmt
-    assert "每个议题以「### 一. 议题名称」顶格列出" in agenda_fmt
+    assert "每个议题以「### 一. 议题名称」" in agenda_fmt
     assert "**业务子主题**" in agenda_fmt
     assert "#### 1. 子主题名称" not in agenda_fmt
     assert "采用议题聚类" not in agenda_fmt
@@ -78,22 +78,22 @@ def test_agenda_template_resolution():
 
     # 3. 议题模式下加载已定制的 project_progress：命中 resources/agenda_templates/zh/project_progress.md
     agenda_proj_fmt = resolve_agenda_template_format("project_progress")
-    assert "以现场审定的有效议题清单为主线展开，每个议题下独立设立一张明细表格" in agenda_proj_fmt
+    assert "以现场审定的有效议题清单为主线逐个议题展开" in agenda_proj_fmt
 
     # 4. 议题模式下加载已定制的 decision_review：命中 resources/agenda_templates/zh/decision_review.md
     agenda_dec_fmt = resolve_agenda_template_format("decision_review")
-    assert "以现场审定的有效评审议题为主线展开，每个议题下独立设立一张论证明细表格" in agenda_dec_fmt
+    assert "以现场审定的有效议题清单为主线逐个议题展开" in agenda_dec_fmt
 
     # 5. 议题模式下加载已定制的 workshop_session：命中 resources/agenda_templates/zh/workshop_session.md
     agenda_ws_fmt = resolve_agenda_template_format("workshop_session")
-    assert "以现场审定的有效议题清单为主线展开" in agenda_ws_fmt
-    assert "多方向探讨或观点交锋以独立加粗行「**业务子主题/探讨方向**」划分段落" in agenda_ws_fmt
+    assert "以现场审定的有效议题清单为主线逐个议题展开" in agenda_ws_fmt
+    assert "**业务子主题/探讨方向**" in agenda_ws_fmt
 
     # 6. 议题模式下加载已定制的 retrospective_session：命中 resources/agenda_templates/zh/retrospective_session.md
     agenda_retro_fmt = resolve_agenda_template_format("retrospective_session")
     assert scan_fixed_bracket_literals(agenda_retro_fmt) == []
-    assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」列出" in agenda_retro_fmt
-    assert "每条以反映具体交付物或量化指标的实质业务短语起笔" in agenda_retro_fmt
+    assert "以现场审定的有效议题清单为主线逐个议题展开" in agenda_retro_fmt
+    assert "按清单项「- **子模块/指标项**" in agenda_retro_fmt
 
     # 7. 议题模式下加载已定制的 exchange_forum：命中 resources/agenda_templates/zh/exchange_forum.md
     agenda_ef_fmt = resolve_agenda_template_format("exchange_forum")

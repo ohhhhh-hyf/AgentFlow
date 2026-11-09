@@ -48,13 +48,7 @@ class AgendaItemParsed:
     seq: str
     title: str
     presenters: list[str] = field(default_factory=list)
-    raw_presenter: str = ""
-    recorders: list[str] = field(default_factory=list)
-    members: list[str] = field(default_factory=list)
-    duration: str = ""
     time_range: str = ""
-    category: str = ""
-    description: str = ""
 
 
 @dataclass
@@ -62,7 +56,6 @@ class AgendaMeta:
     """议程顶层元数据。"""
 
     theme: str = ""
-    date_time: str = ""
     attendees: str = ""
 
 
@@ -83,13 +76,13 @@ def _log_parser_record(text: str, plan: AgendaPlan, mode: str, cols: dict | None
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         lines = [
             f"[{now_str}] Mode: {mode}, Total Items: {len(plan.items)}",
-            f"  Meta: theme={plan.meta.theme!r}, time={plan.meta.date_time!r}, attendees={plan.meta.attendees!r}",
+            f"  Meta: theme={plan.meta.theme!r}, attendees={plan.meta.attendees!r}",
         ]
         if cols:
             lines.append(f"  Resolved Columns: {cols}")
         for it in plan.items:
             lines.append(
-                f"  - Item [{it.seq}] {it.title} | Presenter: {it.presenters} (raw: {it.raw_presenter!r}) | Dur: {it.duration} | Time: {it.time_range} | Cat: {it.category}"
+                f"  - Item [{it.seq}] {it.title} | Presenter: {it.presenters} | Time: {it.time_range}"
             )
         if not plan.items:
             lines.append("  [WARNING] No items parsed! Raw text preview (first 300 chars):")
@@ -106,12 +99,9 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
     title_idx = -1
     seq_idx = -1
     pres_idx = -1
-    rec_idx = -1
     mem_idx = -1
     time_idx = -1
     dur_idx = -1
-    cat_idx = -1
-    desc_idx = -1
 
     for idx, raw in enumerate(header_cells):
         name = raw.strip().lower()
@@ -129,25 +119,13 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
         if (any(k in name for k in ("起止时间", "时间段", "议题时间")) or (("时间" in name or "time" in name) and dur_idx != idx)):
             time_idx = idx
             continue
-        # 汇报人类别
-        if any(k in name for k in ("类别", "类型", "category", "性质")):
-            cat_idx = idx
-            continue
         # 汇报人/主讲人
         if any(k in name for k in ("汇报人", "reporter", "主讲人", "主讲", "报告人", "分享人", "责任人", "发言人", "汇报人员", "汇报")):
             pres_idx = idx
             continue
-        # 纪要人
-        if any(k in name for k in ("纪要人", "recorder", "记录人", "纪要")):
-            rec_idx = idx
-            continue
-        # 参与人/成员
+        # 参与人/成员（作为汇报人的备选）
         if any(k in name for k in ("参与人", "成员", "members", "attendees", "列席人", "与会人", "参会人员")):
             mem_idx = idx
-            continue
-        # 内容说明 / 描述 / 备注
-        if any(k in name for k in ("内容说明", "具体内容", "内容介绍", "说明", "备注", "描述", "议题描述")):
-            desc_idx = idx
             continue
         # 议题名称（优先匹配含「名称」「全称」「主题」的列，以及「环节」「活动环节」「议程」）
         if any(k in name for k in ("议题名称", "topic name", "议题全称", "主题", "topic", "讨论事项", "审议事项", "汇报内容", "议题内容", "环节", "活动环节", "议程", "议程环节")):
@@ -168,18 +146,17 @@ def _resolve_columns(header_cells: list[str]) -> dict[str, int]:
     if pres_idx == -1 and mem_idx != -1 and mem_idx != title_idx:
         pres_idx = mem_idx
 
+    # 若起止时间未识别但存在时长列，将时长作为时间范围的有效回退
+    resolved_time_idx = time_idx if time_idx != -1 else dur_idx
+
     cols = {
         "seq": seq_idx,
         "title": title_idx,
         "presenter": pres_idx,
-        "recorder": rec_idx,
-        "members": mem_idx,
-        "time": time_idx,
-        "duration": dur_idx,
-        "category": cat_idx,
-        "description": desc_idx,
+        "time": resolved_time_idx,
     }
     logger.debug("agenda_parser: resolved table columns -> %s", cols)
+    return cols
     return cols
 
 
@@ -468,10 +445,6 @@ def reconcile_presenter_names(
     for item in plan.items:
         if item.presenters:
             item.presenters = [_best_cand(p) for p in item.presenters]
-        if item.recorders:
-            item.recorders = [_best_cand(r) for r in item.recorders]
-        if item.members:
-            item.members = [_best_cand(m) for m in item.members]
 
     if plan.meta.attendees:
         for cand in cleaned_cands:
@@ -549,7 +522,6 @@ def parse_agenda_text(
             meta.theme = re.sub(r"^(?:会议主题|Subject)\s*[:：]?\s*", "", line, flags=re.I).strip()
             continue
         if any(h in line for h in ("会议时间", "Time")) and not any(k in line for k in ("起止时间", "时长", "编号", "序号", "|")):
-            meta.date_time = re.sub(r"^(?:会议时间|Time)\s*[:：]?\s*", "", line, flags=re.I).strip()
             continue
         # 人员元数据识别（支持 全程与会人/主持人/组织主席/分段列席 等多种格式）
         line_clean = re.sub(r"^[#\*\s\-]+", "", line).strip()
@@ -612,38 +584,15 @@ def parse_agenda_text(
             raw_pres = cells[p_col].strip() if p_col != -1 and p_col < len(cells) else ""
             presenters = clean_presenter_names(raw_pres)
 
-            rec_col = cols.get("recorder", -1)
-            raw_rec = cells[rec_col].strip() if rec_col != -1 and rec_col < len(cells) else ""
-            recorders = clean_presenter_names(raw_rec)
-
-            mem_col = cols.get("members", -1)
-            raw_mem = cells[mem_col].strip() if mem_col != -1 and mem_col < len(cells) else ""
-            members = clean_presenter_names(raw_mem)
-
-            dur_col = cols["duration"]
-            dur = cells[dur_col].strip() if dur_col != -1 and dur_col < len(cells) else ""
-
             time_col = cols["time"]
             time_val = cells[time_col].strip() if time_col != -1 and time_col < len(cells) else ""
-
-            cat_col = cols["category"]
-            cat_val = cells[cat_col].strip() if cat_col != -1 and cat_col < len(cells) else ""
-
-            desc_col = cols.get("description", -1)
-            desc_val = cells[desc_col].strip() if desc_col != -1 and desc_col < len(cells) else ""
 
             items.append(
                 AgendaItemParsed(
                     seq=seq,
                     title=title,
                     presenters=presenters,
-                    raw_presenter=raw_pres,
-                    recorders=recorders,
-                    members=members,
-                    duration=dur,
                     time_range=time_val,
-                    category=cat_val,
-                    description=desc_val,
                 )
             )
         logger.debug("agenda_parser: table mode extracted %d items", len(items))
@@ -676,7 +625,7 @@ def parse_agenda_text(
                             seq=seq_str,
                             title=clean_title,
                             presenters=pres_list,
-                            raw_presenter=pres_match.group(0) if pres_match else "",
+                            time_range="",
                         )
                     )
                     seq_counter += 1
@@ -688,13 +637,10 @@ def parse_agenda_text(
         ]
         if meta.theme:
             lines_summary.append(f"  * 会议主题: {meta.theme}")
-        if meta.date_time:
-            lines_summary.append(f"  * 会议时间: {meta.date_time}")
         for it in items:
             pres_str = ", ".join(it.presenters) if it.presenters else "(未指定或未识别到演讲人)"
-            dur_str = f" [预计时长: {it.duration}]" if it.duration else ""
-            cat_str = f" [{it.category}]" if it.category else ""
-            lines_summary.append(f"  -> 议题 {it.seq}: 《{it.title}》 | 演讲人/汇报人: {pres_str}{dur_str}{cat_str}")
+            time_str = f" [时间: {it.time_range}]" if it.time_range else ""
+            lines_summary.append(f"  -> 议题 {it.seq}: 《{it.title}》 | 演讲人/汇报人: {pres_str}{time_str}")
         logger.info("\n".join(lines_summary))
     else:
         logger.warning(

@@ -130,11 +130,11 @@ ITEM_CASES: list[tuple[str, dict]] = [
 def _plan() -> AgendaPlan:
     return AgendaPlan(
         meta=type(AgendaPlan().meta)(
-            theme="测试主题", date_time="2026-09-29", attendees="甲、乙"
+            theme="测试主题", attendees="甲、乙"
         ),
         items=[
-            AgendaItemParsed(seq="01", title="议题一", presenters=["甲"], raw_presenter="甲"),
-            AgendaItemParsed(seq="02", title="议题二", presenters=["乙"], raw_presenter="乙"),
+            AgendaItemParsed(seq="01", title="议题一", presenters=["甲"]),
+            AgendaItemParsed(seq="02", title="议题二", presenters=["乙"]),
         ],
     )
 

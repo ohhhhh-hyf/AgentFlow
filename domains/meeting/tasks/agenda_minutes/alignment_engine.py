@@ -489,12 +489,7 @@ def _detect_host_roadsign(
     first_name_counts: dict[str, int] = {}
     if lang_key == "en":
         for it in plan.items:
-            names = list(it.presenters)
-            if hasattr(it, "recorders"):
-                names.extend(it.recorders)
-            if hasattr(it, "members"):
-                names.extend(it.members)
-            for name in names:
+            for name in it.presenters:
                 parts = _english_name_parts(name)
                 if len(parts) >= 2:
                     key = parts[0].casefold()
@@ -503,10 +498,6 @@ def _detect_host_roadsign(
     # 1. 尝试匹配明确的目标议程人选或关键词
     for it in candidate_items:
         all_team = list(it.presenters)
-        if hasattr(it, "recorders"):
-            all_team.extend(it.recorders)
-        if hasattr(it, "members"):
-            all_team.extend(it.members)
 
         for p in all_team:
             if not p:
@@ -700,10 +691,6 @@ def _identify_hub_speakers(plan: AgendaPlan, blocks: list[DiscussionBlock]) -> t
     all_team: set[str] = set()
     for it in plan.items:
         all_team.update(it.presenters)
-        if hasattr(it, "recorders"):
-            all_team.update(it.recorders)
-        if hasattr(it, "members"):
-            all_team.update(it.members)
 
     for sp, cnt in speaker_counts.items():
         if cnt >= _HUB_SPEAKER_BLOCK_MIN and not any(match_presenter_name(p, sp) >= NAME_MATCH_ACCEPT for p in all_team if p):
@@ -780,17 +767,8 @@ def _score_block_for_item(
                     score += presenter_score
                 else:
                     score += max(3.0, presenter_score - 1.0)
-        elif hasattr(it, "recorders") and any(r in sp for r in it.recorders if r):
-            score += 2.5
-        elif hasattr(it, "members") and any(m in sp for m in it.members if m):
-            score += 2.5
-
     # 2. 正文点名该议题人员（支持全名、模糊形似名及 姓氏+工/老师/总）
     all_team = list(it.presenters)
-    if hasattr(it, "recorders"):
-        all_team.extend(it.recorders)
-    if hasattr(it, "members"):
-        all_team.extend(it.members)
     for name in all_team:
         if not name:
             continue
@@ -893,20 +871,17 @@ def _build_item_signals_for_content_track(
     it: AgendaItemParsed, *, lang: str = "zh"
 ) -> list[str]:
     """为无主讲人模式（Track B）构建每个议题的高敏路标与核心语义特征词集。"""
-    title = it.title or ""
-    desc = getattr(it, "description", "") or ""
+    title = (it.title or "").strip()
     signals: list[str] = []
     if title:
-        signals.append(title.strip())
-    if desc:
-        signals.append(desc.strip())
+        signals.append(title)
 
-    tokens = extract_distinctive_tokens(title) + (extract_distinctive_tokens(desc) if desc else [])
+    tokens = extract_distinctive_tokens(title)
     for tok in tokens:
         if len(tok) >= 2:
             signals.append(tok)
 
-    combined = f"{title} {desc}"
+    combined = title
 
     if normalize_lang(lang) == "en":
         combined_lower = combined.casefold()
@@ -1261,11 +1236,6 @@ def _align_agenda_with_transcript_impl(
         # 3. 会议刚开场（active_seq 为 None）时允许主持人开启计划的首个议题
         target_item = items_by_seq[best_seq]
         all_target_team = list(target_item.presenters)
-        if hasattr(target_item, "recorders"):
-            all_target_team.extend(target_item.recorders)
-        if hasattr(target_item, "members"):
-            all_target_team.extend(target_item.members)
-
         is_presenter_or_team = any(match_presenter_name(p, b.speaker) >= NAME_MATCH_ACCEPT for p in all_target_team)
         has_roadsign = (pending_roadsign == best_seq) or (roadsign_target == best_seq)
 
@@ -1337,10 +1307,6 @@ def _align_agenda_with_transcript_impl(
         evidence = "\n".join(b.content for b in it_blocks)
 
         all_team = list(it.presenters)
-        if hasattr(it, "recorders"):
-            all_team.extend(it.recorders)
-        if hasattr(it, "members"):
-            all_team.extend(it.members)
 
         has_team = any(
             any(
@@ -1476,8 +1442,7 @@ def is_trivial_ceremonial_item(align: AgendaAlignment, *, lang: str = "zh") -> b
     """
     it = align.item
     title = (it.title or "").strip()
-    desc = (it.description or "").strip()
-    combined = f"{title} {desc}"
+    combined = title
 
     # 统计现场发言支撑（中英文共用）
     blocks = align.matched_blocks

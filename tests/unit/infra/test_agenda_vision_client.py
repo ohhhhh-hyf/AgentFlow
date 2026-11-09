@@ -121,7 +121,7 @@ def test_en_prompt_english_rules_before_output_constraints():
     prompt = build_agenda_vision_prompt("en")
     assert prompt.index("【英文识别规约】") < prompt.index("【输出约束】")
     assert prompt.rstrip().endswith(
-        '{"theme": null, "date_time": null, "attendees": [], "agenda_items": []}'
+        '{"theme": null, "attendees": [], "agenda_items": []}'
     )
 
 

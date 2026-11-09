@@ -195,10 +195,10 @@ def test_zero_terminology_and_substantive_fail_safe() -> None:
     # 2. 验证高证据密度反向保活安全网
     agent = AgendaMinutesAgent(client=None)  # type: ignore[arg-type]
     plan_fs = AgendaPlan(
-        meta=type(AgendaPlan().meta)(theme="技术研讨交流会", date_time="2026-09-30", attendees="全体"),
+        meta=type(AgendaPlan().meta)(theme="技术研讨交流会", attendees="全体"),
         items=[
-            AgendaItemParsed(seq="01", title="高密度任务签署", presenters=["张三"], raw_presenter="张三"),
-            AgendaItemParsed(seq="02", title="低密度噪音过场", presenters=["李四"], raw_presenter="李四"),
+            AgendaItemParsed(seq="01", title="高密度任务签署", presenters=["张三"]),
+            AgendaItemParsed(seq="02", title="低密度噪音过场", presenters=["李四"]),
         ],
     )
     blocks_high = [
@@ -230,13 +230,13 @@ def test_zero_terminology_and_substantive_fail_safe() -> None:
 
     # 3. 验证 Test 7 完整流程仿真
     plan_t7 = AgendaPlan(
-        meta=type(AgendaPlan().meta)(theme="", date_time="2026/09/30", attendees="何总、涂总及各战队"),
+        meta=type(AgendaPlan().meta)(theme="", attendees="何总、涂总及各战队"),
         items=[
-            AgendaItemParsed(seq="01", title="活动开场视频播放", presenters=[], raw_presenter=""),
-            AgendaItemParsed(seq="02", title="何刚总致辞", presenters=["何刚"], raw_presenter="何刚总"),
-            AgendaItemParsed(seq="03", title="互动交流（现场问答、自由交流与讨论）", presenters=[], raw_presenter=""),
-            AgendaItemParsed(seq="04", title="任务令签署与授予", presenters=["涂总", "何总"], raw_presenter="涂总、何总"),
-            AgendaItemParsed(seq="05", title="全体合影", presenters=[], raw_presenter=""),
+            AgendaItemParsed(seq="01", title="活动开场视频播放", presenters=[]),
+            AgendaItemParsed(seq="02", title="何刚总致辞", presenters=["何刚"]),
+            AgendaItemParsed(seq="03", title="互动交流（现场问答、自由交流与讨论）", presenters=[]),
+            AgendaItemParsed(seq="04", title="任务令签署与授予", presenters=["涂总", "何总"]),
+            AgendaItemParsed(seq="05", title="全体合影", presenters=[]),
         ],
     )
     align_01 = AgendaAlignment(item=plan_t7.items[0], status="discussed", matched_blocks=[])
