@@ -881,7 +881,7 @@ class _Nodes(DomainNodes):
                         "1. 顶层只输出 headline / overview / topics / history_comparison；\n"
                         "2. topics 必须与【现场审定的有效议题清单】1:1，顺序一致；topic_name 只写标题本体，不带「1.」「议题：」「议题一：」「###」等前缀；\n"
                         "3. 每个议题固定六个键：topic_name / topic_summary / decisions / actions / risks / open_questions；\n"
-                        "4. topic_summary 按业务逻辑自然分组，不设固定组数和条数；每个子主题用「**子主题**：」开头，组内用「- 」写总结要点；同类合并，先结论后论据；不写议题标题、不写全场概况、不写决策/行动/风险/未决；\n"
+                        "4. topic_summary 按业务逻辑自然分组，不设固定组数和条数；每个子主题用「**子主题**：」开头，组内用「- 」写总结要点；同一事项内的论点与论据有机结合，充分展现各维度的实质进展与支撑数据；\n"
                         "5. decisions 只写已拍板；actions 交代责任人/交付物/时限；risks 与 open_questions 严格区分；\n"
                         "6. 无内容写 []；不得跨议题串写；不得新增/删除/改名/重排议题。"
                     )
