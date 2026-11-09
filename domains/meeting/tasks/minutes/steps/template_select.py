@@ -27,12 +27,12 @@ logger = logging.getLogger(__name__)
 MODE_ON = "on"
 
 
-def _mode_of(state: dict, agenda_text: str) -> str:
-    """场景模式以 API 判定为准；缺失时按 agenda_text 兜底。"""
+def _mode_of(state: dict, agenda_text: Any = None) -> str:
+    """场景模式以 API 判定为准；缺失时按是否有议程兜底。"""
     mode = str(state.get("template_mode") or "").strip().lower()
     if mode == "agenda":
         return "agenda"
-    if agenda_text:
+    if bool(agenda_text):
         return "agenda"
     return "normal"
 
@@ -222,8 +222,14 @@ async def select_minutes_template(
         return {}
 
     transcript = str(state.get("transcript") or "")
+    agenda_plan = (state.get("line_extra") or {}).get("agenda_plan")
     agenda_text = str((state.get("line_extra") or {}).get("agenda_text") or "").strip()
-    mode = _mode_of(state, agenda_text)
+    if agenda_plan and not agenda_text:
+        from domains.meeting.agenda_vision import agenda_plan_to_markdown
+        from domains.meeting.tasks.agenda_minutes.agenda_parser import AgendaPlan
+
+        agenda_text = agenda_plan_to_markdown(agenda_plan) if isinstance(agenda_plan, AgendaPlan) else str(agenda_plan)
+    mode = _mode_of(state, bool(agenda_plan) or bool(agenda_text))
     final_id = _final_template_id(state)
     switch = minutes_template_auto_mode()
     if switch == "off":

@@ -42,7 +42,7 @@ REQUIRED_FIELDS: dict[str, dict[str, str]] = {
     "agenda_minutes": {
         "user_id": "X-User-Id",
         "texts.transcript": "texts 中 transcript（会议转写文本）",
-        "docs": "docs（既定议程单文档或图片）",
+        "docs": "docs（既定议程单文档或图片）或 extra.agenda_plan（结构化议程大盘）",
     },
     "minutes_styles": {
         "user_id": "X-User-Id",
@@ -106,8 +106,8 @@ def check_required(task: str, req: TaskRequest, user_id: str) -> list[str]:
             # docs_any 与 docs 同义（都是"docs 数组非空"）；别名保留以兼容既有声明表
             has_docs = bool(req.docs or [])
             if task == "agenda_minutes":
-                # 议程门禁：必须带有 docs 参数（支持文档/图片文件，或兼容纯文本 extra.agenda_txt）
-                has_agenda = has_docs or bool(str(getattr(req.extra, "agenda_txt", "") or "").strip())
+                # 议程门禁：必须带有 docs 参数（支持文档/图片文件，或结构化 extra.agenda_plan）
+                has_agenda = has_docs or bool(getattr(req.extra, "agenda_plan", None))
                 if not has_agenda:
                     missing.append(label)
             else:

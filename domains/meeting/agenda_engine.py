@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from domains.meeting.tasks.agenda_minutes.agenda_parser import (
+    AgendaPlan,
     normalize_lang,
     parse_agenda_text,
 )
@@ -149,17 +150,47 @@ def clear_agenda_engine_cache() -> None:
 
 
 def process_agenda_for_minutes(
-    transcript: str, agenda_text: str, *, lang: str = "zh"
+    transcript: str,
+    agenda: AgendaPlan | dict[str, Any] | str = "",
+    *,
+    agenda_text: str = "",
+    lang: str = "zh",
 ) -> AgendaProcessResult:
-    """提取有效讨论议题，并生成带头尾保护的打标实录（单次解析与对齐）。"""
+    """提取有效讨论议题，并生成带头尾保护的打标实录（支持 AgendaPlan/Dict 或文本形式）。"""
     t = (transcript or "").strip()
-    a = (agenda_text or "").strip()
-    if not t or not a:
+    target_agenda = agenda if agenda != "" else agenda_text
+    if not t or (not target_agenda and target_agenda != 0):
         return AgendaProcessResult(
             has_valid_agenda=False,
             valid_agendas=[],
             tagged_transcript=transcript or "",
         )
+
+    # 1. 结构化归一：若入参已经是 AgendaPlan 或 Dict，直接得到 plan 对象
+    plan: AgendaPlan | None = None
+    a: str = ""
+    if isinstance(target_agenda, AgendaPlan):
+        plan = target_agenda
+        from domains.meeting.agenda_vision import agenda_plan_to_markdown
+
+        a = agenda_plan_to_markdown(plan)
+    elif isinstance(target_agenda, dict):
+        from domains.meeting.agenda_vision import (
+            ensure_agenda_plan,
+            agenda_plan_to_markdown,
+        )
+
+        plan = ensure_agenda_plan(target_agenda, transcript=t)
+        if plan:
+            a = agenda_plan_to_markdown(plan)
+    elif isinstance(target_agenda, str):
+        a = target_agenda.strip()
+        if not a:
+            return AgendaProcessResult(
+                has_valid_agenda=False,
+                valid_agendas=[],
+                tagged_transcript=transcript or "",
+            )
 
     lang_key = normalize_lang(lang)
     cache_key = (
@@ -179,7 +210,8 @@ def process_agenda_for_minutes(
         return copy.deepcopy(_PROCESS_AGENDA_CACHE[cache_key])
 
     try:
-        plan = parse_agenda_text(a, transcript=t)
+        if plan is None:
+            plan = parse_agenda_text(a, transcript=t)
         if not plan or not plan.items:
             empty_res = AgendaProcessResult(
                 has_valid_agenda=False,
@@ -238,8 +270,13 @@ def process_agenda_for_minutes(
 
 
 def probe_valid_agendas(
-    transcript: str, agenda_text: str, *, lang: str = "zh"
+    transcript: str,
+    agenda: AgendaPlan | dict[str, Any] | str = "",
+    *,
+    agenda_text: str = "",
+    lang: str = "zh",
 ) -> list[ValidAgendaItem]:
-    """快速探测 docs 是否包含与会议转写实质对齐的有效讨论议题（纯 Python，零 LLM 调用）。"""
-    res = process_agenda_for_minutes(transcript, agenda_text, lang=lang)
+    """快速探测是否包含与会议转写实质对齐的有效讨论议题（支持 AgendaPlan/Dict 或文本形式，纯 Python，零 LLM 调用）。"""
+    target = agenda if agenda != "" else agenda_text
+    res = process_agenda_for_minutes(transcript, target, lang=lang)
     return res.valid_agendas if res.has_valid_agenda else []

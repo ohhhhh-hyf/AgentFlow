@@ -149,7 +149,7 @@ async def prepare_run(
     compile_natural: bool = True,
     monitor: bool = True,
     collect_reports: bool = False,
-    extra_line_inputs: dict[str, str] | None = None,
+    extra_line_inputs: dict[str, Any] | None = None,
     memory: bool = False,
     meeting_time: str = "",
     lang: str = "zh",
@@ -328,18 +328,25 @@ async def prepare_run(
                 f"{prev}\n\n{extra}".strip() if prev else extra
             )
     for line_name, value in (extra_line_inputs or {}).items():
-        if (line_name not in line_names and line_name in ctx.task_lines) or not (value or "").strip():
+        if line_name not in line_names and line_name in ctx.task_lines:
             continue
-        prev = line_extra.get(line_name) or ""
-        line_extra[line_name] = (
-            f"{prev}\n\n{value}".strip() if prev else value
-        )
+        if value is None:
+            continue
+        if isinstance(value, str):
+            if not value.strip():
+                continue
+            prev = line_extra.get(line_name) or ""
+            line_extra[line_name] = (
+                f"{prev}\n\n{value}".strip() if prev else value
+            )
+        else:
+            line_extra[line_name] = value
 
     # ── 防御性复核：绕过 API 入口的编程调用也不能把 personal 带进议程 ──
     # 正常 API 路径已在 app/tasks._prepare 做 400 / effective profile；
     # 这里兜底直接调用 run_streaming/prepare_run 的场景。
-    agenda_text = str(line_extra.get("agenda_text") or "").strip()
-    if agenda_text:
+    has_agenda = bool(line_extra.get("agenda_plan")) or bool(str(line_extra.get("agenda_text") or "").strip())
+    if has_agenda:
         user_dict = (
             user.model_dump() if hasattr(user, "model_dump") else dict(user)
         )
@@ -429,7 +436,7 @@ async def run(
     compile_natural: bool = True,
     monitor: bool = True,
     collect_reports: bool = False,
-    extra_line_inputs: dict[str, str] | None = None,
+    extra_line_inputs: dict[str, Any] | None = None,
     memory: bool = False,
     meeting_time: str = "",
     lang: str = "zh",

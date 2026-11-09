@@ -624,7 +624,7 @@ class _Prepared:
     profile_file: Path
     templates: dict[str, Path]
     modes: dict[str, str]
-    extra_line_inputs: dict[str, str]
+    extra_line_inputs: dict[str, Any]
     input_files: list[Path] | Path | None
     user_id: str
     project: str
@@ -700,8 +700,41 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         transcript = normalize_transcript(transcript)
     teacher_docs: list[str] = []
     material_docs: list[str] = []
-    agenda_from_docs: str = ""
+    resolved_plan: Any = None
     valid_agenda_count = 0
+
+    plan_from_extra: Any = None
+    if req.extra and getattr(req.extra, "agenda_plan", None):
+        from domains.meeting.agenda_vision import ensure_agenda_plan
+
+        plan_from_extra = ensure_agenda_plan(req.extra.agenda_plan, transcript=transcript)
+
+    if line == "agenda_minutes" and plan_from_extra:
+        resolved_plan = plan_from_extra
+        valid_agenda_count = len(resolved_plan.items)
+    elif line == "minutes" and plan_from_extra:
+        from domains.meeting.agenda_engine import probe_valid_agendas
+
+        valid_agendas = (
+            probe_valid_agendas(
+                transcript,
+                plan_from_extra,
+                lang=req.lang,
+            )
+            if transcript
+            else []
+        )
+        if valid_agendas:
+            resolved_plan = plan_from_extra
+            valid_agenda_count = len(valid_agendas)
+            logger.info(
+                "minutes 任务检测到 extra.agenda_plan 包含 %d 个有效讨论议题，激活议题增强流水线",
+                len(valid_agendas),
+            )
+        else:
+            resolved_plan = plan_from_extra
+            valid_agenda_count = len(resolved_plan.items)
+
     if line != "library" and req.docs:
         if line == "checklist":
             # checklist 的 docs：仅支持老师重点文件（.txt），目录文件统一由 extra.catalog 传参
@@ -729,84 +762,103 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         elif line == "agenda_minutes":
             # agenda_minutes 的 docs：既定议程单（文本或图片）。
             # 议程单内容专供 extra_line_inputs，不得并入会议录音转写 transcript
-            agenda_parts = []
-            image_docs = [n for n in req.docs if _is_image_name(n)]
-            text_docs = [n for n in req.docs if not _is_image_name(n)]
-            if image_docs:
-                from domains.meeting.agenda_vision import extract_agenda_from_image_docs
+            if not resolved_plan:
+                image_docs = [n for n in req.docs if _is_image_name(n)]
+                text_docs = [n for n in req.docs if not _is_image_name(n)]
+                if image_docs:
+                    from domains.meeting.agenda_vision import extract_agenda_from_image_docs
 
-                image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
-                _, ocr_text = extract_agenda_from_image_docs(
-                    user_id=user_id,
-                    image_docs=image_docs,
-                    transcript=transcript,
-                    image_paths=image_paths,
-                )
-                if ocr_text:
-                    agenda_parts.append(ocr_text)
-            for name in text_docs:
-                path = _input_file(user_id, "docs", name)
-                try:
-                    body = path.read_text(encoding="utf-8").strip()
-                except UnicodeDecodeError:
-                    body = path.read_text(encoding="gbk", errors="replace").strip()
-                if body:
-                    agenda_parts.append(body)
-            agenda_from_docs = "\n\n".join(agenda_parts).strip()
+                    image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
+                    doc_plan, ocr_text = extract_agenda_from_image_docs(
+                        user_id=user_id,
+                        image_docs=image_docs,
+                        transcript=transcript,
+                        image_paths=image_paths,
+                    )
+                    if doc_plan:
+                        resolved_plan = doc_plan
+                    elif ocr_text:
+                        from domains.meeting.tasks.agenda_minutes.agenda_parser import parse_agenda_text
+
+                        resolved_plan = parse_agenda_text(ocr_text, transcript=transcript)
+                elif text_docs:
+                    body_parts = []
+                    for name in text_docs:
+                        path = _input_file(user_id, "docs", name)
+                        try:
+                            body = path.read_text(encoding="utf-8").strip()
+                        except UnicodeDecodeError:
+                            body = path.read_text(encoding="gbk", errors="replace").strip()
+                        if body:
+                            body_parts.append(body)
+                    if body_parts:
+                        from domains.meeting.tasks.agenda_minutes.agenda_parser import parse_agenda_text
+
+                        resolved_plan = parse_agenda_text("\n\n".join(body_parts), transcript=transcript)
+                if resolved_plan:
+                    valid_agenda_count = len(resolved_plan.items)
         elif line == "minutes":
             # minutes 的 docs：优先探测是否为既定议程单（文本或图片）；
-            # 若探测出有效实质议题，则提取为 agenda_text 专供议题结构化，不并入 transcript；
+            # 若探测出有效实质议题，则提取为 agenda_plan 专供议题结构化，不并入 transcript；
             # 若未探测出有效议题（传的是参考资料、财务报表、纯代码等，或现场全未讨论），
             # 必须默认回退！将其纳入 material_docs，正常 OCR/预览并入 transcript，100% 保持 legacy 行为。
-            candidate_parts = []
-            image_docs = [n for n in req.docs if _is_image_name(n)]
-            text_docs = [n for n in req.docs if not _is_image_name(n)]
-            if image_docs:
-                from domains.meeting.agenda_vision import extract_agenda_from_image_docs
+            if not resolved_plan:
+                candidate_parts = []
+                image_docs = [n for n in req.docs if _is_image_name(n)]
+                text_docs = [n for n in req.docs if not _is_image_name(n)]
+                candidate_plan: Any = None
+                candidate_ocr_text: str = ""
+                if image_docs:
+                    from domains.meeting.agenda_vision import extract_agenda_from_image_docs
 
-                image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
-                _, ocr_text = extract_agenda_from_image_docs(
-                    user_id=user_id,
-                    image_docs=image_docs,
-                    transcript=transcript,
-                    image_paths=image_paths,
-                    lang=req.lang,
-                )
-                if ocr_text:
-                    candidate_parts.append(ocr_text)
-            for name in text_docs:
-                path = _input_file(user_id, "docs", name)
-                try:
-                    body = path.read_text(encoding="utf-8").strip()
-                except UnicodeDecodeError:
-                    body = path.read_text(encoding="gbk", errors="replace").strip()
-                if body:
-                    candidate_parts.append(body)
-            candidate_agenda_text = "\n\n".join(candidate_parts).strip()
+                    image_paths = [_input_file(user_id, "docs", n) for n in image_docs]
+                    candidate_plan, candidate_ocr_text = extract_agenda_from_image_docs(
+                        user_id=user_id,
+                        image_docs=image_docs,
+                        transcript=transcript,
+                        image_paths=image_paths,
+                        lang=req.lang,
+                    )
+                    if candidate_ocr_text:
+                        candidate_parts.append(candidate_ocr_text)
+                for name in text_docs:
+                    path = _input_file(user_id, "docs", name)
+                    try:
+                        body = path.read_text(encoding="utf-8").strip()
+                    except UnicodeDecodeError:
+                        body = path.read_text(encoding="gbk", errors="replace").strip()
+                    if body:
+                        candidate_parts.append(body)
+                candidate_agenda_text = "\n\n".join(candidate_parts).strip()
+                if not candidate_plan and candidate_agenda_text:
+                    from domains.meeting.tasks.agenda_minutes.agenda_parser import parse_agenda_text
 
-            from domains.meeting.agenda_engine import probe_valid_agendas
+                    candidate_plan = parse_agenda_text(candidate_agenda_text, transcript=transcript)
 
-            valid_agendas = (
-                probe_valid_agendas(
-                    transcript,
-                    candidate_agenda_text,
-                    lang=req.lang,
+                from domains.meeting.agenda_engine import probe_valid_agendas
+
+                probe_target = candidate_plan or candidate_agenda_text
+                valid_agendas = (
+                    probe_valid_agendas(
+                        transcript,
+                        probe_target,
+                        lang=req.lang,
+                    )
+                    if (probe_target and transcript)
+                    else []
                 )
-                if (candidate_agenda_text and transcript)
-                else []
-            )
-            if valid_agendas:
-                agenda_from_docs = candidate_agenda_text
-                valid_agenda_count = len(valid_agendas)
-                logger.info(
-                    "minutes 任务检测到 docs 包含 %d 个有效讨论议题，激活议题增强流水线",
-                    len(valid_agendas),
-                )
-            else:
-                logger.info(
-                    "minutes 任务 docs 未探测到有效讨论议题，静默回退至常规参考资料流程",
-                )
-                material_docs = [name.strip() for name in req.docs]
+                if valid_agendas:
+                    resolved_plan = candidate_plan
+                    valid_agenda_count = len(valid_agendas)
+                    logger.info(
+                        "minutes 任务检测到 docs 包含 %d 个有效讨论议题，激活议题增强流水线",
+                        len(valid_agendas),
+                    )
+                else:
+                    logger.info(
+                        "minutes 任务 docs 未探测到有效讨论议题，静默回退至常规参考资料流程",
+                    )
+                    material_docs = [name.strip() for name in req.docs]
         else:
             material_docs = [name.strip() for name in req.docs]
         if material_docs and line == "graph":
@@ -838,8 +890,9 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     effective_profile = extra.profile
     prepare_warning = ""
     minutes_view = profile_mode
+    is_agenda_enhanced = bool(resolved_plan and getattr(resolved_plan, "items", None))
 
-    if line == "minutes" and agenda_from_docs:
+    if line == "minutes" and is_agenda_enhanced:
         from domains.meeting.views import (
             AgendaPersonalUnsupported,
             resolve_minutes_view,
@@ -903,7 +956,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
         extra.template,
         profile_value=effective_profile,
         style_value=extra.style,
-        is_agenda_enhanced=bool(agenda_from_docs),
+        is_agenda_enhanced=is_agenda_enhanced,
         lang=req.lang,
     )
 
@@ -924,7 +977,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
     templates: dict[str, Path] = {}
     if template_path is not None:
         templates[line] = template_path
-    extra_line_inputs: dict[str, str] = {}
+    extra_line_inputs: dict[str, Any] = {}
     aux_text = ""
     if line == "minutes_trace":
         trace_text = _trace_extra(keypoints, notes)
@@ -940,17 +993,15 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             prev = extra_line_inputs.get(line) or ""
             extra_line_inputs[line] = f"{prev}\n\n{teacher_block}".strip()
     if line == "agenda_minutes":
-        # 既定议程单汇聚：支持 docs（图片OCR/文档文本）与 extra.agenda_txt（纯文本补充）智能拼接合并
-        parts = [p for p in [agenda_from_docs, (extra.agenda_txt or "").strip()] if p]
-        agenda_val = "\n\n".join(parts).strip()
-        if agenda_val:
-            extra_line_inputs["agenda_minutes"] = agenda_val
+        # 既定议程单汇聚：优先保存强类型结构化议程大盘 AgendaPlan
+        if resolved_plan and getattr(resolved_plan, "items", None):
+            extra_line_inputs["agenda_plan"] = resolved_plan
     if line == "minutes":
         aux_text = _pack_minutes_auxiliary(keypoints, notes, vision_info)
         if aux_text:
             extra_line_inputs["minutes_auxiliary"] = aux_text
-        if agenda_from_docs:
-            extra_line_inputs["agenda_text"] = agenda_from_docs
+        if resolved_plan and getattr(resolved_plan, "items", None):
+            extra_line_inputs["agenda_plan"] = resolved_plan
     if line == "actions":
         # Phase 1：只准备 actions 专用辅助材料，暂不注入生成上下文。
         actions_aux = _pack_actions_auxiliary(actions_text, keypoints, notes, vision_info)
@@ -967,7 +1018,7 @@ def _prepare(domain: str, task: str, req: TaskRequest, user_id: str) -> _Prepare
             extra_line_inputs[line] = "\n".join(scope_parts)
 
     # 场景识别状态：API 层只组装并透传，由 graph 前置节点决定是否切换模板。
-    template_mode = "agenda" if agenda_from_docs else "normal"
+    template_mode = "agenda" if is_agenda_enhanced else "normal"
     template_auto = False
     template_source = ""
     template_id = ""

@@ -240,8 +240,47 @@ python -m app.worker.main --concurrency 4 --grace 300
     - `vision_info` 是**字符串**（截图 / PPT / 白板 / 报表的 OCR 或 VLM 识别结果），不是图片文件；系统不会再对它做 OCR/VLM；
     - `vision_info` 只作为纪要辅助材料，**不能触发议题增强模式**；议题增强模式仍只由 `docs` 中的议程单触发；
     - 四个字段在普通纪要及议题增强（objective / role_template）下均支持；`personal × agenda` 仍返回 400；
-  * `docs`（文件名数组，*条件必填*）：需引用的原始文档名列表（存放于 `data/{user_id}/docs/`；**`agenda_minutes` 任务线强校验必填**，必须提供会前既定议程单图片或文档，或通过 `extra.agenda_txt` 传入纯文本，防止无议程底座空跑）；`minutes` 的 docs 若被识别为议程，将进入议题增强模式；此时 personal 视角会被拒绝（400），详见 `extra.profile`；
+  * `docs`（文件名数组，*条件必填*）：需引用的原始文档名列表（存放于 `data/{user_id}/docs/`；**`agenda_minutes` 任务线强校验必填**，必须提供会前既定议程单图片或文档，或通过 `extra.agenda_plan` 传入结构化议程大盘，防止无议程底座空跑）；`minutes` 的 docs 若被识别为议程，将进入议题增强模式；此时 personal 视角会被拒绝（400），详见 `extra.profile`；
     - `docs` 中的议程图片会走内部 VLM（OCR 兜底）识别为议程骨架，与 `texts.vision_info` 是两条独立输入；
+  * `extra.agenda_plan`（对象 / JSON 字符串，*可选*）：**结构化议程快捷通道**。支持 VLM 团队直传符合 `AgendaPlan` 契约的 JSON/Dict，直接跳过本地图片 OCR/VLM 解析，大幅提升链路效率并保证 100% 结构字段保真；
+    - **双通道优先级**：当同时传入 `docs` 与 `extra.agenda_plan` 时，优先使用 `extra.agenda_plan`；当仅传入 `extra.agenda_plan` 时，`docs` 传空数组 `[]` 即可正常通过门禁校验；
+    - **`AgendaPlan` 数据契约规范**：
+      - `meta.theme`（字符串，选填）：会议主题或议程标题（如 `"技术架构评审会"`）；
+      - `meta.date_time`（字符串，选填）：会议日期与时段（如 `"2026-11-08 14:00-16:00"`）；
+      - `meta.attendees`（字符串，选填）：与会人/主持人名单（如 `"张三；李四；王五"`）；
+      - `items`（对象数组，**核心**）：既定议程项列表，包含：
+        - `seq`（字符串，推荐）：议程编号（如 `"01"`、`"02"`）；
+        - `title`（字符串，**核心必填**）：议题全称（下游语义对齐与发言打标的唯一核心依据）；
+        - `presenters`（字符串数组，**重要**）：主讲人/汇报人名单（如 `["张三", "李四"]`，用于发言人角色绑定与归因）；
+        - `raw_presenter`（字符串，选填）：图片中原始汇报人描述（如 `"汇报人：张三（架构师）"`）；
+        - `duration`（字符串，选填）：预计研讨时长（如 `"30分钟"`、`"45min"`）；
+        - `time_range`（字符串，选填）：时段范围（如 `"14:00-14:30"`）；
+        - `category`（字符串，选填）：议题业务分类（如 `"技术架构"`、`"业务方案"`）；
+        - `description`（字符串，选填）：议题详细背景或讨论要求；
+    - **标准传参报文示例**：
+      ```json
+      "agenda_plan": {
+        "meta": {
+          "theme": "技术研讨与量产评审会",
+          "date_time": "2026-11-08 14:00-16:00",
+          "attendees": "张三；李四；王五"
+        },
+        "items": [
+          {
+            "seq": "01",
+            "title": "自研芯片二期量产与良率评估",
+            "presenters": ["张三"],
+            "duration": "30分钟"
+          },
+          {
+            "seq": "02",
+            "title": "智能客服降本方案",
+            "presenters": ["王五"],
+            "duration": "20分钟"
+          }
+        ]
+      }
+      ```
   * `extra.time`（字符串，*可选*）：会议日期或时间（如 `"2026-09-01"`）；
   * `extra.style`（字符串，*可选*）：用于 `minutes_styles` 任务，严格限传 5 类（`"brief"`, `"topic"`, `"review"`, `"retro"`, `"alignment"`），非法值秒判 400；
   * `extra.profile`（字符串，*可选*）：视角档案模式（`"user"` 个人工作台视角、`"objective"` 客观全员、职业模板名）。**议题增强模式（minutes 的 docs 被识别为议程）能力边界**：
@@ -304,7 +343,7 @@ python -m app.worker.main --concurrency 4 --grace 300
 | **`actions`** | 待办提取 | `LLM_EXTRACT` | `actions.html`<br>`result.md` | **Form A 现代工单票据卡片流**：事项按业务分类（Category）聚类归集，事项名称、优先级（高/中/低）、责任人、截止时间、交付标准、前置条件弹性展开，无则优雅省略，拒绝冗余占位符。 |
 | **`risks`** | 风险分析 | `LLM_EXTRACT` | `risks.html`<br>`result.md` | **Form A 风险票据流**：按风险分类归集，红黄绿三级严重度预警，结构化提取责任归属、潜在影响与规避对策，输出交互式风险看板。 |
 | **`minutes_trace`** | 溯源纪要 | `DETERMINISTIC_PIPELINE`<br>(Sidecar) | `minutes_trace.html`<br>`result.md` | **平实两级溯源结构**：摒弃生硬特殊标记，采用「会议概况 + 议题名称」两级平实排版；采用议题内涵加权（Jaccard + 词频）切片匹配原声，点击纪要要点一键定位高亮发言气泡与时间戳。 |
-| **`agenda_minutes`** | 议程纪要 | `LLM_EXTRACT` | `agenda_minutes.html`<br>`result.md` | **议程 OCR 锚定、对齐引擎与多级缓存优化**：API 层设置硬门禁拦截（必须提供 `docs` 议程单图片/文档或 `extra.agenda_txt`，杜绝无底座空跑）；支持议程单 OCR 高精解析与讨论块智能对齐（`alignment_engine`）；引入进程级缓存与标准化转写文本探测，彻底消除重复解析开销；未讨论议题零证据截断（Zero-Evidence），议程类型强制转换（Agenda Coercion）阈值守卫。 |
+| **`agenda_minutes`** | 议程纪要 | `LLM_EXTRACT` | `agenda_minutes.html`<br>`result.md` | **议程 OCR 锚定、对齐引擎与多级缓存优化**：API 层设置硬门禁拦截（必须提供 `docs` 议程单图片/文档或 `extra.agenda_plan` 结构化大盘，杜绝无底座空跑）；支持议程单 OCR 高精解析与讨论块智能对齐（`alignment_engine`）；引入进程级缓存与标准化转写文本探测，彻底消除重复解析开销；未讨论议题零证据截断（Zero-Evidence），议程类型强制转换（Agenda Coercion）阈值守卫。 |
 | **`mindmap`** | 思维导图 | `LLM_DOCUMENT` | `mindmap.html`<br>`mindmap.png` | **交互式拓扑大纲**：自动提炼多层级思维导图 Markdown 拓扑，基于 Markmap 渲染交互式 HTML 页面与高清图片。 |
 
 ---

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 from datetime import datetime
+import json
 import logging
 import os
 from pathlib import Path
@@ -150,6 +151,62 @@ def vision_json_to_agenda_plan(
         )
 
     return plan
+
+
+def ensure_agenda_plan(
+    data: Any,
+    transcript: str = "",
+    candidate_speakers: list[str] | set[str] | None = None,
+) -> AgendaPlan | None:
+    """统一将 AgendaPlan 对象、Dict 或 JSON 字符串归一化为标准 AgendaPlan。"""
+    if data is None:
+        return None
+    if isinstance(data, AgendaPlan):
+        return data
+    if isinstance(data, str):
+        s = data.strip()
+        if not s:
+            return None
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, dict):
+                data = parsed
+            else:
+                return None
+        except Exception:
+            return None
+    if isinstance(data, dict):
+        if "items" in data:
+            meta_data = data.get("meta") or {}
+            meta = AgendaMeta(
+                theme=str(meta_data.get("theme") or ""),
+                date_time=str(meta_data.get("date_time") or ""),
+                attendees=str(meta_data.get("attendees") or ""),
+            )
+            items = []
+            for it in data.get("items") or []:
+                if isinstance(it, dict):
+                    items.append(
+                        AgendaItemParsed(
+                            seq=str(it.get("seq") or ""),
+                            title=str(it.get("title") or ""),
+                            presenters=list(it.get("presenters") or []),
+                            raw_presenter=str(it.get("raw_presenter") or ""),
+                            recorders=list(it.get("recorders") or []),
+                            members=list(it.get("members") or []),
+                            duration=str(it.get("duration") or ""),
+                            time_range=str(it.get("time_range") or ""),
+                            category=str(it.get("category") or ""),
+                            description=str(it.get("description") or ""),
+                        )
+                    )
+            return AgendaPlan(meta=meta, items=items)
+        return vision_json_to_agenda_plan(
+            data,
+            transcript=transcript,
+            candidate_speakers=candidate_speakers,
+        )
+    return None
 
 
 def agenda_plan_to_markdown(plan: AgendaPlan) -> str:

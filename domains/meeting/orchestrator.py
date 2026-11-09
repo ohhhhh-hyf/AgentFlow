@@ -751,7 +751,15 @@ class _Nodes(DomainNodes):
 
         pack = self._meeting_pack(state, line_name)
         if line_name == "agenda_minutes":
-            agenda_text = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
+            agenda_plan = (state.get("line_extra") or {}).get("agenda_plan")
+            agenda_text = ""
+            if agenda_plan:
+                from domains.meeting.agenda_vision import agenda_plan_to_markdown
+                from domains.meeting.tasks.agenda_minutes.agenda_parser import AgendaPlan
+
+                agenda_text = agenda_plan_to_markdown(agenda_plan) if isinstance(agenda_plan, AgendaPlan) else str(agenda_plan)
+            if not agenda_text:
+                agenda_text = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
             parts = []
             if agenda_text:
                 parts.append(f"【既定议程单】\n{agenda_text}")
@@ -1008,7 +1016,15 @@ class _Nodes(DomainNodes):
         memory = str(sub.get("memory_context") or "").strip()
         if memory:
             blocks.append(memory)
-        agenda_extra = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
+        agenda_plan = (state.get("line_extra") or {}).get("agenda_plan")
+        agenda_extra = ""
+        if agenda_plan:
+            from domains.meeting.agenda_vision import agenda_plan_to_markdown
+            from domains.meeting.tasks.agenda_minutes.agenda_parser import AgendaPlan
+
+            agenda_extra = agenda_plan_to_markdown(agenda_plan) if isinstance(agenda_plan, AgendaPlan) else str(agenda_plan)
+        if not agenda_extra:
+            agenda_extra = str((state.get("line_extra") or {}).get("agenda_minutes") or "").strip()
         if line_name == "agenda_minutes" and agenda_extra:
             blocks.append(f"【既定议程单原件】\n{agenda_extra}")
         if line_name == "minutes":
@@ -1665,16 +1681,18 @@ class _Nodes(DomainNodes):
             memory_on = bool((state.get("line_extra") or {}).get("__meeting_memory__"))
             skip = self._understanding_skip(selected, template, memory_on)
 
+            agenda_plan = (state.get("line_extra") or {}).get("agenda_plan")
             agenda_text = str((state.get("line_extra") or {}).get("agenda_text") or "").strip()
+            agenda_target = agenda_plan or agenda_text
             agenda_update = {}
             transcript_input = state.get("transcript") or ""
 
-            if "minutes" in selected and agenda_text and transcript_input:
+            if "minutes" in selected and agenda_target and transcript_input:
                 from domains.meeting.agenda_engine import process_agenda_for_minutes
 
                 agenda_res = process_agenda_for_minutes(
                     transcript_input,
-                    agenda_text,
+                    agenda_target,
                     lang=state.get("lang") or "zh",
                 )
                 if agenda_res.has_valid_agenda:

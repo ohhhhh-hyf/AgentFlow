@@ -9,7 +9,7 @@ catalog / checklist 会读取其内容作为「老师重点」。
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import json
 
@@ -35,20 +35,32 @@ class Extra(BaseModel):
     project: str = ""
     subject: str = ""
     style: str = ""
-    # 既定议程纯文本内容（用于 agenda_minutes 任务，可直接传纯文本，支持与 docs 附件议程自动合并）
-    agenda_txt: str = ""
     # 会议召开时间（如 "2026-06-15 10:00"，用于会议记忆与溯源展示）
     time: str = ""
     # 知识目录版本文件名（用于 checklist 任务定位基准目录，如 "20261001_100000.json"；为空则自动取最新）
     catalog: str = ""
+    # 结构化议程大盘（VLM团队直传快捷通道，支持符合 AgendaPlan 规范的 Dict 或 JSON 字符串）
+    agenda_plan: Optional[Union[dict[str, Any], str]] = None
 
-    @model_validator(mode="before")
+    @field_validator("agenda_plan", mode="before")
     @classmethod
-    def _compat_extra(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if "agenda" in data and "agenda_txt" not in data:
-                data["agenda_txt"] = data.pop("agenda")
-        return data
+    def _validate_agenda_plan(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v_str = v.strip()
+            if not v_str:
+                return None
+            try:
+                parsed = json.loads(v_str)
+                if not isinstance(parsed, dict):
+                    raise ValueError("agenda_plan JSON string must parse to a dictionary")
+                return parsed
+            except Exception as err:
+                raise ValueError(f"Invalid JSON string for agenda_plan: {err}") from err
+        if isinstance(v, dict):
+            return v
+        raise ValueError("agenda_plan must be a dictionary or a JSON string")
 
 
 class TaskRequest(BaseModel):

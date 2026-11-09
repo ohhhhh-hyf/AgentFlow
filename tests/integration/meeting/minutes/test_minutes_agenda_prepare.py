@@ -80,8 +80,9 @@ def test_tasks_prepare_minutes_with_valid_agenda(tmp_path, monkeypatch):
     )
     prep = _prepare("meeting", "minutes", req, "u_test_agenda")
     # 验证有效议程提取到了 extra_line_inputs
-    assert "agenda_text" in prep.extra_line_inputs
-    assert "自研芯片二期量产" in prep.extra_line_inputs["agenda_text"]
+    assert "agenda_plan" in prep.extra_line_inputs
+    plan = prep.extra_line_inputs["agenda_plan"]
+    assert any("自研芯片二期量产" in it.title for it in plan.items)
     # 验证转写文件未被重复拼接 doc 内容
     assert prep.input_files is not None
     transcript_content = prep.input_files.read_text(encoding="utf-8")
@@ -117,8 +118,9 @@ def test_prepare_agenda_with_aux(tmp_path, monkeypatch):
     prep = _prepare("meeting", "minutes", req, "u_test_agenda_aux")
 
     # 议程骨架
-    assert "agenda_text" in prep.extra_line_inputs
-    assert "自研芯片二期量产" in prep.extra_line_inputs["agenda_text"]
+    assert "agenda_plan" in prep.extra_line_inputs
+    plan = prep.extra_line_inputs["agenda_plan"]
+    assert any("自研芯片二期量产" in it.title for it in plan.items)
 
     # 三字段辅助材料
     aux = prep.extra_line_inputs.get("minutes_auxiliary", "")
@@ -168,7 +170,7 @@ def test_prepare_minutes_passes_lang_to_agenda_vlm(tmp_path, monkeypatch):
 
     assert captured["lang"] == "en"
     assert probe_captured["lang"] == "en"
-    assert "agenda_text" in prep.extra_line_inputs
+    assert "agenda_plan" in prep.extra_line_inputs
 
 
 def test_tasks_prepare_minutes_with_fallback_docs(tmp_path, monkeypatch):
@@ -185,8 +187,8 @@ def test_tasks_prepare_minutes_with_fallback_docs(tmp_path, monkeypatch):
         docs=["financial_report.txt"],
     )
     prep = _prepare("meeting", "minutes", req, "u_test_agenda")
-    # 验证非议程文档未被当作 agenda_text
-    assert "agenda_text" not in prep.extra_line_inputs
+    # 验证非议程文档未被当作 agenda_plan
+    assert "agenda_plan" not in prep.extra_line_inputs
     # 验证默认回退到 material_docs：文档内容作为资料被拼入了输入转写
     assert prep.input_files is not None
     transcript_content = prep.input_files.read_text(encoding="utf-8")
@@ -207,7 +209,7 @@ def test_tasks_prepare_template_selection(tmp_path, monkeypatch):
     prep_enhanced = _prepare("meeting", "minutes", req_with_agenda, "u_test_template_1")
     enhanced_template_text = prep_enhanced.templates["minutes"].read_text(encoding="utf-8")
     assert "以现场审定的有效议题清单为主线展开" in enhanced_template_text
-    assert "每个议题以「### 一. 议题名称」顶格列出" in enhanced_template_text
+    assert "每个议题以「### 一. 议题名称」" in enhanced_template_text
 
     # 场景 B: minutes 任务无 docs -> 使用 legacy templates
     req_no_docs = TaskRequest(texts={"transcript": "张三 10:00: 讨论常规事项"})
@@ -237,7 +239,7 @@ def test_normal_minutes_with_non_agenda_docs_falls_back(tmp_path, monkeypatch):
     )
     prep = _prepare("meeting", "minutes", req, "u_test_en_non_agenda")
 
-    assert "agenda_text" not in prep.extra_line_inputs
+    assert "agenda_plan" not in prep.extra_line_inputs
     assert prep.input_files is not None
     transcript_content = prep.input_files.read_text(encoding="utf-8")
     assert "finance.txt" in transcript_content or "net profit" in transcript_content

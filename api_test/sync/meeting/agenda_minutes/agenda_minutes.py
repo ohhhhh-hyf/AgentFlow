@@ -1021,7 +1021,7 @@ resp = requests.post(
         "memory": False,
         "extra": {
             "time": "2026-06-15",
-            "agenda_txt": "",
+            "agenda_plan": None,
             "template": "",
             "profile": "",
             "project": "",

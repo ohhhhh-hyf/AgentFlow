@@ -207,13 +207,14 @@ async def test_prepare_run_preserves_agenda_text_in_line_extra(tmp_path, monkeyp
         docs=["agenda.txt"],
     )
     p = _prepare("meeting", "minutes", req, "u_test_runner")
-    assert "agenda_text" in p.extra_line_inputs
+    assert "agenda_plan" in p.extra_line_inputs
 
     args = _runner_args(p)
     prep = await prepare_run(p.ctx, **args)
-    # 核心守卫：runner.py 绝不可在 prepare_run 中丢弃 agenda_text
-    assert "agenda_text" in prep.line_extra
-    assert "自研芯片二期量产" in prep.line_extra["agenda_text"]
+    # 核心守卫：runner.py 绝不可在 prepare_run 中丢弃 agenda_plan
+    assert "agenda_plan" in prep.line_extra
+    plan = prep.line_extra["agenda_plan"]
+    assert any("自研芯片二期量产" in it.title for it in plan.items)
 
 
 @pytest.mark.anyio
