@@ -435,7 +435,7 @@ MINUTES_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
         "3. 后续计划/行动/执行/待办类栏目：映射草稿 personally_relevant_points 列表，逐条陈述责任人、动作与时限；\n"
         "4. 风险/卡点/约束类栏目：映射草稿 risks_and_blockers 列表，逐条陈述风险、影响与应对；\n"
         "5. 遗留/未决/待确认类栏目：映射草稿 unresolved_questions 列表，逐条陈述未决事项与待确认点；\n"
-        "6. 通用业务类栏目（模板中声明为业务研讨/要点类的栏目及进展/方案类栏目）：按 executive_summary[1:] 成节，按模板声明的三级标题层级设立小节；\n"
+        "6. 通用业务类栏目（模板中声明为业务研讨/要点类的栏目及核心信息/方案/表态类栏目）：按 executive_summary[1:] 成节，按模板声明的三级标题层级设立小节；\n"
         "7. 问答/Q&A/问答记录类栏目：映射 executive_summary[1:] 中对应议题的问答内容；保留问答配对；不得映射到 unresolved_questions；\n"
         "8. 金句/金句总结/关键原话类栏目：映射 executive_summary[1:] 中的原话与关键表述；保留原话措辞与发言人归属；不得改写、不得编造；不得映射到 key_decisions；\n"
         "9. 无法判断栏目语义：按模板空值规则处理，不强行塞入不相关内容，不自创模板外栏目。"
