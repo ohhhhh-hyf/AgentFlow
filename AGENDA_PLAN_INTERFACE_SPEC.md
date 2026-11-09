@@ -154,6 +154,7 @@ X-User-Id: u_meeting_operator
   "docs": [],
   "extra": {
     "time": "2026-08-29",
+    "template": "workshop_session",
     "agenda_plan": {
       "meta": {
         "theme": "AI前沿早读-月度洞察会",
@@ -185,4 +186,9 @@ X-User-Id: u_meeting_operator
 ```
 
 > **接入提示**：
-> 当上游请求已附带 `extra.agenda_plan` 时，`docs` 字段**直接传空数组 `[]`** 即可，纪要系统将跳过底层图片 OCR 流程，直接进入高精度结构化对齐。
+> 1. **`extra.template`（可选）**：指定会议纪要所使用的模板类型。支持英文 ID 或中文名：
+>    - 常用研讨/分享类：`"workshop_session"`（工作研讨会）、`"special_lecture"`（专题讲座）、`"exchange_forum"`（沟通交流会）
+>    - 常用例会/评审类：`"project_progress"`（项目进度会）、`"decision_review"`（决策评审会）、`"team_meeting"`（团队例会）
+>    - 默认通用类：`"general_minutes"` 或留空 `""`（由系统根据主题与内容自动识别）
+> 2. 当上游请求已附带 `extra.agenda_plan` 时，`docs` 字段**直接传空数组 `[]`** 即可，纪要系统将跳过底层图片 OCR 流程，直接进入高精度结构化对齐。
+> 3. `extra.agenda_plan` 同时兼容上述两种字段组织形式（`meta` + `items`，或 VLM 直接产出的 `theme` + `attendees` + `agenda_items`），后端会自动适配。

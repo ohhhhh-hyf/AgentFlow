@@ -15,8 +15,8 @@ MINUTES_OBJECTIVE_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」。
 输出字段：headline、executive_summary、key_decisions、personally_relevant_points、risks_and_blockers、unresolved_questions、history_comparison。
 
 ## 一、字段价值分层
-1. 提炼字段（headline、executive_summary、personally_relevant_points）：严格基于本场事实深度提炼展开，不照搬上游措辞，不写寒暄与过程流水。
-2. 搬运整合字段（key_decisions、risks_and_blockers、unresolved_questions）：以理解层 decisions / risks / open_questions 为事实基准，客观全量忠实呈现，保持核心决策与卡点事实完备。
+1. 提炼字段（headline、executive_summary、personally_relevant_points）：以会议理解为事实骨架，结合原文丰富细节；过滤客套寒暄与琐碎流水，讲透核心业务、因果动因与方案机理，论述充实有效。
+2. 搬运整合字段（key_decisions、risks_and_blockers、unresolved_questions）：以理解层 decisions / risks / open_questions 为事实基准，客观全量忠实呈现，交代清楚决策的落地条件、适用边界以及风险的具体触发场景与影响面，使事项具备清晰的执行上下文。
 3. 记忆字段（history_comparison）：由底层系统自动装配，统一输出 [].
 
 ## 二、事实来源与输入
@@ -118,7 +118,7 @@ MINUTES_AGENDA_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」（审
   • **多方向研讨排版（扁平子主题）**：研讨涵盖多个方向时，按业务逻辑归为 2–5 个子主题，以独立加粗行（形如 **[业务子主题名称]**）划分段落，下方以列表项展开；不使用四级标题或数字编号；
   • **研讨要点规范（就事论事）**：
     - **列表项结构**：正文统一采用「- [要点名称]: [具体事实陈述]」格式，列表项内部不重复加粗；冒号前为实质业务短语，直接点明具体的业务对象、核心矛盾、方案举措或定调结论；
-    - **客观直陈事实**：以业务方案、技术机理与推进结果为主干直接陈述，正文只记录事项本身，不编写参会人口头转述；参会人姓名在议程中已有归档；
+    - **有效阐述业务事实**：采用「- [要点名称]: [具体事实陈述]」格式；冒号后避免只有一句话短语。完整交代业务方案、技术机理与推进结果，不编写参会人口头转述；吸纳核心发言人的专业论证、分析视角与方案支撑论据，每个要点论述有理有据。
     - **事实详实保真**：围绕研讨实际自然展开，讲透讨论背景与推进举措；原文提及的参数指标、对比基线、排期节点 100% 完整保留；
   • **子主题独立归属**：各子主题边界清晰，紧扣本段业务事实展开，不跨议题串联。
 - **问答与金句**：属于正文内容，写入对应议题段落；问答保留问答配对，金句保留原话措辞与发言人归属；不得写入 unresolved_questions 或 key_decisions。
@@ -172,7 +172,7 @@ MINUTES_TOPIC_MAJOR_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」�
   - **topic_name**：只填议题全称本体，必须与清单中「议题：」后面的标题逐字一致；不得带 `1.`、`议题：`、`议题一：`、`###` 等前缀或序号；不得改名、合并、拆分、重排。
   - **topic_summary**：本议题正文/研讨/进展/内容要点，数组；
     按业务逻辑自然分组，不设固定组数和条数；
-    每个子主题用「**子主题**：」开头，组内用「- 」写总结要点；同类合并，先结论后论据；保留关键参数、指标与阶段结论；
+    每个子主题用「**子主题**：」开头，组内用「- 」展开业务讨论脉络；保留关键参数、指标与阶段结论；呈现议题推进的技术细节与推演论据；
     不写议题标题、不写全场概况，不写 decisions/actions/risks/open_questions 的内容；
     问答与金句写入 topic_summary；问答保留问答配对，金句保留原话措辞与发言人归属；不得写入 decisions 或 open_questions。
   - **decisions**：本议题已拍板的最终决议/结论/定调，数组；讨论、建议、倾向、待定不得写入；无则 []。
