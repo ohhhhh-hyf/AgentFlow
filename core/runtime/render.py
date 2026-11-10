@@ -193,6 +193,26 @@ def _accepts_layout(func) -> bool:
     return cached
 
 
+_LANG_SUPPORT: dict = {}
+
+
+def _accepts_lang(func) -> bool:
+    """``func`` 是否接受 ``lang=`` 关键字。"""
+    key = getattr(func, "__func__", func)
+    cached = _LANG_SUPPORT.get(key)
+    if cached is None:
+        try:
+            params = inspect.signature(func).parameters
+        except (TypeError, ValueError):
+            cached = False
+        else:
+            cached = "lang" in params or any(
+                p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+        _LANG_SUPPORT[key] = cached
+    return cached
+
+
 def _render_view(state: dict, line_name: str) -> str | None:
     """取本线已裁决的 view；无该状态时返回 None。"""
     return (state.get("line_views") or {}).get(line_name)
@@ -456,6 +476,7 @@ async def produce_line(
             use_block = bool(
                 template
                 and hasattr(render, "run")
+                and not hasattr(render, "stream")
                 and kind in {"placeholder", "spec"}
             )
             max_render_retries = 1
@@ -481,6 +502,9 @@ async def produce_line(
                             stream_kwargs["view"] = view
                         if layout and _accepts_layout(render.stream):
                             stream_kwargs["layout"] = layout
+                        lang = state.get("lang")
+                        if lang and _accepts_lang(render.stream):
+                            stream_kwargs["lang"] = lang
                         async for chunk in render.stream(
                             context, template, **stream_kwargs
                         ):
