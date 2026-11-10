@@ -771,6 +771,14 @@ class _Nodes(DomainNodes):
             parts = [f"会议理解：\n{_json(pack)}"]
             parts.append(f"会议原文：\n{state.get('transcript') or ''}")
             return "\n\n".join(parts)
+        if line_name == "mindmap":
+            # 单线跳过会议理解时直读原文，杜绝注入空 JSON 噪音；若多线并发有完整理解则按需附带
+            u = state.get("meeting_understanding") or {}
+            parts = []
+            if any(u.get(k) for k in ("session_segments", "topics", "decisions", "meeting_brief")):
+                parts.append(f"会议理解：\n{_json(pack)}")
+            parts.append(f"【会议原文】\n{state.get('tagged_transcript') or state.get('transcript') or ''}")
+            return "\n\n".join(parts)
         view_mode = "objective" if view == VIEW_AGENDA_OBJECTIVE else view
         layout = str(
             (state.get("line_layouts") or {}).get(line_name) or "column_major"
@@ -859,7 +867,7 @@ class _Nodes(DomainNodes):
             if perspective:
                 parts.append(f"用户视角模型：\n{_json(perspective)}")
         # 纪要成段需要原文细节；溯源/多样式/导图/共识决策以及待办/风险深挖同样需要原文。其它线优先依赖 evidence。
-        if line_name in {"minutes", "minutes_trace", "minutes_styles", "mindmap", "consensus_decision", "actions", "risks"}:
+        if line_name in {"minutes", "minutes_trace", "minutes_styles", "consensus_decision", "actions", "risks"}:
             raw_transcript = state.get("tagged_transcript") or state.get("transcript") or ""
             parts.append(f"会议原文：\n{raw_transcript}")
         if line_name in {"minutes", "minutes_styles"}:
@@ -1406,7 +1414,7 @@ class _Nodes(DomainNodes):
         else:
             builder.add_edge(START, "meeting_understanding")
         cores = ["meeting_understanding"]
-        skip_perspective = frozenset({"minutes_trace", "agenda_minutes"})
+        skip_perspective = frozenset({"minutes_trace", "agenda_minutes", "mindmap"})
         need_perspective = (not selected) or any(
             name not in skip_perspective for name in selected
         )
@@ -1520,7 +1528,7 @@ class _Nodes(DomainNodes):
                 other_lines = [
                     name
                     for name in (line_names or [])
-                    if name not in {"minutes", "minutes_trace", "agenda_minutes"}
+                    if name not in {"minutes", "minutes_trace", "agenda_minutes", "mindmap"}
                 ]
                 if not other_lines:
                     progress(
@@ -1535,6 +1543,15 @@ class _Nodes(DomainNodes):
                     }
 
             selected = [name for name in (line_names or []) if name]
+            if selected == ["mindmap"]:
+                progress("[agent:skip] name=perspective reason=mindmap_self_contained")
+                return {
+                    "perspective_profile": EMPTY_PERSPECTIVE_MODELING,
+                    "user_hits": {},
+                    "user_hits_block": "",
+                    "user_action_groups_block": "",
+                    "user_radar_block": "",
+                }
             if (
                 view == VIEW_PERSONAL
                 and selected == ["minutes"]
@@ -1675,6 +1692,9 @@ class _Nodes(DomainNodes):
         async def node(state: dict) -> dict:
             if selected == ["agenda_minutes"]:
                 progress("[agent:skip] name=meeting_understanding reason=agenda_minutes_self_contained")
+                return {"meeting_understanding": _EMPTY_MEETING_UNDERSTANDING}
+            if selected == ["mindmap"]:
+                progress("[agent:skip] name=meeting_understanding reason=mindmap_self_contained")
                 return {"meeting_understanding": _EMPTY_MEETING_UNDERSTANDING}
 
             template = str((state.get("templates") or {}).get("minutes") or "")

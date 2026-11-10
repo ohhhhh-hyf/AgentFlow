@@ -10,7 +10,7 @@ from ..prompts import MINDMAP_RENDER_PROMPT, MINDMAP_RENDER_TEMPLATE_PROMPT
 
 
 def normalize_mindmap_outline(text: str) -> str:
-    """确定性思维导图大纲拓扑门禁与清洗器。
+    r"""确定性思维导图大纲拓扑门禁与清洗器。
 
     1. 去除 Markdown 代码块包裹（```markdown / ```）；
     2. 剔除 Markdown 表格语法行（包含 |---| 或首尾以 | 闭合的表格行）；
@@ -53,7 +53,7 @@ def normalize_mindmap_outline(text: str) -> str:
 class MindmapRender:
     """Render the approved 思维导图 result."""
 
-    def __init__(self, client: LLMClient) -> None:
+    def __init__(self, client: LLMClient | None = None) -> None:
         self.client = client
 
     @staticmethod
@@ -76,18 +76,12 @@ class MindmapRender:
         )
 
     async def run(self, approved_context: str, template: str = "") -> str:
-        prompt, user = self._prompt_and_user(approved_context, template)
-        temp = 0.0 if (template or "").strip() else None
-        try:
-            raw = await self.client.text(prompt, user, temperature=temp, label="mindmap/render")
-        except TypeError:
-            raw = await self.client.text(prompt, user, label="mindmap/render")
-        return normalize_mindmap_outline(raw)
+        """若被外部显式调用，直接通过确定性物理清洗器清洗输出，零 LLM 开销。"""
+        return normalize_mindmap_outline(approved_context)
 
     async def stream(
         self, approved_context: str, template: str = ""
     ) -> AsyncIterator[str]:
-        prompt, user = self._prompt_and_user(approved_context, template)
-        async for chunk in self.client.stream_text(prompt, user, label="mindmap/render"):
-            yield chunk
+        cleaned = normalize_mindmap_outline(approved_context)
+        yield cleaned
 
