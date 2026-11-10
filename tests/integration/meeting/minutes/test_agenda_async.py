@@ -300,7 +300,7 @@ async def test_minutes_normal_en_does_not_enter_agenda_mode():
     assert not final.get("has_valid_agenda")
     assert not any("minutes/agent/agenda" in label for label in called)
     assert any("minutes/agent/objective" in label for label in called)
-    assert any("meeting_understanding" in label for label in called)
+    assert not any("meeting_understanding" in label for label in called)
 
 
 @pytest.mark.anyio

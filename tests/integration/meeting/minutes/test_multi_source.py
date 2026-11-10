@@ -419,3 +419,62 @@ async def test_agenda_aux_blocks_survive_english_wrapper():
     assert "【核心人设与交付目标】" in sys_prompt
     assert "【议程骨架优先】" in sys_prompt
     assert "## 用户关键点参考" in sys_prompt
+
+
+@pytest.mark.anyio
+async def test_minutes_objective_self_contained_prompt_content():
+    """验证客观普通纪要基底 Prompt 自包含且彻底去除二传手依赖。"""
+    from domains.meeting.tasks.minutes.prompts import MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+    # 1. 彻底去除旧二传手字样
+    assert "【会议理解】" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "以会议理解为事实骨架" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "搬运整合字段" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "以理解层" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+    # 2. 包含正向 4 句话研讨提炼规范
+    assert "根据会议实际研讨的事项数量与讨论深度自然分项" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "围绕业务主线就事论事展开" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "原文中提及的具体技术指标、系统名称、版本号、对比数据与排期节点等量化信息" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "客观呈现研讨中的不同观点、质询考量及拉通共识" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+    # 3. 包含落地行动与分工安排大白话规范
+    assert "清晰交代责任归属（明确到具体人名或团队）、具体执行任务或交付物、以及完成时限或时间节点" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+
+
+@pytest.mark.anyio
+async def test_minutes_normal_aux_block_present():
+    """普通客观纪要 + 辅助材料 -> system prompt 挂载通用辅助规约与共享规则。"""
+    sys_prompt = await _capture_system_prompt(
+        _normal_context(_KEYPOINTS_TAG, _NOTES_TAG),
+        view="objective",
+        lang="zh",
+    )
+    assert "## 辅助材料使用规约" in sys_prompt
+    assert "【原文事实优先】" in sys_prompt
+    assert "【辅助参考定位】" in sys_prompt
+    assert "【议程骨架优先】" not in sys_prompt
+    assert "## 用户关键点参考" in sys_prompt
+    assert "## 用户笔记参考" in sys_prompt
+    assert "## 视觉信息参考 (OCR)" not in sys_prompt
+
+
+@pytest.mark.anyio
+async def test_minutes_normal_aux_blocks_survive_english_wrapper():
+    """普通客观纪要英文模式 -> 英文人设包裹 + 4大语言红线 + 辅助材料规约完整保留。"""
+    sys_prompt = await _capture_system_prompt(
+        _normal_context(_KEYPOINTS_TAG),
+        view="objective",
+        lang="en",
+    )
+    # 头部英文人设
+    assert "【核心人设与交付目标】" in sys_prompt
+    assert "你是专职的【英文（English）】会议纪要草稿 Agent" in sys_prompt
+    # 保留辅助规约
+    assert "【原文事实优先】" in sys_prompt
+    assert "## 用户关键点参考" in sys_prompt
+    # 尾部语言红线
+    assert "## 语言红线" in sys_prompt
+    assert "所有字段必须严格使用【英文（English）】输出" in sys_prompt
+    assert "[Owner] Action + Deliverable + Deadline" in sys_prompt
+

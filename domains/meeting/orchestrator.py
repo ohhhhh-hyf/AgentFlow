@@ -737,7 +737,7 @@ class _Nodes(DomainNodes):
     def _line_shared_context(self, state: dict, line_name: str) -> str:
         """按任务线裁剪后的 Agent 上下文。
 
-        仍保留「会议理解」标签，兼容 minutes 的硬执行对齐。
+        客观 minutes 任务线自包含直面会议原文，切断空理解层干扰；其他线按需保留「会议理解」。
         """
         view = self._minutes_view(state, line_name)
         if line_name == "minutes" and view == VIEW_PERSONAL:
@@ -809,9 +809,8 @@ class _Nodes(DomainNodes):
                 )
             else:
                 fact_note = (
-                    "说明：会议理解平铺议题与时序研讨段落是你的主事实源与导航索引，已包含全场决议、量化指标、落地行动与风险隐患。"
-                    "撰写段落时，以各阶段议题节点的指标、决策与分歧脉络为事实骨架，对照会议原文定向补充具体论据细节与发言人表态。"
-                    "顺应业务研讨推进脉络成段展开，客观全面呈现全场事实与全员分工。"
+                    "说明：以【会议原文】为最高事实依据，深入研讨脉络与发言细节，全面提炼全场核心事实、定调决策、分工安排与潜在风险。"
+                    "围绕业务主线就事论事展开，客观全面呈现全场事实与全员分工。"
                 )
         elif line_name in {"actions", "risks"}:
             fact_note = (
@@ -859,7 +858,7 @@ class _Nodes(DomainNodes):
                 if hit_block:
                     parts.append(hit_block)
 
-        if view != VIEW_AGENDA_OBJECTIVE:
+        if view != VIEW_AGENDA_OBJECTIVE and line_name != "minutes":
             parts.append(f"会议理解：\n{_json(pack)}")
 
         if view not in {"objective", VIEW_AGENDA_OBJECTIVE}:
@@ -1744,6 +1743,15 @@ class _Nodes(DomainNodes):
                     logger.info("[AGENDA_ENGINE] 未检测到有效研讨议题，回退常规纪要流程")
             else:
                 state["has_valid_agenda"] = False
+
+            # ──【自包含放行】单任务客观普通纪要：直接跳过 meeting_understanding ──
+            view = self._minutes_view(state, "minutes")
+            if selected == ["minutes"] and not state.get("has_valid_agenda") and view != "personal":
+                progress("[agent:skip] name=meeting_understanding reason=minutes_objective_self_contained")
+                return {
+                    "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
+                    **agenda_update,
+                }
 
             _mu_t0 = time.time()
             progress("[agent:start] name=meeting_understanding lang=%s", state.get("lang", "zh"))

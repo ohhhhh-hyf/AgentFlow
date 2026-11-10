@@ -26,8 +26,8 @@ class MinutesGenerationContract(GenerationContract):
         ),
         StrListField(
             "key_decisions",
-            "决策（来自MeetingUnderstanding.decisions：客观全量搬运；"
-            "个人模式下聚焦本视角相关决议，措辞忠实于上游事实，每一项为一条独立完整的决策陈述）",
+            "决策（提炼现场明确拍板、把关人定调或达成的结论性事项；"
+            "直接陈述定调结论；个人模式下聚焦本视角相关决议，每一项为一条独立完整的决策陈述；无则[]）",
         ),
         StrListField(
             "personally_relevant_points",
@@ -36,13 +36,13 @@ class MinutesGenerationContract(GenerationContract):
         ),
         StrListField(
             "risks_and_blockers",
-            "风险与卡点（来自MeetingUnderstanding.risks：客观全量搬运；"
-            "个人模式下收录与本人直接相关的技术卡点、前置依赖及重点隐患；措辞忠实于上游事实，每一项为一条独立完整的风险陈述）",
+            "风险与卡点（提炼研讨中明确提到的技术瓶颈、系统隐患、外部依赖延期或资源缺口；"
+            "写明前提场景与潜在影响；个人模式下收录与本人直接相关的技术卡点与重点隐患；无则[]）",
         ),
         StrListField(
             "unresolved_questions",
-            "未决问题（来自MeetingUnderstanding.open_questions：客观全量搬运；"
-            "个人模式下收录与本人相关的会后待澄清事项及外部阻碍；措辞忠实于上游事实，每一项为一条独立完整的未决陈述）",
+            "未决问题（提炼现场讨论存在分歧但未形成定论、明确交由会后继续调研排查或需向上汇报再定的开放性问题；"
+            "交代跟进人/团队；个人模式下收录与本人相关的会后待澄清事项；无则[]）",
         ),
         StrListField(
             "history_comparison",

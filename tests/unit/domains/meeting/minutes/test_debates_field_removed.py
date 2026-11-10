@@ -70,7 +70,6 @@ def test_understanding_prompts_have_no_debates_field() -> None:
 
 def test_consumer_prompts_have_no_debates_field() -> None:
     assert "debates" not in MINUTES_GENERATION_SYSTEM_PROMPT
-    assert "context_and_reasoning" in MINUTES_GENERATION_SYSTEM_PROMPT
 
     assert "debates" not in CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT
     assert "session_segments" in CONSENSUS_DECISION_GENERATION_SYSTEM_PROMPT

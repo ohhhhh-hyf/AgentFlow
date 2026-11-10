@@ -65,8 +65,7 @@ def test_minutes_prompt_no_content_examples() -> None:
     """Prompt 只保留通用规则与格式占位符，不夹带具体栏目名/指标/措辞示例。"""
     # 1. 指标类型不锁定，按原文实际业务要素展开
     assert "吞吐/延迟/时限/金额" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "关键数据" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "不预设会议类型" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "量化信息" in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
     # 2. 普通模板渲染不列具体栏目名/标题示例
     assert "讲座概况" not in MINUTES_RENDER_TEMPLATE_PROMPT
@@ -92,7 +91,7 @@ def test_minutes_prompt_no_content_examples() -> None:
 
     # 5. 决议措辞不引用具体句式
     assert "格式如：事项名称 + 统一定调与指标" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "[事项名称] + [定调/指标]" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "明确结论/定调指标" in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert "如“【事项】统一定调/指标要求”" not in MINUTES_AGENDA_GENERATION_PROMPT
     assert "以业务事项为主干，直接陈述定调结论" in MINUTES_AGENDA_GENERATION_PROMPT
     assert "如“某某建议/某某指出”" not in MINUTES_OBJECTIVE_SUPERVISOR_PROMPT
@@ -103,7 +102,6 @@ def test_minutes_prompt_no_content_examples() -> None:
     # 6. 发言动词不再给具体负向示例
     assert "某某提出/某某认为/某某指出" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert "某某提出/某某指出" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "避免机械堆砌发言动词" in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
     # 7. 笔记/视觉材料不列具体示例
     assert "（如吐槽、疑问、随手标记）" not in NOTES_PROMPT_BLOCK
@@ -295,7 +293,7 @@ def test_normal_prompt_unchanged() -> None:
         assert "议程骨架与事实归属的唯一底座" not in prompt
         assert "【议程骨架优先】" not in prompt
         assert "辅助材料使用规约" not in prompt
-    assert "## 三、分章节主体表达规范（就事论事原则）" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "## 一、各字段正向提炼与内容规范" in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert (
         "## 三、分章节主体表达规范（个人视角）"
         in MINUTES_PERSONAL_GENERATION_PROMPT

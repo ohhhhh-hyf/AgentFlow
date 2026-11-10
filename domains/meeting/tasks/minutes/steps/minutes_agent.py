@@ -25,6 +25,7 @@ from ..prompt_map import (
 )
 from ..prompts import (
     AGENDA_AUX_PROMPT_BLOCK,
+    MINUTES_AUX_PROMPT_BLOCK,
     KEYPOINTS_PROMPT_BLOCK,
     NOTES_PROMPT_BLOCK,
     VISION_PROMPT_BLOCK,
@@ -165,6 +166,8 @@ class MinutesGenerationAgent:
 
         if is_agenda and aux_blocks:
             raw_system_prompt = raw_system_prompt + "\n\n" + AGENDA_AUX_PROMPT_BLOCK
+        elif not is_agenda and aux_blocks:
+            raw_system_prompt = raw_system_prompt + "\n\n" + MINUTES_AUX_PROMPT_BLOCK
         if aux_blocks:
             raw_system_prompt = raw_system_prompt + "\n\n" + "\n\n".join(aux_blocks)
 

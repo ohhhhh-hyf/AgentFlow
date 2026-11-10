@@ -189,3 +189,88 @@ def test_normal_minutes_aux_unchanged():
     assert "【视觉信息参考(OCR)】\n吞吐量 15000 QPS" in context
     assert "议题模式：agenda_enhanced" not in context
     assert "【现场审定的有效议题清单】" not in context
+
+
+@pytest.mark.anyio
+async def test_phase4_supervisor_and_hard_execution_self_contained():
+    """Phase 4 验证：无会议理解时，enforce 保持草稿 7 字段闭环，Supervisor 针孔质检平稳运行。"""
+    from unittest.mock import MagicMock, AsyncMock
+    from core.execution.hard_execution import enforce_minutes_draft
+    from domains.meeting.models import MinutesSupervisorReview
+    from domains.meeting.orchestrator import _Nodes, _EMPTY_MEETING_UNDERSTANDING
+    from domains.meeting.tasks.minutes.steps.minutes_supervisor import MinutesGenerationSupervisor
+
+    raw_transcript = (
+        "张三 10:00: 我们决定在下周三上线系统v2.0，李四负责压测，目标QPS达到12000。"
+        "李四 10:05: 收到，我周二前给出测试报告。"
+        "王五 10:10: 外部依赖服务可能存在偶发超时，需要准备降级方案。"
+    )
+    draft_dict = {
+        "headline": "系统v2.0发布与压测计划会",
+        "executive_summary": [
+            "会议针对系统v2.0上线安排进行了研讨，明确了上线排期与压测标准。",
+            "系统v2.0定于下周三正式上线，压测指标定为12000 QPS。",
+        ],
+        "key_decisions": ["系统v2.0上线：下周三正式上线，压测达标QPS 12000生效"],
+        "personally_relevant_points": ["李四：周二前完成压测并输出测试报告"],
+        "risks_and_blockers": ["外部服务偶发超时，需准备降级方案"],
+        "unresolved_questions": [],
+        "history_comparison": [],
+    }
+
+    # 1. 验证 enforce_minutes_draft 在跳过会议理解时，完整保留草稿提炼的 7 字段
+    enforced = enforce_minutes_draft(draft_dict, _EMPTY_MEETING_UNDERSTANDING, mode="objective")
+    assert enforced["headline"] == "系统v2.0发布与压测计划会"
+    assert len(enforced["key_decisions"]) == 1
+    assert "下周三正式上线" in enforced["key_decisions"][0]
+    assert len(enforced["risks_and_blockers"]) == 1
+    assert "外部服务偶发超时" in enforced["risks_and_blockers"][0]
+    assert "personally_relevant_points" in enforced
+    assert "history_comparison" in enforced
+
+    # 2. 验证 Supervisor source pack 在无理解层时仅依据草稿针孔与原文
+    nodes = _Nodes.__new__(_Nodes)
+    nodes._understanding = lambda s: s.get("meeting_understanding") or {}
+    nodes._understanding_needle_fields = lambda ln: None
+    nodes._mode_label = lambda s: "objective"
+    nodes._minutes_view = lambda s, ln: "objective"
+    nodes._length_budget_line = lambda s, ln, **kw: ""
+    nodes._revision_instruction = lambda s, ln: "视角模式：objective\n本轮可以选择 approve、revise 或 reject。"
+
+    state = {
+        "transcript": raw_transcript,
+        "meeting_understanding": _EMPTY_MEETING_UNDERSTANDING,
+        "lines": {"minutes": {"draft": draft_dict}},
+        "line_extra": {
+            "minutes_auxiliary": "【用户核心关键点】\n目标QPS达到12000"
+        },
+        "lang": "zh",
+    }
+    source_pack = nodes._supervisor_source_pack(state, "minutes")
+    assert "会议理解（摘要）：" not in source_pack
+    assert "原文（最高事实来源）：" in source_pack or "已覆盖草稿中" in source_pack
+
+    # 3. 验证 Supervisor context 正确拼接辅助材料且平稳运行
+    sup_ctx = nodes._supervisor_context(state, "minutes")
+    assert "【用户核心关键点】\n目标QPS达到12000" in sup_ctx
+    assert "系统v2.0发布与压测计划会" in sup_ctx
+
+    # 4. 验证 Supervisor 模型质检调用与判定闭环
+    mock_client = MagicMock()
+    mock_client.structured = AsyncMock(
+        return_value=MinutesSupervisorReview(
+            decision="approve",
+            feedback=[],
+            facts_check=True,
+            perspective_check=True,
+            consistency_check=True,
+        )
+    )
+    supervisor = MinutesGenerationSupervisor(mock_client)
+    review_res = await supervisor.review(sup_ctx, view="objective", lang="zh")
+    assert review_res.decision == "approve"
+    assert len(review_res.feedback) == 0
+    call_args = mock_client.structured.call_args[0]
+    assert "你是会议纪要质量审核专家" in call_args[0]
+    assert "客观模式审查范围" in call_args[0]
+

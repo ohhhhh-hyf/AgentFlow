@@ -268,3 +268,40 @@ def test_orchestrator_line_shared_context_recency_injection():
     }
     ctx_actions = nodes._line_shared_context(state_actions, "actions")
     assert "【审定议题草稿生成执行准绳】" not in ctx_actions
+
+
+def test_orchestrator_line_shared_context_objective_minutes_purified():
+    """客观普通纪要上下文装配纯净化：切断空会议理解 JSON 噪音，以原文为最高事实源。"""
+    nodes = _Nodes()
+    state_objective = {
+        "transcript": "王工 14:00: 网关集群已完成灰度发布，李工负责跟进告警监控，目标将超时率降至0.01%。",
+        "has_valid_agenda": False,
+        "valid_agendas": [],
+        "meeting_understanding": {
+            "session_segments": [],
+            "topics": [],
+            "decisions": [],
+            "meeting_brief": "",
+        },
+        "line_extra": {
+            "minutes_auxiliary": "【用户核心关键点】\n超时率降至0.01%"
+        },
+    }
+    context = nodes._line_shared_context(state_objective, "minutes")
+
+    # 1. 彻底切断会议理解注入
+    assert "会议理解：" not in context
+    assert "session_segments" not in context
+
+    # 2. 最高事实说明更新为以会议原文为最高事实依据
+    assert "以【会议原文】为最高事实依据" in context
+    assert "深入研讨脉络与发言细节" in context
+
+    # 3. 完整保留会议原文与辅助材料
+    assert "会议原文：\n王工 14:00: 网关集群已完成灰度发布，李工负责跟进告警监控，目标将超时率降至0.01%。" in context
+    assert "【用户核心关键点】\n超时率降至0.01%" in context
+
+    # 4. 保留 7 字段 JSON 顶层输出契约
+    assert "【本轮 JSON 输出契约（唯一结构，最高优先级）】" in context
+    assert "headline、executive_summary、key_decisions、personally_relevant_points、" in context
+
