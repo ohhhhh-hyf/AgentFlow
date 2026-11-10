@@ -200,7 +200,7 @@ TEMPLATE_SHAPE_SNIPPETS = {
     "conversation_transcript": "## [共识与分歧]",
     "group_seminar": "## [共识与分歧]",
     "class_transcript": "条目独立成行",
-    "general_minutes": "约 250–350 字",
+    "general_minutes": "200字以内",
     "personal_memo": "本栏不铺开细节",
     "psychological_session": "客观还原互动",
 }
@@ -277,7 +277,7 @@ def test_general_minutes_speedread() -> None:
     expect("至少带 1–3 个" not in abstract and "一条数字都没有＝不合格" not in abstract
           and "选 3–5 个" not in abstract and "禁止逐板块展开数字" not in abstract, "通用纪要：旧数字配额口径已彻底清除（不再要求每板块数字或限制几条数字）", "")
     budgets = parse_section_char_budgets(tpl)
-    expect(any(b["title"] == "全文摘要" and b["lo"] == 250 and b["hi"] == 350 and b["scope"] == "section" for b in budgets), "通用纪要：摘要为一段 250–350（节级）", f"{budgets}")
+    expect(any(b["title"] == "全文摘要" and b["hi"] == 200 and b["scope"] == "section" for b in budgets), "通用纪要：摘要为一段 200字以内（节级）", f"{budgets}")
     from core.execution.gate import split_overlong_paragraphs
 
     long_seg = "这是一段要点梳理文字。" * 55  # ≈440 汉字

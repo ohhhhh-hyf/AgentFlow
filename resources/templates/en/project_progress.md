@@ -5,7 +5,7 @@ Objectively record milestone achievements, schedule variances, risks/blockers, a
 -->
 
 ## [Project Overview]
-[Single paragraph overview (approx. 150–250 words): Summarize the current project phase, overall health, and main theme of this meeting; details regarding progress, risks, and plans should be left to subsequent sections such as "Progress Tracking", "Risk Warnings", and "Next Steps", and not repeated here.]
+[Single paragraph overview (within 150 words): Summarize the current project phase, overall health, and main theme of this meeting; details regarding progress, risks, and plans should be left to subsequent sections such as "Progress Tracking", "Risk Warnings", and "Next Steps", and not repeated here.]
 
 ## [Progress Tracking]
 [Details in this section are presented in the table below: Cover key modules and items mentioned in the meeting, filled row by row, one row per item, covering as many items as discussed in the original text; the "Progress" column details core achievements, completion rates, key quantitative metrics, and current bottlenecks; status is labeled as Completed / In Progress / Not Started / Blocked.]

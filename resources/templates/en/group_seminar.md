@@ -5,7 +5,7 @@ Faithfully record discussion points, clashes of perspectives, consensus-building
 -->
 
 ## [Discussion Topic]
-[Single paragraph summary, approx. 150–250 words: State discussion theme, background context, member makeup, and overall trajectory/leaning; granular discussion specifics belong under "Discussion Highlights", avoiding repetition here.]
+[Single paragraph summary, within 150 words: State discussion theme, background context, member makeup, and overall trajectory/leaning; granular discussion specifics belong under "Discussion Highlights", avoiding repetition here.]
 
 ## [Discussion Highlights]
 [Objectively record statements and debate exchanges from all participants: Group by topic with `### Topic Name` (or `### Member Name`); under each group, begin each bullet with a substantive phrase denoting speaker and core claim (e.g. "- **Speaker / Core Claim**: Arguments and supporting evidence"), articulating key rationale, data, and case examples with complete factual justification.]

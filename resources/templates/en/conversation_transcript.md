@@ -5,7 +5,7 @@ Faithfully record core discussions, interaction logic, consensus, and divergence
 -->
 
 ## [Conversation Overview]
-[Single paragraph summary, approx. 150–250 words: State participant identities and backgrounds, dialogue motivation/context, main discussion threads, and overall leaning/outcomes; summarize macro-level posture comprehensively, leaving granular interactions to other sections without detailing specifics here.]
+[Single paragraph summary, within 150 words: State participant identities and backgrounds, dialogue motivation/context, main discussion threads, and overall leaning/outcomes; summarize macro-level posture comprehensively, leaving granular interactions to other sections without detailing specifics here.]
 
 ## [Discussion Contents]
 [Group by topic with subsections `### Topic Name`; within each subsection, begin each bullet with a substantive phrase denoting speaker or discussion focus (e.g. "- **Speaker / Discussion Focus**: Core assertion, explanatory logic, and concrete details"); naturally weave specific numbers, cases, dates, and commitments into sentences, covering one discussion point per item, articulating factual grounds and interaction logic.]

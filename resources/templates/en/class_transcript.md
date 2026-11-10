@@ -5,7 +5,7 @@ Accurately record core course knowledge points, instructor's pedagogical logic, 
 -->
 
 ## [Course Overview]
-[Single paragraph summary of the overall session (approx. 150–250 words): State course name/chapter, lead instructor, core topic, and learning objectives; outline the instructional flow at a high level without expanding on detailed formulas or derivations, leaving details to "Core Knowledge Points" and Q&A to "Q&A Records", avoiding repetition here.]
+[Single paragraph summary of the overall session (within 150 words): State course name/chapter, lead instructor, core topic, and learning objectives; outline the instructional flow at a high level without expanding on detailed formulas or derivations, leaving details to "Core Knowledge Points" and Q&A to "Q&A Records", avoiding repetition here.]
 
 ## [Core Knowledge Points]
 [Group by chapter or module (each group headed by `### Module / Topic Name`): Under each heading, list items using "- **Concept / Sub-topic**: Principles, mathematical derivations, case data, and key takeaways"; detail formulas, calculation steps, physical meanings, and experimental figures; use indented sub-bullets "  - " for complex derivations to preserve full logical chains; naturally bold key conclusions, thoroughly articulating common pitfalls, edge cases, and boundary conditions within each independent bullet.]

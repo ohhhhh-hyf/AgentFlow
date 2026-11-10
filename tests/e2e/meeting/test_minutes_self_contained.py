@@ -168,9 +168,9 @@ def test_minutes_single_task_objective_self_contained():
     sys_prompt = draft_call["system"]
     user_prompt = draft_call["user"]
 
-    assert "你是专职会议秘书与业务分析专家" in sys_prompt
-    assert "根据会议实际研讨的事项数量与讨论深度自然分项" in sys_prompt
-    assert "围绕业务主线就事论事展开" in sys_prompt
+    assert "你是专职会议秘书" in sys_prompt
+    assert "按实质研讨事项独立分项" in sys_prompt
+    assert "完整交代议题起因背景" in sys_prompt
     assert "以会议理解为事实骨架" not in sys_prompt
     assert "以理解层" not in sys_prompt
 

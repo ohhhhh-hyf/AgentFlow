@@ -5,7 +5,7 @@ Accurately record patient chief complaints, physician diagnosis, treatment plans
 -->
 
 ## [Consultation Overview]
-[Single paragraph summary, approx. 150–250 words: State patient basic background, consultation department and format, core chief complaints (symptoms, anatomical site, duration, triggers), and physician's preliminary clinical impression; summarize from a macro perspective without detailing specifics here.]
+[Single paragraph summary, within 150 words: State patient basic background, consultation department and format, core chief complaints (symptoms, anatomical site, duration, triggers), and physician's preliminary clinical impression; summarize from a macro perspective without detailing specifics here.]
 
 ## [Medical History]
 [Objectively record historical context: List item by item using "- **History Category**: Specific onset time, treatment course, and current control status", faithfully and completely recording past medical history, allergy history, medication history, and personal lifestyle history.]

@@ -5,7 +5,7 @@ Distill visit highlights along the validated agenda as the main thread; objectiv
 -->
 
 ## [Visit Overview]
-[Single paragraph, approx. 150–250 words: state the visit location, time, core theme, the mainline of the validated agenda visit topics, and the overall itinerary; outline the full itinerary at a macro level.]
+[Single paragraph, within 150 words: state the visit location, time, core theme, the mainline of the validated agenda visit topics, and the overall itinerary; outline the full itinerary at a macro level.]
 
 ## [Key Highlights]
 [Use the validated agenda as the main thread: list each topic as a top-level heading in the form "### I. Topic Title"; within each subsection, itemize the core highlights, commentary points, historical background, or professional data under that topic, listing them one by one in the form "- **Highlight Name**: specific commentary points and professional data"; professional commentary and key data must be accurate and concrete.]

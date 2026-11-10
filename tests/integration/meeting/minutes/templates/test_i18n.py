@@ -228,6 +228,21 @@ The engineering team aligned on the Nov 15th cloud migration milestone.
 
     mock_client.text = AsyncMock(side_effect=mock_text)
 
+    async def mock_stream_text(prompt, user, **kwargs):
+        render_calls.append((prompt, user))
+        yield """# General Minutes
+
+## Executive Summary
+The engineering team aligned on the Nov 15th cloud migration milestone.
+
+## Key Discussion Points
+- Migration schedule and weekend downtime allowances.
+
+## Decisions & Rulings
+- Finalize cloud migration runbook by Friday."""
+
+    mock_client.stream_text = mock_stream_text
+
     system = MeetingAgentSystem(client=mock_client)
     template = resolve_template_format("general_minutes", lang="en")
     transcript = "Alex: We need to finalize the cloud migration deadline by Friday. Bob: Agreed, target is Nov 15th."

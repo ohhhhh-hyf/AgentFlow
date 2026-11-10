@@ -5,7 +5,7 @@ Present facts and professional analysis along the validated consultation agenda 
 -->
 
 ## [Consultation Overview]
-[Single paragraph, approx. 150–250 words: state the client's basic information, the legal relationship and case type involved, the mainline of the validated consultation topics, the core claims, and the overall legal tone; keep it at the macro level and leave specific case facts and statutory details to later sections.]
+[Single paragraph, within 150 words: state the client's basic information, the legal relationship and case type involved, the mainline of the validated consultation topics, the core claims, and the overall legal tone; keep it at the macro level and leave specific case facts and statutory details to later sections.]
 
 ## [Case Facts]
 [Use the validated agenda as the main thread: list each topic as a top-level heading in the form "### I. Topic Title"; within each subsection, objectively restore the case facts and evidence thread stated by the client: list them item by item by timeline or fact module, and start each item with a substantive phrase that reflects the key milestone, involved entity, or disputed conduct (e.g., "- **Timeline / Fact Stage**: what specifically happened, behavioral details, and consequences"); concretely state the cause, process, damage consequences, disputed subject matter, and existing documentary evidence, and stop once the factual basis is clear.]

@@ -6,7 +6,7 @@ Focus on substantive business facts and actionable commitments, treating each ma
 -->
 
 ## [Context & Background]
-[Single paragraph summary, approx. 80–120 words: State the participating institutions/roles, motivation, primary purpose, and overall communication tone; lead with conclusions to outline the panoramic view, without narrating granular topic specifics or data details.]
+[Single paragraph summary, within 150 words: State the participating institutions/roles, motivation, primary purpose, and overall communication tone; lead with conclusions to outline the panoramic view, without narrating granular topic specifics or data details.]
 
 ## [Core Information]
 [Synthesize key facts and objective data synchronized during the meeting: Set up subsections by business theme `### Topic Name` (extract 2–4 core topics, omitting trivial items); within each subsection, list items using "- **Business Entity / Fact Point**: Specific facts and quantitative support", highlighting key facts, milestones, and metrics in 40–80 words per item, stating the factual grounds concisely; retain only objective facts here, leaving subjective positions and follow-up resolutions to subsequent sections.]

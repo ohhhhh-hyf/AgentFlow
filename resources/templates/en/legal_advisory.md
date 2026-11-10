@@ -5,7 +5,7 @@ Accurately record client case facts, legal claims, attorney's legal analysis, an
 -->
 
 ## [Advisory Overview]
-[Single paragraph summary, approx. 150–250 words: State client background information, legal relationships and case type involved, core advisory demands, and overarching legal assessment; summarize from a macro perspective, leaving granular case facts and statutory citations to subsequent sections.]
+[Single paragraph summary, within 150 words: State client background information, legal relationships and case type involved, core advisory demands, and overarching legal assessment; summarize from a macro perspective, leaving granular case facts and statutory citations to subsequent sections.]
 
 ## [Case Facts]
 [Objectively restore case facts and evidentiary context presented by the client: List item by item chronologically or by factual module, starting each bullet with a substantive phrase reflecting key milestones, involved parties, or disputed acts (e.g. "- **Milestone / Factual Stage**: Concrete course of events, behavioral details, and consequences"), detailing origin, course of events, damages, disputed subject matter, and available documentary evidence, thoroughly articulating factual grounds.]

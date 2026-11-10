@@ -5,7 +5,7 @@ Faithfully record the interviewee's core viewpoints, story details, emotional ex
 -->
 
 ## [Interview Overview]
-[Single-paragraph overview, approx. 150–250 words: state the interview topic and purpose, the interviewee's identity and background, the mainline of the validated interview topics, and the overall tone and tendency; highlight the core highlights of the interview; keep it at the macro level and leave specific interview details to later sections.]
+[Single-paragraph overview, within 150 words: state the interview topic and purpose, the interviewee's identity and background, the mainline of the validated interview topics, and the overall tone and tendency; highlight the core highlights of the interview; keep it at the macro level and leave specific interview details to later sections.]
 
 ## [Interview Details]
 [Use the validated agenda as the main thread: list each topic as a top-level heading in the form "### I. Topic Title"; within each subsection, objectively record the interviewee's in-depth statements and responses: for multi-angle discussions, divide the content into paragraphs with an independent bold line "**Interview Dimension / Topic Branch**"; for a single direction, use a flat list. Start each body item with a substantive phrase that reflects the specific event, inner journey, or core viewpoint (e.g., "- **Event Point / Personal Journey**: in-depth statement and background causality"), concretely preserve the story background, factual basis, turning points and causality, and key timeline; one matter per item, and stop once the factual logic is clear; the interviewee's tone-setting quotes are consolidated under "Key Quotes".]

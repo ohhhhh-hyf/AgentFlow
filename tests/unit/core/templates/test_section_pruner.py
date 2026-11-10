@@ -31,7 +31,7 @@ def test_knowledge_memo_groups() -> None:
     expect("### 概念名" in text, "知识笔记：核心概念按概念名分组", "")
     expect("### 关键判断与结论" in text, "知识笔记：核心结论含关键判断", "")
     expect("### 易混辨析与适用边界" in text, "知识笔记：核心结论含易混辨析与适用边界", "")
-    expect("单段概括，约 250–350 字" in text, "知识笔记：概述栏 250–350 字", "")
+    expect("单段概括，200字以内" in text, "知识笔记：概述栏 200字以内", "")
 
 
 def test_home_school_feedback_groups() -> None:
@@ -73,8 +73,8 @@ def test_overview_specs_have_scope() -> None:
     """概况栏：团队例会/辩论会声明尺寸与要素。"""
     team = (_active_dir() / "team_meeting.md").read_text(encoding="utf-8")
     debate = (_active_dir() / "debate_forum.md").read_text(encoding="utf-8")
-    expect("单段概括，约 250–350 字" in team, "团队例会：概况栏 250–350 字", "")
-    expect("单段概括，约 250–350 字" in debate, "辩论会：概况栏 250–350 字", "")
+    expect("单段概括，200字以内" in team, "团队例会：概况栏 200字以内", "")
+    expect("单段概括，200字以内" in debate, "辩论会：概况栏 200字以内", "")
     expect("参会成员或部门" in team and "全局结论" in team, "团队例会：概况要素完整", "")
     expect("原文明示获胜方时据实记录" in debate, "辩论会：胜负只在原文明示时记录", "")
 
@@ -102,8 +102,8 @@ def test_interview_and_lecture_overview() -> None:
     """采访记录/专题讲座：概况尺寸与要素。"""
     interview = (_active_dir() / "interview_transcript.md").read_text(encoding="utf-8")
     lecture = (_active_dir() / "special_lecture.md").read_text(encoding="utf-8")
-    expect("单段概括，约 250–350 字" in interview and "访谈核心看点" in interview, "采访记录：概况 250–350 且点出看点", "")
-    expect("单段概括，约 250–350 字" in lecture and "核心主张与核心判断" in lecture, "专题讲座：概况 250–350 且点出核心主张", "")
+    expect("单段概括，200字以内" in interview and "访谈核心看点" in interview, "采访记录：概况 200字以内 且点出看点", "")
+    expect("单段概括，200字以内" in lecture and "核心主张与核心判断" in lecture, "专题讲座：概况 200字以内 且点出核心主张", "")
     expect("### 论点名称" in lecture and "Q&A 环节" in lecture, "专题讲座：论点分节且问答下沉", "")
 
 
@@ -111,30 +111,30 @@ def test_conversation_and_seminar_enrichment() -> None:
     """对话记录/小组讨论：概况与共识分歧结构。"""
     conv = (_active_dir() / "conversation_transcript.md").read_text(encoding="utf-8")
     semi = (_active_dir() / "group_seminar.md").read_text(encoding="utf-8")
-    expect("单段概括，约 250–350 字" in conv and "单段概括，约 250–350 字" in semi, "对话/小组：概况 250–350 字", "")
+    expect("单段概括，200字以内" in conv and "单段概括，200字以内" in semi, "对话/小组：概况 200字以内", "")
     expect("### 话题名称" in conv and "### 达成共识" in conv and "### 存有分歧" in conv, "对话记录：话题/共识/分歧分组", "")
     expect("### 议题名" in semi and "### 达成共识" in semi and "### 主要分歧" in semi, "小组讨论：议题/共识/分歧分组", "")
 
 
 def test_project_progress_overview() -> None:
-    """项目进度会：概况单段 250–350 + 后续计划按事项分点。"""
+    """项目进度会：概况单段 200字以内 + 后续计划按事项分点。"""
     text = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
-    expect("一段写完，约 250–350 字" in text, "项目进度会：概况单段 250–350 字", "")
+    expect("一段写完，200字以内" in text, "项目进度会：概况单段 200字以内", "")
     expect("按事项分点写" in text and "`- **事项**：做什么 + 责任方 + 时间节点`" in text, "项目进度会：[后续计划] 按事项分点", "")
     from core.templates.template_eval import parse_section_char_budgets
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "项目概况"]
-    expect(bool(caps) and caps[0]["hi"] == 350, "项目进度会：概况预算 350", f"{caps}")
+    expect(bool(caps) and caps[0]["hi"] == 200, "项目进度会：概况预算 200", f"{caps}")
 
 
 def test_media_overview_scope() -> None:
-    """新闻发布：发布会概况单段 300–350。"""
+    """新闻发布：发布会概况单段 200字以内。"""
     from core.templates.template_eval import parse_section_char_budgets
     text = (_active_dir() / "media_briefing.md").read_text(encoding="utf-8")
     spec = next(l.strip() for l in text.splitlines() if l.strip().startswith("[一段写完"))
-    expect("一段写完，约 300–350 字" in spec, "发布会概况：单段 300–350 字", spec[:80])
+    expect("一段写完，200字以内" in spec, "发布会概况：单段 200字以内", spec[:80])
     expect("不铺开细节" in spec, "发布会概况：写明不铺开细节", "")
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
-    expect(bool(caps) and caps[0]["hi"] == 350, "发布会概况：预算 350", f"{caps}")
+    expect(bool(caps) and caps[0]["hi"] == 200, "发布会概况：预算 200", f"{caps}")
 
 
 def test_class_transcript_task_groups() -> None:
@@ -216,10 +216,9 @@ def test_media_briefing_evidence_and_depth() -> None:
     core = hints["核心信息"]
     stance = hints["官方表态"]
 
-    assert "按业务领域或政策板块设立小节「### 板块名称」" in core
-    assert "- **举措/成果要点**" in core
+    assert "- **核心主题**：" in core
+    assert "各项举措分别列出" in core
     assert "关键数据自然加粗" in core
-    assert "客观讲透事实依据与工作成效" in core
 
     assert "- **表态议题**" in stance
     assert "能明确发言人时注明「（姓名/身份）」" in stance
@@ -227,7 +226,7 @@ def test_media_briefing_evidence_and_depth() -> None:
     assert "具体问答交互下沉至「Q&A环节」" in stance
 
     caps = [b for b in parse_section_char_budgets(text) if b["title"] == "发布会概况"]
-    assert caps and caps[0]["hi"] in (350, 400)
+    assert caps and caps[0]["hi"] in (200, 350, 400)
 
 
 def test_product_launch_overview() -> None:
@@ -235,7 +234,7 @@ def test_product_launch_overview() -> None:
     text = (_active_dir() / "product_launch.md").read_text(encoding="utf-8")
     for col in ("产品概况", "市场定位", "核心卖点", "发售信息"):
         expect(f"# [{col}]" in text, f"产品发布：包含 [{col}]", "")
-    expect("单段概括，约 250–350 字" in text, "产品发布：概况 250–350 字", "")
+    expect("单段概括，200字以内" in text, "产品发布：概况 200字以内", "")
     expect("本栏明细由下表承载" in text, "产品发布：[核心卖点] 表格承载", "")
 
 

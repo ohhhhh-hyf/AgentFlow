@@ -485,7 +485,12 @@ def _describe_field(index: int, seg: dict) -> str:
     ):
         # 概括/背景类栏位是最容易被灌满的位置，无论是否声明尺寸，必须强化【形态要求：单段交付、严禁换行分段】
         size_hint = ""
-        m_size = re.search(r"(?:约\s*)?\d+\s*[–—-]\s*\d+\s*字|\d+\s*字以内", hint)
+        m_size = re.search(
+            r"(?:约\s*)?\d+\s*[–—-]\s*\d+\s*字|\d+\s*字以内|"
+            r"(?:approx\.\s*)?\d+[\s–—-]+\d+\s*words?|(?:within|under)\s+\d+\s*words?",
+            hint,
+            re.IGNORECASE,
+        )
         if m_size:
             size_hint = f"（严格控制在 {m_size.group(0)} 以内）"
         elif _HAS_SIZE_SPEC_RE.search(hint):

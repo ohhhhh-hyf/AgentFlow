@@ -5,7 +5,7 @@ Accurately record the core knowledge points, the instructor's teaching logic, ke
 -->
 
 ## [Course Overview]
-[Single-paragraph overview, approx. 150–250 words: state the course name/chapter, instructor, the mainline of the validated agenda topics, and learning objectives; keep it at the macro level and leave formulas and detailed derivations to later sections.]
+[Single-paragraph overview, within 150 words: state the course name/chapter, instructor, the mainline of the validated agenda topics, and learning objectives; keep it at the macro level and leave formulas and detailed derivations to later sections.]
 
 ## [Core Knowledge Points]
 [Use the validated agenda as the main thread: list each topic as a top-level heading in the form "### I. Topic Title", with no introductory transition sentence. Within each subsection, itemize the core knowledge points and theoretical essentials: for multi-branch or complex theories, divide the content into paragraphs with an independent bold line "**Knowledge Sub-module / Branch Theory**"; for a single topic, use a flat list. Start each body item with a substantive phrase that reflects the specific concept, theorem, or derivation topic (e.g., "- **Concept / Theorem Point**: principle explanation and derivation calculation"), and concretely expand the formula derivation, calculation steps, physical meaning, and experimental data. For complex derivations, add indented sub-items "  - " to restore the full logic chain; naturally bold key conclusions; fully explain common confusions and boundary conditions within the item; stop once the knowledge thread is clear.]

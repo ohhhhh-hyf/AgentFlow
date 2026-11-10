@@ -1134,9 +1134,16 @@ def _top_level_sections(text: str) -> list[tuple[str, str]]:
     return [(title, "\n".join(parts)) for title, parts in merged]
 
 
-# 兼容中括号 []、圆括号 ()，覆盖「单段概括」「单段交代」「一段写完」「一段话概括」「一段话概览」等全库 32 个模板
+# 兼容中括号 []、圆括号 ()，覆盖中文「单段概括」「单段交代」「单段概览」「单段写完」「一段写完」「一段话概括」「一段话概览」
+# 以及英文「Single paragraph」「Single-paragraph」等全库模板，
+# 同时兼容区间字数（约 250–350 字 / approx. 150–250 words）以及定额字数约束（200字以内 / within 150 words / under 150 words）
 _FIRST_COL_PARA_RE = re.compile(
-    r"[\[（(]?(?:单段(?:概括|交代)|一段(?:写完|话概括[^()（）\[\]]*|话概览[^()（）\[\]]*)?)[，,]?\s*[（(]?\s*约?\s*\d+\s*[–—-]\s*\d+\s*字"
+    r"[\[（(]?(?:"
+    r"(?:单段(?:概括|交代|概览|写完)|一段(?:写完|话概括[^()（）\[\]]*|话概览[^()（）\[\]]*)?)[，,]?\s*[（(]?\s*(?:约?\s*(?:\d+\s*[–—-]\s*\d+|\d+)\s*字(?:以内)?|\d+\s*字以内)"
+    r"|"
+    r"Single[- ]paragraph[^:：()（）\[\]]{0,50}?[，,]?\s*[（(]?\s*(?:(?:approx\.\s*)?\d+[\s–—-]+\d+\s*words?|(?:strictly\s+)?(?:within|under)\s+\d+\s*words?)"
+    r")",
+    re.IGNORECASE,
 )
 
 

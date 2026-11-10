@@ -14,11 +14,8 @@ from domains.meeting.tasks.minutes.prompts import (
 def test_objective_prompt_routes_qa_and_quotes_to_executive_summary() -> None:
     prompt = MINUTES_OBJECTIVE_GENERATION_PROMPT
 
-    assert "问答与金句属于正文内容" in prompt
-    assert "写入对应议题段落" in prompt
-    assert "问答保留问答配对" in prompt
-    assert "金句保留原话措辞与发言人归属" in prompt
-    assert "不得写入 unresolved_questions 或 key_decisions" in prompt
+    assert "关键发言原话与重要问答有机融入对应议题段落" in prompt
+    assert "交代清楚决策依据" in prompt
 
 
 def test_agenda_column_prompt_routes_qa_and_quotes_to_executive_summary() -> None:

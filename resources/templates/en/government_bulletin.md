@@ -5,7 +5,7 @@ Accurately distill core policies, development goals, priority initiatives, and p
 -->
 
 ## [Bulletin Overview]
-[Single paragraph summary, approx. 150–250 words: State bulletin title, issuing agency/authority, reporting period, core theme, and overarching development assessment; summarize comprehensively from a macro perspective, leaving granular policy provisions to "Core Policies" and major projects to "Priority Initiatives", without detailing specifics here.]
+[Single paragraph summary, within 150 words: State bulletin title, issuing agency/authority, reporting period, core theme, and overarching development assessment; summarize comprehensively from a macro perspective, leaving granular policy provisions to "Core Policies" and major projects to "Priority Initiatives", without detailing specifics here.]
 
 ## [Core Policies]
 [Extract core policies, development plans, and major strategic targets item by item: List using "- **Policy / Strategic Plan**: Policy objective, scope of application, implementation timeframe, and core target metrics"; for policies involving multi-dimensional breakdowns or support mechanisms, use indented sub-bullets "  - " to detail implementation steps and metrics; naturally bold key regulations and quantitative milestones, clearly articulating policy substance and target constraints.]

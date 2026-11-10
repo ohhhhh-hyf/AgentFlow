@@ -5,7 +5,7 @@ Accurately distill core press release information and official stances, maintain
 -->
 
 ## [Briefing Overview]
-[Single paragraph summary, approx. 180–260 words: State briefing authority, time, location, and core theme, summarizing key business tracks, overall development trends, Q&A concerns, and subsequent work arrangements; provide a macro-level overview without expanding on granular details.]
+[Single paragraph summary, within 150 words: State briefing authority, time, location, and core theme, summarizing key business tracks, overall development trends, Q&A concerns, and subsequent work arrangements; provide a macro-level overview without expanding on granular details.]
 
 ## [Core Information]
 [Systematically organize policy highlights, key initiatives, and core data announced at the briefing: Format each item with "- **Core Theme**:" on its own line, using indented sub-bullets "  - " below to detail concrete measures, implementation paths, and quantitative outcomes; list each initiative separately without general consolidation; naturally bold key metrics.]

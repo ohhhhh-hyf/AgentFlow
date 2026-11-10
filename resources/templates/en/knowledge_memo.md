@@ -5,7 +5,7 @@ Extract core concepts, logical frameworks, and critical deductions, focusing on 
 -->
 
 ## [Knowledge Overview]
-[Single paragraph summary, approx. 150–250 words: State domain field, core problem statement, overarching deductive framework, and primary conceptual insights.]
+[Single paragraph summary, within 150 words: State domain field, core problem statement, overarching deductive framework, and primary conceptual insights.]
 
 ## [Core Concepts]
 [Organize by knowledge structure: Create a subsection for each core concept `### Concept Name`; within each subsection, begin each bullet with a substantive phrase denoting the specific concept or theoretical element (e.g. "- **Concept Name / Knowledge Element**: Definition, deductive reasoning, empirical examples, and operational scope"); detail underlying mechanisms and reasoning chains, provide supporting examples or application scenarios, state positive prerequisites and counter-indications, articulating conceptual depth objectively.]

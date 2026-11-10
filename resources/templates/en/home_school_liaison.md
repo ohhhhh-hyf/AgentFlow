@@ -5,7 +5,7 @@ Accurately record student campus performance, home-school discussions, communica
 -->
 
 ## [Liaison Overview]
-[Single paragraph summary, approx. 150–250 words: Communicating parties, student name, grade/class, core topic, and background context, summarizing the overall tone of communication.]
+[Single paragraph summary, within 150 words: Communicating parties, student name, grade/class, core topic, and background context, summarizing the overall tone of communication.]
 
 ## [School Performance]
 [Present student comprehensive campus performance by observation dimension or academic area: Format each entry as an independent line "- **Observation Dimension / Performance Area**", using indented sub-bullets "  - " for specific factual details, subject performances, and daily observations; one matter per point, thoroughly detailing realistic contexts and objective grounds without empty, vague labels.]

@@ -5,7 +5,7 @@ Discuss student development and home-school collaboration along the validated ag
 -->
 
 ## [Communication Overview]
-[Single paragraph, approx. 150–250 words: state the identities of both parties, the student's name, grade, and class, the communication topic and core background, and summarize the overall communication tone.]
+[Single paragraph, within 150 words: state the identities of both parties, the student's name, grade, and class, the communication topic and core background, and summarize the overall communication tone.]
 
 ## [Performance at School]
 [Present the student's overall performance at school by observation dimension or performance area: start each item on an independent line with "- **Observation Dimension / Performance Area**", and add indented sub-items "  - " to list specific factual details, subject performance, and daily observations; one matter per item, describe the real situation and objective basis thoroughly, and avoid dry, empty labels.]

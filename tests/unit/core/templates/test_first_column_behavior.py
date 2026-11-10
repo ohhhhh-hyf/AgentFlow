@@ -142,8 +142,8 @@ def test_first_column_single_paragraph_merge() -> None:
     ):
         text = (d / f"{stem}.md").read_text(encoding="utf-8")
         caps = [b for b in parse_section_char_budgets(text) if b["title"] == col]
-        expect(bool(caps) and caps[0]["lo"] == 250 and caps[0]["hi"] == 350,
-              f"{stem}：首栏尺寸（{col} 250–350）", f"{caps}")
+        expect(bool(caps) and caps[0]["hi"] == 200,
+              f"{stem}：首栏尺寸（{col} 200字以内）", f"{caps}")
 
     # ② 合并函数：多段散文 → 一段（用真实产物形态）
     #    「首栏 3 段」＝一个 [项目概况] 栏里三个散文段；写法上必须让 `* 40` 只作用于整句，
@@ -399,7 +399,7 @@ def test_first_column_single_paragraph_synergy() -> None:
     assert fields, "通用纪要字段解析失败"
     desc1 = _describe_field(1, fields[0])
     expect("【形态要求】：必须且只写一段完整概括，严禁换行分段" in desc1
-        and "约 250–350 字" in desc1, "通用纪要首栏生成显式单段契约", desc1)
+        and "200字以内" in desc1, "通用纪要首栏生成显式单段契约", desc1)
 
     # 3. 验证典型多段输出的物理级合并折叠
     multi_summary = (

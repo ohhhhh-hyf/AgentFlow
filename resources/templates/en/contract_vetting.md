@@ -5,7 +5,7 @@ Accurately identify core contract clauses, rights and obligations, default liabi
 -->
 
 ## [Contract Overview]
-[Single paragraph summary, approx. 150–250 words: Summarize contract title, contracting parties, transaction background, and overall conclusion of this contract review.]
+[Single paragraph summary, within 150 words: Summarize contract title, contracting parties, transaction background, and overall conclusion of this contract review.]
 
 ## [Core Terms & Conditions]
 [Review core clauses covering subject matter, pricing/consideration, performance timeline, acceptance criteria, and breach liabilities: Begin each bullet with a substantive phrase denoting the specific clause (e.g. "- **Clause Title**: Specific agreed terms and key parameters"), objectively detailing key rights, obligations, and execution milestones.]

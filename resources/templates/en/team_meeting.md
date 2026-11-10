@@ -5,7 +5,7 @@ Faithfully record the work progress reported by team members, decisions and acti
 -->
 
 ## [Meeting Overview]
-[Single paragraph summary, approx. 150–250 words: State the attendees or departments, meeting background, main topics covered, overall progress momentum, and overarching conclusions; focus on main tracks and high-level status, leaving specific details to subsequent sections.]
+[Single paragraph summary, within 150 words: State the attendees or departments, meeting background, main topics covered, overall progress momentum, and overarching conclusions; focus on main tracks and high-level status, leaving specific details to subsequent sections.]
 
 ## [Work Progress]
 [Create subsections by team member or business module `### Member / Module Name`: Under each subsection, list items using "- **Item / Task Name**: Specific progress actions, current milestone deliverables, and key metrics"; describe concrete progress, verification, or delivery results, noting key business rationale or breakthroughs mentioned on site.]

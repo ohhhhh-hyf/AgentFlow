@@ -5,7 +5,7 @@ Faithfully record journalist questions, spokesperson responses, and core policy 
 -->
 
 ## [Session Overview]
-[Single paragraph summary, approx. 150–250 words: State occasion details, spokesperson and institutional identity, participating media outlets, core hot-button concerns, and overall tone; summarize macro-level posture comprehensively, leaving granular Q&A to "Core Q&A", heated follow-ups to "Focal Concerns", and clarifications to "Clarifications & Official Positions", without detailing interaction specifics here.]
+[Single paragraph summary, within 150 words: State occasion details, spokesperson and institutional identity, participating media outlets, core hot-button concerns, and overall tone; summarize macro-level posture comprehensively, leaving granular Q&A to "Core Q&A", heated follow-ups to "Focal Concerns", and clarifications to "Clarifications & Official Positions", without detailing interaction specifics here.]
 
 ## [Core Q&A]
 [Comprehensively record live media Q&A exchanges in question-and-answer pairs: Question line "**Questioner**: Core inquiry focus" immediately followed by response line "**Respondent**: Clear conclusion, factual evidence, and policy grounds"; state media outlet and journalist name for questioner (or "**Question**" if unstated), and official spokesperson name or title for respondent (or "**Answer**" if unstated); lead responses with a one-sentence official conclusion followed by key factual rationale and policy details, filtering out greetings and pleasantries.]

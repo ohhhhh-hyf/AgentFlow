@@ -5,7 +5,7 @@ Faithfully record court proceedings, claims and defenses from both parties, pres
 -->
 
 ## [Trial Overview]
-[Single paragraph summary, approx. 150–250 words: State case number, cause of action, presiding judge/collegiate bench, parties and legal counsel, trial procedure/format, and core disputed issues.]
+[Single paragraph summary, within 150 words: State case number, cause of action, presiding judge/collegiate bench, parties and legal counsel, trial procedure/format, and core disputed issues.]
 
 ## [Claims & Defenses]
 [Present by litigating party in distinct groups: Start each group with party identity and core claim/defense (format: "**Party (Role)**: Specific litigation claim or defense plea"); list underlying facts and legal grounds below using bullet points "- "; ensure claims from all sides are objective, complete, and logically reasoned.]

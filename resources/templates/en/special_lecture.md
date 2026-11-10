@@ -5,7 +5,7 @@ Systematically extract core viewpoints, argumentation logic, supporting case stu
 -->
 
 ## [Lecture Overview]
-[Single paragraph summary, approx. 150–250 words: State the speaker name and title, topic, occasion, primary assertions, overarching judgments, and core logical framework of the lecture.]
+[Single paragraph summary, within 150 words: State the speaker name and title, topic, occasion, primary assertions, overarching judgments, and core logical framework of the lecture.]
 
 ## [Core Viewpoints]
 [Two-level structure: Organize lines of argument driven by core theses, separated clearly from Q&A interactions, which belong under "Q&A Session"; create a subsection for each thesis `### Thesis Name` (using specific phrases reflecting the assertion); list bullets using "- **Evidence / Sub-argument**: Core insights, deductive logic, typical case studies, and direct metrics"; specify direct metrics and concrete examples, using indented sub-bullets "  - " for multi-step derivations or detailed reasoning; thoroughly articulate lines of reasoning and factual evidence, avoiding dry, unsupported assertions.]

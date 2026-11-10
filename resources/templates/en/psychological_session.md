@@ -5,7 +5,7 @@ Objectively record client's core distress, emotional states, counselor's interve
 -->
 
 ## [Session Overview]
-[Single paragraph summary, approx. 150–250 words: Counseling objectives, background of client's primary distress, and main progression of this session.]
+[Single paragraph summary, within 150 words: Counseling objectives, background of client's primary distress, and main progression of this session.]
 
 ## [Session Details]
 [Record client's emotional expressions and counselor's therapeutic interventions: Group by theme with subsections `### Theme Name`; within each subsection, list items line by line using bullet points "- " to record client disclosures, emotional shifts, counselor questioning/guiding, and technical interventions, objectively capturing interactions and intervention logic.]

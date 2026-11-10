@@ -5,7 +5,7 @@ Objectively reconstruct the interview process, personal performance, interviewer
 -->
 
 ## [Interview Overview]
-[Single paragraph summary, approx. 100–160 words: Target company, position, interview round, evaluation focus, and self-assessment of overall performance.]
+[Single paragraph summary, within 150 words: Target company, position, interview round, evaluation focus, and self-assessment of overall performance.]
 
 ## [Personal Performance]
 [Review by interview phase, listed line by line using bullet points "- ": Summarize core answers, behavioral highlights, and exposed deficiencies for each phase, backed by specific examples, articulating reasons for success or shortfall.]

@@ -5,7 +5,7 @@ Accurately record the interviewee's core feedback, practical demands, difficulti
 -->
 
 ## [Interview Overview]
-[Single paragraph summary, approx. 120–200 words: Profile and business background of interviewee, core research objectives, covered scenarios, and overall evaluative tone toward existing solutions.]
+[Single paragraph summary, within 150 words: Profile and business background of interviewee, core research objectives, covered scenarios, and overall evaluative tone toward existing solutions.]
 
 ## [Core Feedback]
 [Set up subsections by business scenario or research theme `### Scenario or Theme Name`; within each subsection, begin each bullet with a substantive phrase reflecting the module or pain point (e.g. "- **Pain Point Module / Need Focus**: Specific elaboration of what obstacles occurred in which scenario, deficiencies in the current workflow, and root causes"), preserving verbatim user remarks and quantitative metrics, articulating core crux issues.]

@@ -5,7 +5,7 @@ Objectively restore expected goals versus actual results of the project or event
 -->
 
 ## [Retrospective Overview]
-[Single paragraph summary, approx. 150–250 words: State expected goals, actual outcome baseline, and main theme of this retro session; focus on overall assessment and key gaps from a macro perspective, without detailing granular specifics here.]
+[Single paragraph summary, within 150 words: State expected goals, actual outcome baseline, and main theme of this retro session; focus on overall assessment and key gaps from a macro perspective, without detailing granular specifics here.]
 
 ## [Key Deliverables]
 [Create subsections by business module or project stream `### Module Name`: Objectively present actual outcomes against expected goals, detailing key deliverables and quantitative metrics; one item per point, comprehensive and grounded in factual evidence.]

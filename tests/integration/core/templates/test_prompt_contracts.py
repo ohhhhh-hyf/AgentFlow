@@ -60,7 +60,7 @@ def test_minutes_chain_consistency() -> None:
 
     # ② 摘要分段：三处同一套（段数按内容、单段 ≤约 200 字——**只按字数口径**），旧数字已清除
     expect("≤4 段" not in draft and "≤4 段" not in gen_contract, "草稿 prompt / 契约都不再设固定段数上限", "")
-    expect("250–350 字" in draft and "段数按实际业务模块划分" in gen_contract
+    expect("200 字以内" in draft and "成段展开" in gen_contract
           and "3 句或约" not in draft and "3 句或约" not in gen_contract,
           "草稿 prompt / 契约：摘要按字数约束，段数按实际业务模块划分", "")
 
@@ -85,7 +85,7 @@ def test_minutes_chain_consistency() -> None:
     from core.execution.gate import advisory_issues as _adv
     expect(_adv.__kwdefaults__.get("para_han") == _PARA_CHECK_HAN
           and _adv.__kwdefaults__.get("long_han") == _ITEM_CHECK_HAN, "advisory 阈值取自派生常量（默认值不再硬编码）", "")
-    expect("段数按实际业务模块划分" in gen_contract, "契约声明段数按实际业务模块划分", "")
+    expect("按实际业务模块或政策板块成段展开" in gen_contract, "契约声明段数按实际业务模块划分", "")
     old_summary = [
         k
         for k in ("全篇 2–8 条", "每段最多 3 句", "2–8 条", "≤4 段", "每段 2–5 句", "2–5 句")

@@ -5,7 +5,7 @@ Faithfully summarize core topics during the workshop, collisions of viewpoints, 
 -->
 
 ## [Workshop Overview]
-[Single paragraph summary, approx. 150–250 words: Clarify the background motivation, core objectives, participant lineup, and main topic tracks covered in the workshop.]
+[Single paragraph summary, within 150 words: Clarify the background motivation, core objectives, participant lineup, and main topic tracks covered in the workshop.]
 
 ## [Core Viewpoints]
 [Set up subsections by topic `### Topic Name`, objectively presenting lines of thought and reasoning from all sides: List items using "- **Proposal / Viewpoint**: Specific propositions, technical approaches, and supporting arguments", covering one item per point, articulating technical claims and rationale without narrative fluff.]

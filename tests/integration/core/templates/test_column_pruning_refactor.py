@@ -136,7 +136,6 @@ def test_minutes_validation_auto_fills_missing_history_comparison():
     from domains.meeting.models_generated import Minutes
 
     raw_data_without_history_comparison = {
-        "headline": "手机常用APP与音乐偏好交流讨论",
         "executive_summary": ["本次讨论为多人参与的闲聊式交流，围绕常用APP展开。"],
         "key_decisions": ["达成共识"],
         "personally_relevant_points": ["小李跟进"],
@@ -147,21 +146,20 @@ def test_minutes_validation_auto_fills_missing_history_comparison():
 
     enforced = enforce_minutes_draft(raw_data_without_history_comparison, None)
     minutes_obj = Minutes.validate(enforced)
-    assert minutes_obj.headline == "手机常用APP与音乐偏好交流讨论"
     assert minutes_obj.history_comparison == []
 
 
 def test_prompts_overview_word_budget_and_mapping_rules():
-    """验证Prompt契约中首项字数已对齐250-350字，且普通模板渲染Prompt包含总述栏映射规约。"""
+    """验证Prompt契约中首项字数已对齐200字以内，且普通模板渲染Prompt包含总述栏映射规约。"""
     from domains.meeting.tasks.minutes.prompts import (
         MINUTES_OBJECTIVE_GENERATION_PROMPT,
         MINUTES_AGENDA_GENERATION_PROMPT,
         MINUTES_RENDER_TEMPLATE_PROMPT,
     )
 
-    # 1. 验证生成Prompt中首项字数约束已对齐为 250–350 字
-    assert "250–350 字" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "约 250–350 字" in MINUTES_AGENDA_GENERATION_PROMPT
+    # 1. 验证生成Prompt中首项字数约束已对齐为 200 字以内
+    assert "200 字以内" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "200 字以内" in MINUTES_AGENDA_GENERATION_PROMPT
 
     # 2. 验证普通模板渲染Prompt中已补齐概括总述类栏目的单段映射规约
     assert "【栏目语义自适应映射】" in MINUTES_RENDER_TEMPLATE_PROMPT

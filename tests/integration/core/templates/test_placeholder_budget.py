@@ -177,9 +177,9 @@ def test_paragraph_cap_from_explicit_per_para() -> None:
 
     han = lambda t: len([c for c in t if "\u4e00" <= c <= "\u9fff"])
     interview = (_active_dir() / "interview_transcript.md").read_text(encoding="utf-8")
-    expect("单段概括，约 250–350 字" in interview and "单段不超过 300 字" not in interview, "采访记录：概况栏为单段 250–350", "")
+    expect("单段概括，200字以内" in interview and "单段不超过 300 字" not in interview, "采访记录：概况栏为单段 200字以内", "")
     caps = [b for b in parse_section_char_budgets(interview) if b["title"] == "访谈概述"]
-    expect(bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["hi"] == 350, "采访记录：概况栏解析出段落预算 250–350", f"{caps}")
+    expect(bool(caps) and caps[0]["scope"] == "paragraph" and caps[0]["hi"] == 200, "采访记录：概况栏解析出段落预算 200", f"{caps}")
     prog = (_active_dir() / "project_progress.md").read_text(encoding="utf-8")
     pcaps = [b for b in parse_section_char_budgets(prog) if b["title"] == "项目概况"]
     expect(bool(pcaps) and int(pcaps[0]["lo"] or 0) <= int(pcaps[0]["hi"]), "项目进度会：概况栏节级预算 lo ≤ hi", f"{pcaps}")

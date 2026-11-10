@@ -433,13 +433,13 @@ async def test_minutes_objective_self_contained_prompt_content():
     assert "以理解层" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
     # 2. 包含正向 4 句话研讨提炼规范
-    assert "根据会议实际研讨的事项数量与讨论深度自然分项" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "围绕业务主线就事论事展开" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "原文中提及的具体技术指标、系统名称、版本号、对比数据与排期节点等量化信息" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "客观呈现研讨中的不同观点、质询考量及拉通共识" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "按实质研讨事项独立分项" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "完整交代议题起因背景、具体推进方案或实施措施" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "转写原文中的业务模块与系统名称、专业术语、具体量化指标" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "过程与共识呈现" in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
-    # 3. 包含落地行动与分工安排大白话规范
-    assert "清晰交代责任归属（明确到具体人名或团队）、具体执行任务或交付物、以及完成时限或时间节点" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    # 3. 包含落地行动与分工安排规范
+    assert "明确责任主体（具体人员或团队）、具体执行任务、预期交付成果物、以及明确完成节点" in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
 
 @pytest.mark.anyio

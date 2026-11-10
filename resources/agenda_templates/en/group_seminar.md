@@ -5,7 +5,7 @@ Faithfully record group members' key remarks, exchange of views, consensus forma
 -->
 
 ## [Discussion Topics]
-[Single-paragraph overview, approx. 150–250 words: state the discussion background, the mainline of the validated agenda topics, member composition, and the overall direction and tendency of the discussion; keep it at the macro level and leave specific discussion details to later sections.]
+[Single-paragraph overview, within 150 words: state the discussion background, the mainline of the validated agenda topics, member composition, and the overall direction and tendency of the discussion; keep it at the macro level and leave specific discussion details to later sections.]
 
 ## [Key Remarks]
 [Use the validated agenda as the main thread: list each topic as a top-level heading in the form "### I. Topic Title"; within each subsection, objectively record group members' remarks and exchanges on that topic: for multi-direction discussions, divide the content into paragraphs with an independent bold line "**Discussion Direction / Point of Debate**"; for a single direction, use a flat list. Start each body item with a substantive business phrase that reflects the speaker or core argument (e.g., "- **Speaker / Core Claim**: specific proposal considerations and evidence"), concretely state the proposal rationale, typical cases, and supporting data, and explain the logic of the viewpoint thoroughly; consensus and disagreements reached by the parties are presented under "Consensus & Disagreements".]

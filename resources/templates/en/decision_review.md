@@ -5,7 +5,7 @@ Accurately record the background of the review proposal, core arguments from all
 -->
 
 ## [Review Overview]
-[Single paragraph summary, approx. 150–250 words: State the core topic of the proposal under review, business background, review committee composition, and overall ruling tone.]
+[Single paragraph summary, within 150 words: State the core topic of the proposal under review, business background, review committee composition, and overall ruling tone.]
 
 ## [Proposal Presentation]
 [Summarize the core value of the proposal, with perspectives captured in the table below: Fill row by row according to the table below, presenting supporting, opposing, and questioning stances along with their data or case evidence.]

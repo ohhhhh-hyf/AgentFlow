@@ -5,7 +5,7 @@ Faithfully record the interviewee's core perspectives, story details, emotional 
 -->
 
 ## [Interview Overview]
-[Single paragraph summary, approx. 150–250 words: State interview topic and purpose, interviewee background, main storyline, covered core topics, and key highlights of the interview.]
+[Single paragraph summary, within 150 words: State interview topic and purpose, interviewee background, main storyline, covered core topics, and key highlights of the interview.]
 
 ## [Interview Details]
 [Set up subsections based on core interview topics `### Topic Name`; within each subsection, begin each bullet with a substantive phrase denoting specific events, personal journeys, or perspective focal points (e.g. "- **Event / Viewpoint Focus**: Concrete statement and background context"), detailing narrative background, cause-and-effect details, personal reflections, and key timelines, one matter per bullet, thoroughly articulating factual logic.]

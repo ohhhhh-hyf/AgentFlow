@@ -5,7 +5,7 @@ Objectively record each side's arguments, core controversies, attack-and-defense
 -->
 
 ## [Debate Overview]
-[Single paragraph summary, approx. 150–250 words: State debate motion/resolution, core propositions of each side, overall progression, and factually record winning party if explicitly declared in the original transcript.]
+[Single paragraph summary, within 150 words: State debate motion/resolution, core propositions of each side, overall progression, and factually record winning party if explicitly declared in the original transcript.]
 
 ## [Parties' Stances]
 [Present the foundational premises of each camp: Create a subsection for each camp `### Camp Name`; under each subsection, list items according to actual sub-theses raised, detailing proposition statements, underlying deduction chains, and cited empirical metrics, typical cases, or theoretical foundations; preserve complete argumentation logic without narrative padding.]

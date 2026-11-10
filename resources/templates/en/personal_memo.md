@@ -5,7 +5,7 @@ Accurately record personal action items, inspirations/ideas, critical reminders,
 -->
 
 ## [Memo Overview]
-[Single paragraph summary, approx. 120–200 words: Note memo date, core theme background, and overall content summary; summarize from a macro perspective without detailing specifics here.]
+[Single paragraph summary, within 150 words: Note memo date, core theme background, and overall content summary; summarize from a macro perspective without detailing specifics here.]
 
 ## [Action Reminders]
 [List specific tasks, deadlines, priority levels, and critical reminders line by line by priority using bullet points "- ", stating clear execution requirements directly and pragmatically.]

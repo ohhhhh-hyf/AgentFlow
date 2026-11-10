@@ -5,7 +5,7 @@ Distill core product selling points, technical specifications, pricing, and mark
 -->
 
 ## [Product Overview]
-[Single paragraph summary, approx. 150–250 words: State product name and model, R&D/launch entity, core positioning, target audience, primary launch goals, and overall event tone; provide a macro-level overview without expanding on granular details.]
+[Single paragraph summary, within 150 words: State product name and model, R&D/launch entity, core positioning, target audience, primary launch goals, and overall event tone; provide a macro-level overview without expanding on granular details.]
 
 ## [Market Positioning]
 [Elaborate on target audience profile, primary user pain points addressed, and typical use cases point by point; articulate differentiated advantages and core value propositions based on industry landscape or competitive generational comparisons presented at the event, avoiding purely abstract terminology.]
