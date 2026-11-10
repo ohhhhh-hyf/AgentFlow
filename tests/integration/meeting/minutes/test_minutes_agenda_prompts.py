@@ -167,8 +167,8 @@ def test_agenda_minutes_quality_and_stability_prompts():
     assert "- [要点名称]: [具体事实陈述]" in MINUTES_AGENDA_GENERATION_PROMPT
     assert "**[业务子主题名称]**" in MINUTES_AGENDA_GENERATION_PROMPT
     assert "不使用四级标题或数字编号" in MINUTES_AGENDA_GENERATION_PROMPT
-    assert "以业务方案、技术机理与推进结果为主干直接陈述" in MINUTES_AGENDA_GENERATION_PROMPT
-    assert "正文只记录事项本身" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "完整交代业务方案、技术机理与推进结果" in MINUTES_AGENDA_GENERATION_PROMPT
+    assert "不编写参会人口头转述" in MINUTES_AGENDA_GENERATION_PROMPT
     assert "参数指标、对比基线、排期节点 100% 完整保留" in MINUTES_AGENDA_GENERATION_PROMPT
 
     # 3. 验证渲染提示词对齐扁平子主题与纯净列表项

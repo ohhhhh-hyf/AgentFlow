@@ -56,7 +56,7 @@ def test_extract_fact_from_minutes_draft_mapping() -> None:
         transcript="张三：网关鉴权采用方案A，前端首屏 0.8s",
         request_id="req_draft_fact",
     )
-    assert fact.title == "芯片评审纪要"
+    assert fact.title == ""
     assert fact.summary == "全场概览：本次评审两个议题。"
     assert fact.decisions == ["网关鉴权采用方案A"]
     assert fact.open_items == ["灰度脚本未在预发验证"]
@@ -68,7 +68,6 @@ def test_extract_fact_from_minutes_draft_mapping() -> None:
         "网关鉴权方案评审",
         "前端渲染性能优化",
     ]
-    assert "芯片评审纪要" in fact.anchors
     assert fact.time_source == "unknown"
 
 
@@ -86,7 +85,7 @@ def test_extract_fact_from_minutes_draft_prefers_agenda_titles() -> None:
         agenda_titles=["法定议题一", "法定议题二"],
         transcript="会议原文",
     )
-    assert fact.title == "法定议题一"
+    assert fact.title == ""
     assert [t["title"] for t in fact.topics] == ["法定议题一", "法定议题二"]
 
 

@@ -73,8 +73,8 @@ def test_minutes_prompt_no_content_examples() -> None:
     assert "【要点梳理】" not in MINUTES_RENDER_TEMPLATE_PROMPT
     assert "### 1. 业务板块/功能方向名称" not in MINUTES_RENDER_TEMPLATE_PROMPT
     assert "概括总述类栏目（模板首栏）" in MINUTES_RENDER_TEMPLATE_PROMPT
-    assert "模板中声明为业务研讨/要点类的栏目" in MINUTES_RENDER_TEMPLATE_PROMPT
-    assert "按模板声明的三级标题层级设立小节" in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "通用业务类栏目（业务研讨/要点/核心信息类）" in MINUTES_RENDER_TEMPLATE_PROMPT
+    assert "按模板声明的层级设立小节" in MINUTES_RENDER_TEMPLATE_PROMPT
     assert "个人视角看板呈现" not in MINUTES_RENDER_TEMPLATE_PROMPT
     assert "本人牵头推进" not in MINUTES_RENDER_TEMPLATE_PROMPT
 

@@ -149,7 +149,7 @@ def test_agenda_template_resolution():
     agenda_mb_fmt = resolve_agenda_template_format("media_briefing")
     assert scan_fixed_bracket_literals(agenda_mb_fmt) == []
     assert "以现场审定的有效议题清单为主线展开，每个议题顶格以「### 一. 议题名称」列出" in agenda_mb_fmt
-    assert "正文统一以反映具体业务动作或成果的实质短语起笔" in agenda_mb_fmt
+    assert "小节内全面梳理该议题下公布的重点举措与核心数据" in agenda_mb_fmt
     assert "具体问答交互下沉至「Q&A环节」" in agenda_mb_fmt
     assert "(现场有互动问答才呈现，若全场无互动问答则本栏整体自适应隐去)" in agenda_mb_fmt
 

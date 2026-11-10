@@ -155,7 +155,6 @@ async def test_tc01_agent_prompt_pure_voice():
     mock_client = MagicMock()
     dummy_minutes = MagicMock(spec=Minutes)
     dummy_minutes.model_dump.return_value = {
-        "headline": "会议纪要",
         "executive_summary": ["会议讨论了业务。"],
         "key_decisions": [],
         "personally_relevant_points": [],
@@ -180,7 +179,6 @@ async def test_tc02_agent_prompt_only_keypoints():
     mock_client = MagicMock()
     dummy_minutes = MagicMock(spec=Minutes)
     dummy_minutes.model_dump.return_value = {
-        "headline": "会议纪要",
         "executive_summary": ["会议讨论了业务。"],
         "key_decisions": [],
         "personally_relevant_points": [],
@@ -212,7 +210,6 @@ async def test_tc03_agent_prompt_only_notes():
     mock_client = MagicMock()
     dummy_minutes = MagicMock(spec=Minutes)
     dummy_minutes.model_dump.return_value = {
-        "headline": "会议纪要",
         "executive_summary": ["会议讨论了业务。"],
         "key_decisions": [],
         "personally_relevant_points": [],
@@ -244,7 +241,6 @@ async def test_tc04_agent_prompt_only_vision():
     mock_client = MagicMock()
     dummy_minutes = MagicMock(spec=Minutes)
     dummy_minutes.model_dump.return_value = {
-        "headline": "会议纪要",
         "executive_summary": ["会议讨论了业务。"],
         "key_decisions": [],
         "personally_relevant_points": [],
@@ -276,7 +272,6 @@ async def test_tc05_agent_prompt_all_sources():
     mock_client = MagicMock()
     dummy_minutes = MagicMock(spec=Minutes)
     dummy_minutes.model_dump.return_value = {
-        "headline": "会议纪要",
         "executive_summary": ["会议讨论了业务。"],
         "key_decisions": [],
         "personally_relevant_points": [],
@@ -308,7 +303,6 @@ async def test_tc07_english_adaptation_with_all_sources():
     mock_client = MagicMock()
     dummy_minutes = MagicMock(spec=Minutes)
     dummy_minutes.model_dump.return_value = {
-        "headline": "Meeting Minutes",
         "executive_summary": ["Team reviewed progress."],
         "key_decisions": [],
         "personally_relevant_points": [],

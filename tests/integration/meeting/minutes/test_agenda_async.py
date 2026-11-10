@@ -326,7 +326,7 @@ async def test_normal_minutes_english_unchanged():
     assert not final.get("has_valid_agenda")
     minutes_state = ((final.get("lines") or {}).get("minutes") or {})
     draft = minutes_state.get("draft") or {}
-    assert draft.get("headline") == "English Minutes Headline"
+    assert "headline" not in draft
     assert draft.get("executive_summary") == ["段落1"]
     assert any("minutes/agent/objective" in label for label in called)
 
@@ -342,6 +342,6 @@ async def test_normal_minutes_zh_unchanged():
     assert not final.get("has_valid_agenda")
     minutes_state = ((final.get("lines") or {}).get("minutes") or {})
     draft = minutes_state.get("draft") or {}
-    assert draft.get("headline") == "中文普通纪要标题"
+    assert "headline" not in draft
     assert draft.get("executive_summary") == ["段落1"]
     assert any("minutes/agent/objective" in label for label in called)
