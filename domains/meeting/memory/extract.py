@@ -598,7 +598,7 @@ def _draft_agenda_titles(
 
 
 def _is_topic_major_draft(draft: dict[str, Any]) -> bool:
-    """是否为 topic_major 草稿（headline/overview/topics[]）。"""
+    """是否为 topic_major 草稿（overview/topics[]）。"""
     return (
         isinstance(draft.get("topics"), list)
         and "overview" in draft
@@ -659,14 +659,9 @@ def _extract_topic_major_meeting_fact(
         "risks": risks,
         "topics": topics,
     }
-    headline = _clean(draft.get("headline"))
-    title = headline or (titles[0] if titles else "")
-    if not title:
-        title = _meeting_title(understanding_like, transcript)
+    title = ""
     summary = overview or _summary(understanding_like)
     anchors = _anchor_candidates(understanding_like, transcript)
-    if title and title not in anchors:
-        anchors.insert(0, title)
     if not anchors:
         anchors = list(titles)
     project_candidates = _project_candidates(transcript, understanding_like, title)
@@ -727,7 +722,6 @@ def extract_meeting_fact_from_minutes_draft(
         {"text": text, "owner": "", "timing": ""} for text in action_texts
     ]
     summary_lines = _str_list(data.get("executive_summary"))
-    headline = _clean(data.get("headline"))
     titles = _draft_agenda_titles(data, agenda_titles)
 
     topics = [
@@ -749,13 +743,9 @@ def extract_meeting_fact_from_minutes_draft(
         "risks": risks,
         "topics": topics,
     }
-    title = headline or (titles[0] if titles else "")
-    if not title:
-        title = _meeting_title(understanding_like, transcript)
+    title = ""
     summary = summary_lines[0] if summary_lines else _summary(understanding_like)
     anchors = _anchor_candidates(understanding_like, transcript)
-    if title and title not in anchors:
-        anchors.insert(0, title)
     if not anchors:
         anchors = list(titles)
     project_candidates = _project_candidates(

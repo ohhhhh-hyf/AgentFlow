@@ -42,7 +42,6 @@ PERSONAL_PERSPECTIVE_FIELDS = (
 )
 
 PERSONAL_DRAFT_FIELDS = (
-    "headline",
     "executive_summary",
     "key_decisions",
     "personally_relevant_points",
@@ -80,7 +79,7 @@ def test_personal_generation_prompt_freezes_4_plus_9_inputs() -> None:
         assert forbidden not in prompt, forbidden
 
 
-def test_personal_draft_contract_has_exactly_7_fields() -> None:
+def test_personal_draft_contract_has_exactly_6_fields() -> None:
     assert tuple(f.name for f in PersonalMinutesGenerationContract.fields) == PERSONAL_DRAFT_FIELDS
     contract = PersonalMinutesGenerationContract.to_output_contract()
     assert "session_segments" in contract
@@ -101,7 +100,6 @@ def test_personal_render_prompt_is_selected_and_uses_five_columns() -> None:
         "unresolved_questions",
         "**待确认**：",
         "key_decisions",
-        "headline",
         "history_comparison",
     ):
         assert anchor in prompt, anchor

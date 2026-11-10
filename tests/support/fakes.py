@@ -20,7 +20,7 @@ def make_minutes_mock_client(called_labels: list[str], *, headline: str):
         if "meeting_understanding" in label:
             return MeetingUnderstanding(meeting_brief="测试", meeting_purpose="目的")
         if "minutes/agent" in label:
-            return Minutes(headline=headline, executive_summary=["段落1"])
+            return Minutes(executive_summary=["段落1"])
         if "minutes/supervisor" in label:
             return MinutesSupervisorReview(
                 decision="approve",

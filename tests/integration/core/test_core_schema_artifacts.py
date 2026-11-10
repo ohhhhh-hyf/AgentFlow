@@ -273,7 +273,7 @@ def test_catalog_output_artifacts_and_download() -> None:
 
 
 def test_general_minutes_title_fixed() -> None:
-    """通用纪要：模板 format 剥离 # 通用纪要 文件头，落盘时与全量模板统一使用真实会议标题作为 H1。"""
+    """通用纪要：模板 format 剥离 # 通用纪要 文件头，落盘所见即所得，不再强制补拼 # 标题。"""
     from app.config import resolve_template_format, template_registry
     from domains.meeting.reports import MinutesReport
     from core.runner.context import load_domain
@@ -291,10 +291,10 @@ def test_general_minutes_title_fixed() -> None:
     expect("# 通用纪要" not in resolved, "resolve_template_format 不包含 # 通用纪要", resolved[:80])
     expect("## [全文摘要]" in resolved, "resolve_template_format 包含栏目 ## [全文摘要]", resolved[:80])
 
-    # 2. save_report_artifacts 落盘测试：正文无 H1 标题时，落盘文件统一将动态 headline 作为 # 标题
+    # 2. save_report_artifacts 落盘测试：所见即所得，渲染输出什么正文落盘就是什么正文，不再强拼 # 标题
     ctx = load_domain("meeting", Path("."))
     report = MinutesReport(
-        title="关于音视频与长文本优化的研讨",  # 模拟从草稿提取出的动态 headline
+        title="客观会议纪要",
         personalized_minutes="## 全文摘要\n本场会议围绕音视频SDK展开讨论。\n\n## 要点梳理\n1. **[音视频SDK]**\n   > 完成推流适配(张伟)",
     )
     with tempfile.TemporaryDirectory() as td:
@@ -304,16 +304,17 @@ def test_general_minutes_title_fixed() -> None:
         expect(md_path is not None and md_path.is_file(), "通用纪要产物保存成功", str(saved))
         if md_path and md_path.is_file():
             saved_md = md_path.read_text(encoding="utf-8")
-            expect(saved_md.startswith("# 关于音视频与长文本优化的研讨"), "落盘 Markdown 顶部使用动态 headline", saved_md[:50])
+            expect(saved_md.startswith("## 全文摘要"), "落盘 Markdown 保持原貌从栏目开始（无强拼 H1 标题）", saved_md[:50])
+            expect("# 客观会议纪要" not in saved_md, "落盘 Markdown 不包含强拼的 H1 标题", saved_md[:50])
             expect("# 通用纪要" not in saved_md, "落盘 Markdown 不包含死代码 # 通用纪要", saved_md[:50])
 
-        # 3. 补充测试：若正文已有 # 标题（如自定义标题），则不再重复前缀叠加
+        # 3. 补充测试：若正文自身已有 # 标题（如自定义标题），照样原样透传
         report_with_h1 = MinutesReport(
-            title="关于音视频与长文本优化的研讨",
+            title="客观会议纪要",
             personalized_minutes="# 自定义会议主标题\n\n## 全文摘要\n本场会议围绕音视频SDK展开讨论。\n\n## 要点梳理\n1. **[音视频SDK]**\n   > 完成推流适配(张伟)",
         )
         saved_with_h1 = save_report_artifacts(ctx, "minutes", report_with_h1, gate_ok=True)
         md_with_h1 = saved_with_h1.get("text")
         if md_with_h1 and md_with_h1.is_file():
             saved_md_with_h1 = md_with_h1.read_text(encoding="utf-8")
-            expect(saved_md_with_h1.startswith("# 自定义会议主标题"), "正文已有 H1 时保留原标题", saved_md_with_h1[:50])
+            expect(saved_md_with_h1.startswith("# 自定义会议主标题"), "正文已有 H1 时保留原正文", saved_md_with_h1[:50])

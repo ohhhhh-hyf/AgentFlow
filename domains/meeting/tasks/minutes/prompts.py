@@ -13,14 +13,11 @@ from core.templates.template_prompt import build_template_render_prompt
 MINUTES_OBJECTIVE_GENERATION_PROMPT = """你是专职会议秘书与业务分析专家，负责通读【会议现场录音转写实录】（会议原文），直接梳理提炼一份事实详实、逻辑严密、因果清晰的高质量客观会议纪要草稿。
 若上下文包含【用户核心关键点】、【用户划线原话与笔记】或【视觉信息参考(OCR)】，这些作为辅助参考材料，用于补充专业术语、技术参数及用户关注重点。
 
-请输出符合系统契约的标准 JSON 数据，包含以下 7 个字段：
+请输出符合系统契约的标准 JSON 数据，包含以下 6 个字段：
 
 ## 一、各字段正向提炼与内容规范
 
-### 1. headline（总结标题）
-- 8–18 字的公文标题风格，准确概括本次会议的核心议题与总体定调结论。
-
-### 2. executive_summary（会议正文与要点研讨）
+### 1. executive_summary（会议正文与要点研讨）
 采用字符串数组组织，首项为全场概览，后续各项为具体议题研讨：
 - [0] 全场概览：
   约 250–350 字的连贯段落，客观交代会议召开的业务背景、贯穿全场的核心主线，以及最关键的总体定调与部署方向。
@@ -31,28 +28,28 @@ MINUTES_OBJECTIVE_GENERATION_PROMPT = """你是专职会议秘书与业务分析
   4. 客观呈现研讨中的不同观点、质询考量及拉通共识，具有定调意义的关键原话与重要问答有机融入对应段落。
   - 问答与金句属于正文内容，写入对应议题段落；问答保留问答配对，金句保留原话措辞与发言人归属；不得写入 unresolved_questions 或 key_decisions。
 
-### 3. key_decisions（会议决议与定调结论）
+### 2. key_decisions（会议决议与定调结论）
 - 梳理现场明确拍板、把关人定调或各方达成共识的结论性事项；
 - 采用「[事项全称]：[明确结论/定调指标/前置生效条件]」的格式表达，直接陈述定调结果；
 - 仅将现场明确认可或形成定论的事项列入；若讨论仅停留在方案探讨、建议或初步构想阶段，在正文研讨中记录其思路，不列入决议；
 - 若全场以同步交流或分享为主、未形成明确决议，该字段输出空列表 []。
 
-### 4. personally_relevant_points（落地行动与分工安排）
+### 3. personally_relevant_points（落地行动与分工安排）
 - 梳理现场明确形成的会后执行事项；
 - 清晰交代责任归属（明确到具体人名或团队）、具体执行任务或交付物、以及完成时限或时间节点；
 - 仅记录现场有明确派工与认领的落地动作；若会议仅停留在共识拉通、未做具体分工安排，该字段输出空列表 []。
 
-### 5. risks_and_blockers（风险隐患与关键卡点）
+### 4. risks_and_blockers（风险隐患与关键卡点）
 - 记录研讨中明确提到的技术瓶颈、系统隐患、外部依赖延期、资源缺口或合规风险；
 - 写明风险发生的前提场景、潜在波及影响，以及现场探讨的规避或应对方案；
 - 若讨论过程中未涉及实质性风险或卡点，该字段输出空列表 []。
 
-### 6. unresolved_questions（待跟进事项与未决问题）
+### 5. unresolved_questions（待跟进事项与未决问题）
 - 记录现场讨论存在分歧但未形成定论、明确交由会后继续调研排查、或需向上汇报再定的开放性问题；
 - 交代清楚需要跟进的核心事项以及牵头跟进的人员或团队；
 - 现场已达成共识或闭环的事项归入决议或正文，不再列入此项；若无遗留问题输出空列表 []。
 
-### 7. history_comparison
+### 6. history_comparison
 - 跨场记忆字段，统一输出空列表 []。
 
 ## 二、事实准绳与辅助材料使用
@@ -61,9 +58,9 @@ MINUTES_OBJECTIVE_GENERATION_PROMPT = """你是专职会议秘书与业务分析
 
 
 # ── 个人模式生成提示词（独立 Prompt）──────────────
-MINUTES_PERSONAL_GENERATION_PROMPT = """你是「个人视角纪要草稿 Agent」。输入只有【会议理解·全局事实】（4 字段）与【本人视角模型·本人投影】（9 字段）；输出 7 字段 JSON，不直接排版 Markdown。
+MINUTES_PERSONAL_GENERATION_PROMPT = """你是「个人视角纪要草稿 Agent」。输入只有【会议理解·全局事实】（4 字段）与【本人视角模型·本人投影】（9 字段）；输出 6 字段 JSON，不直接排版 Markdown。
 
-输出字段：headline、executive_summary、key_decisions、personally_relevant_points、risks_and_blockers、unresolved_questions、history_comparison。
+输出字段：executive_summary、key_decisions、personally_relevant_points、risks_and_blockers、unresolved_questions、history_comparison。
 
 ## 一、字段价值分层
 1. 全局字段：meeting_brief 提供会议背景；session_segments 提供业务事实；decisions 提供全局拍板；speakers 提供真实姓名。
@@ -81,7 +78,6 @@ MINUTES_PERSONAL_GENERATION_PROMPT = """你是「个人视角纪要草稿 Agent�
 3. 行动看板先 **本人相关**：再 **重点协同**：；风险看板先 **本人相关**：再 **重点关注**：；同一事实只写一次，长句拆短，不机械堆砌发言动词。
 
 ## 四、各字段提炼规则
-- headline：8–18字，围绕 personal_summary / focus_points 提炼本人战线或主题；不得空泛。
 - executive_summary：
   - [0] 个人定调概览：personal_summary + meeting_brief 的全局背景，200–350 字，不逐项展开；
   - [1:] 业务进展：以 session_segments 为主线 2–5 段，用 focus_points 补充本人关注重点，用 decisions 补全局拍板事实；同类合并，不逐人罗列；不写与本人无关的整场流水。
@@ -100,7 +96,7 @@ MINUTES_PERSONAL_GENERATION_PROMPT = """你是「个人视角纪要草稿 Agent�
 - history_comparison：[]。
 
 ## 五、输出完整性
-1. 7 字段必须全部输出；无内容写 []，不得省略键。
+1. 6 字段必须全部输出；无内容写 []，不得省略键。
 2. 不得把 key_decisions / risks_and_blockers / unresolved_questions 并入 executive_summary 或 personally_relevant_points。
 3. 不得用“未提及/待补充”等套话填充；无事实留空。"""
 
@@ -117,10 +113,7 @@ MINUTES_AGENDA_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」（审
 
 ## 一、核心输出字段提炼与格式规约
 
-### 1. headline（客观总结标题）
-- 概括会议核心业务主题，8–18 字，具备严谨公文标题风格；直接陈述核心业务事项与定调结论。
-
-### 2. executive_summary（审定议题层级分段正文）
+### 1. executive_summary（审定议题层级分段正文）
 - **首项（全场概览项）**：
   单段连贯文字（约 250–350 字），客观概括全场会议背景、核心主线推进态势与最关键的全局定调决议。
 - **后续分项（审定议题分项正文，与有效议题清单 1:1 严格对应）**：
@@ -135,18 +128,18 @@ MINUTES_AGENDA_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」（审
   • **子主题独立归属**：各子主题边界清晰，紧扣本段业务事实展开，不跨议题串联。
 - **问答与金句**：属于正文内容，写入对应议题段落；问答保留问答配对，金句保留原话措辞与发言人归属；不得写入 unresolved_questions 或 key_decisions。
 
-### 3. key_decisions（全场决策决议）
+### 2. key_decisions（全场决策决议）
 - 通读各议题切片及【会末收尾与全场定调】，直接提炼现场明确拍板的最终决议列表；
 - 以业务事项为主干，直接陈述定调结论，去除口语化建议前缀，全景平铺列出；
 - **独立全量归集**：各议题研讨中明确形成的定调拍板、指导原则、量化目标与重要指令，必须同步提炼沉淀至本字段；正文中即使已述及决议，此处依然全景独立完整列出；全场确实无明确决议时才输出 []。
 
-### 4. personally_relevant_points（全员落地行动分工）
+### 3. personally_relevant_points（全员落地行动分工）
 - 从讨论中提取面向团队或具体责任人的明确行动要求与交付排期；全场无具体待办时输出 []。
 
-### 5. risks_and_blockers / unresolved_questions（全场风险与未决）
+### 4. risks_and_blockers / unresolved_questions（全场风险与未决）
 - 提取现场明确提出的技术瓶颈、外部依赖卡点与悬而未决的争议事项；无则输出 []。
 
-### 6. history_comparison
+### 5. history_comparison
 - 统一输出空列表 []。
 
 ## 二、真实性底线
@@ -168,16 +161,12 @@ MINUTES_TOPIC_MAJOR_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」�
 
 ## 一、核心输出字段提炼与格式规约
 
-### 1. headline（客观总结标题）
-
-- 概括会议核心业务主题，8–18 字，具备严谨公文标题风格；直接陈述核心业务事项与定调结论。
-
-### 2. overview（全场概况）
+### 1. overview（全场概况）
 
 - 单段连贯文字，约 250–350 字，客观概括全场会议背景、核心主线推进态势与最关键的全局定调决议。
 - 不逐议题展开，不列行动/风险清单，不写跨议题事项明细。
 
-### 3. topics（议题主序记录）
+### 2. topics（议题主序记录）
 
 - 每个有效议题一条记录，N 个有效议题必须输出 N 条，顺序与【现场审定的有效议题清单】一致。
 - 每条记录固定包含：
@@ -194,7 +183,7 @@ MINUTES_TOPIC_MAJOR_GENERATION_PROMPT = """你是「会议纪要草稿 Agent」�
 - 每个有效议题都必须保留一条记录，即使部分字段为空。
 - 不得新增“全场”“会末”等合成议题。
 
-### 4. history_comparison
+### 3. history_comparison
 
 - 统一输出空列表 []。
 
@@ -282,7 +271,7 @@ _SUPERVISOR_COMMON_BASE = _MINUTES_SUPERVISOR_BASE
 
 # ── 模式审查范围（动态追加）────────────────────────────────────────────────────
 _OBJECTIVE_SUPERVISOR_SCOPE = """### 客观模式审查范围
-- executive_summary / personally_relevant_points 为核心审查对象；headline / history_comparison 一并核对。
+- executive_summary / personally_relevant_points 为核心审查对象；history_comparison 一并核对。
 - 通篇第三人称、客观中立；正文就事论事，决策明确，全面平铺各方论点与部署。
 - personally_relevant_points 条条具备明确责任归口；全员平铺结构属于客观规范，予以放行。"""
 
@@ -447,7 +436,7 @@ MINUTES_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     source_rule=(
         "**以已审核草稿为唯一事实与结构基准，按模板栏目语义映射**：\n"
         "【栏目语义自适应映射】：\n"
-        "1. 概括总述类栏目（模板中声明为单段概括/概览的栏目）：映射草稿 executive_summary 的首项（[0]，全场概览项），以连贯单段呈现，严禁分多段输出，篇幅遵循模板栏位声明，模板未限定时默认 200–300 字精炼交付；不得把后续段落塞进本栏；栏目标题只写模板方括号内的文字（如 `## [讨论概述]` → `## 讨论概述`），不得用会议标题或草稿 headline 替换；\n"
+        "1. 概括总述类栏目（模板中声明为单段概括/概览的栏目）：映射草稿 executive_summary 的首项（[0]，全场概览项），以连贯单段呈现，严禁分多段输出，篇幅遵循模板栏位声明，模板未限定时默认 200–300 字精炼交付；不得把后续段落塞进本栏；栏目标题只写模板方括号内的文字（如 `## [讨论概述]` → `## 讨论概述`）；\n"
         "2. 决议/结论类栏目：映射草稿 key_decisions 列表，逐条陈述现场明确拍板的决议；若草稿无决议，按模板空值规则处理；\n"
         "3. 后续计划/行动/执行/待办类栏目：映射草稿 personally_relevant_points 列表，逐条陈述责任人、动作与时限；\n"
         "4. 风险/卡点/约束类栏目：映射草稿 risks_and_blockers 列表，逐条陈述风险、影响与应对；\n"
@@ -476,7 +465,7 @@ MINUTES_PERSONAL_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
         "3. 相关行动：只写 personally_relevant_points；保留 **本人相关**： 与 **重点协同**： 两组，本人相关置顶；本人动作动宾短语开头、省略主语，他人动作保留真实姓名；组名行独占一行、不加 `- `，组内一条一行；无内容的组不出现。\n"
         "4. 相关风险：先写 risks_and_blockers 的 **本人相关**： 与 **重点关注**： 两组，再把 unresolved_questions 逐条写成 **待确认**： 组；组序为 本人相关 → 重点关注 → 待确认；不得把已拍板结论写进待确认，也不得把待确认重复写进风险组。\n"
         "5. 关键决策：只写 key_decisions，逐条平铺；每条写事项与定调/指标；不按人分组，不写讨论过程、建议或未决事项。\n"
-        "6. headline 不进入任何正文栏目，也不得替换模板栏目标题；history_comparison 由程序追加，不在正文渲染。\n"
+        "6. history_comparison 由程序追加，不在正文渲染。\n"
         "7. 栏目标题必须与模板方括号内文字完全一致；无内容且模板允许省略时不生成该栏标题与正文，不写「未提及」「待补充」等空值说明。"
     ),
     empty_rule=(
@@ -495,7 +484,7 @@ MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     source_rule=(
         "**以已审核草稿为事实基准，严格遵循模板栏目规约与公文层级标准完成排版**：\n"
         "【栏目语义自适应映射】：\n"
-        "1. 概括总述类栏目：映射草稿 executive_summary 的首项（[0]，全场概览项），以连贯单段呈现；不得把议题正文塞入本栏；栏目标题必须与模板方括号内文字完全一致（如 `## [讨论概述]` → `## 讨论概述`），不得用会议标题或草稿 headline 替换；\n"
+        "1. 概括总述类栏目：映射草稿 executive_summary 的首项（[0]，全场概览项），以连贯单段呈现；不得把议题正文塞入本栏；栏目标题必须与模板方括号内文字完全一致（如 `## [讨论概述]` → `## 讨论概述`）；\n"
         "2. 模板中的议题研讨类栏目：映射 executive_summary[1:]，按数组顺序与议题语义成节；完整保留大项标题（### 一. 议题名称）、加粗子主题（**业务子主题**）与列表项（- 要点名称: 具体陈述）；标题直出，不添加任何前言导语；\n"
         "3. 决议结论类栏目：映射草稿 key_decisions 列表，按模板要求的列表格式，逐条陈述现场明确拍板的决议；若草稿无决议，按模板空值规则处理；\n"
         "4. 后续计划/行动/执行/待办类栏目：映射草稿 personally_relevant_points 列表，逐条陈述责任人、动作与时限；\n"
@@ -521,7 +510,7 @@ MINUTES_TOPIC_MAJOR_RENDER_TEMPLATE_PROMPT = build_template_render_prompt(
     source_rule=(
         "**以已审核草稿为事实基准，严格遵循模板栏目规约与公文层级标准完成排版**：\n"
         "【栏目语义自适应映射】：\n"
-        "1. 概括总述类栏目：映射草稿 overview，以连贯单段呈现；不得把议题内容塞入本栏；栏目标题必须与模板方括号内文字完全一致，不得用会议标题或草稿 headline 替换；\n"
+        "1. 概括总述类栏目：映射草稿 overview，以连贯单段呈现；不得把议题内容塞入本栏；栏目标题必须与模板方括号内文字完全一致；\n"
         "2. 议题容器类栏目：\n"
         "   议题容器以模板声明的容器栏目为准；\n"
         "   映射草稿 topics，按数组顺序逐个议题输出；\n"

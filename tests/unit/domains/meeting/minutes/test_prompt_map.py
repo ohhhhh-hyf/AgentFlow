@@ -37,7 +37,6 @@ from domains.meeting.views import (
 )
 
 _CONTRACT_KEYS = (
-    "headline",
     "executive_summary",
     "key_decisions",
     "personally_relevant_points",
@@ -167,7 +166,7 @@ def test_personal_render_prompt_maps_five_columns() -> None:
 
 
 def test_render_prompts_keep_overview_anchor_and_column_heading_rule() -> None:
-    """渲染首条必须锁住 [0] 概览锚点，并禁止用会议标题替换栏目标题。"""
+    """渲染首条必须锁住 [0] 概览锚点。"""
     for prompt in (
         MINUTES_RENDER_TEMPLATE_PROMPT,
         MINUTES_AGENDA_RENDER_TEMPLATE_PROMPT,
@@ -178,7 +177,6 @@ def test_render_prompts_keep_overview_anchor_and_column_heading_rule() -> None:
             or "栏目标题必须与模板方括号内文字完全一致" in prompt
         )
         assert "`## [讨论概述]` → `## 讨论概述`" in prompt
-        assert "不得用会议标题或草稿 headline 替换" in prompt
 
 
 def test_agenda_contract_clean() -> None:
@@ -199,7 +197,7 @@ def test_agenda_agent_uses_agenda_contract() -> None:
         async def structured(self, system, user, model, contract, **kwargs):
             captured["system"] = system
             captured["contract"] = contract
-            return Minutes(headline="")
+            return Minutes()
 
     agent = MinutesGenerationAgent(FakeClient())
     agenda_context = (
@@ -311,7 +309,6 @@ def test_agenda_draft_without_headings_still_completes() -> None:
             captured["system"] = system
             captured["contract"] = contract
             return Minutes(
-                headline="无议题标题的纪要",
                 executive_summary=["一段没有 ### 标题的正文。"],
             )
 
@@ -330,7 +327,6 @@ def test_agenda_draft_without_headings_still_completes() -> None:
     )
 
     # 没有 ### 标题也不抛错、不拦截，草稿照常返回
-    assert result.headline == "无议题标题的纪要"
     assert result.executive_summary == ["一段没有 ### 标题的正文。"]
     # 确实走的是议程契约
     assert captured["contract"] == MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT

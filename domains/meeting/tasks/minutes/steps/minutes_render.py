@@ -113,7 +113,7 @@ def cleanup_empty_topic_sections(text: str) -> str:
 
 
 def _is_topic_major_draft(draft: dict) -> bool:
-    """是否为 topic_major 草稿（headline/overview/topics[]）。"""
+    """是否为 topic_major 草稿（overview/topics[]）。"""
     return (
         isinstance(draft, dict)
         and isinstance(draft.get("topics"), list)
@@ -134,7 +134,7 @@ def _topic_heading(index: int, title: str) -> str:
 def render_fallback_topic_major(draft: dict, *, is_en: bool = False) -> str:
     """topic_major 草稿的确定性兜底渲染（零 LLM 调用）。
 
-    不推断模板栏目，只按通用结构输出：
+    不生成 # 标题，只输出纯章节正文：
     - overview → 全文摘要；
     - 每个 topic → 议题标题 + 工作进展/结论定调/落实安排/未决风险。
     """
@@ -146,8 +146,6 @@ def render_fallback_topic_major(draft: dict, *, is_en: bool = False) -> str:
     if not draft:
         return empty_msg
 
-    headline = str(draft.get("headline") or "").strip()
-    title = headline or ("Meeting Minutes" if is_en else "会议纪要")
     blocks: list[str] = []
 
     overview = str(draft.get("overview") or "").strip()
@@ -199,8 +197,8 @@ def render_fallback_topic_major(draft: dict, *, is_en: bool = False) -> str:
         blocks.append(f"{heading}\n\n" + "\n\n".join(topic_blocks))
 
     if not blocks:
-        return f"# {title}\n\n{empty_msg}"
-    return f"# {title}\n\n" + "\n\n".join(blocks)
+        return empty_msg
+    return "\n\n".join(blocks)
 
 
 def render_fallback_minutes(
@@ -211,10 +209,9 @@ def render_fallback_minutes(
     user_name: str = "",
     is_en: bool = False,
 ) -> str:
-    """7 字段 → 通用兜底纪要的确定性 Markdown 映射（零 LLM 调用）。
+    """6 字段 → 通用兜底纪要的确定性 Markdown 映射（零 LLM 调用）。
 
-    只做字段到栏目的格式化，不做语义推断、不补造事实：
-    - headline → 一级标题
+    只做字段到栏目的格式化，不做语义推断、不补造事实、不生成 # 标题：
     - executive_summary[0] → 全文摘要；[1:] → 要点梳理
     - key_decisions → 关键决策
     - personally_relevant_points → 全员执行要点 / 职责相关事项
@@ -229,16 +226,6 @@ def render_fallback_minutes(
     )
     if not draft:
         return empty_msg
-
-    headline = str(draft.get("headline") or "").strip()
-    if headline:
-        title = headline
-    elif is_personal and user_name:
-        title = f"{user_name}'s Meeting Minutes" if is_en else f"{user_name}视角会议纪要"
-    elif objective:
-        title = "Meeting Minutes" if is_en else "客观会议纪要"
-    else:
-        title = "Meeting Minutes" if is_en else "会议纪要"
 
     blocks: list[str] = []
 
@@ -275,9 +262,9 @@ def render_fallback_minutes(
         blocks.append(f"{history_heading}\n\n" + "\n".join(history))
 
     if not blocks:
-        return f"# {title}\n\n{empty_msg}"
+        return empty_msg
 
-    return f"# {title}\n\n" + "\n\n".join(blocks)
+    return "\n\n".join(blocks)
 
 
 class MinutesGenerationRender:

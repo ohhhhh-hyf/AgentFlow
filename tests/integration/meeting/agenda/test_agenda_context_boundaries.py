@@ -388,7 +388,6 @@ def test_agenda_purge_is_skipped() -> None:
 
 def test_normal_minutes_purge_unchanged() -> None:
     draft = {
-        "headline": "测试纪要",
         "executive_summary": [],
         "key_decisions": [],
         "personally_relevant_points": [],
@@ -423,7 +422,6 @@ def test_minutes_agent_uses_explicit_source_transcript(
     def fake_enforce(raw, understanding, **kwargs):
         captured.update(kwargs)
         return {
-            "headline": "",
             "executive_summary": [],
             "key_decisions": [],
             "personally_relevant_points": [],
@@ -434,7 +432,7 @@ def test_minutes_agent_uses_explicit_source_transcript(
 
     class FakeClient:
         async def structured(self, *args, **kwargs):
-            return Minutes(headline="")
+            return Minutes()
 
     monkeypatch.setattr(mod, "enforce_minutes_draft", fake_enforce)
     agent = mod.MinutesGenerationAgent(FakeClient())

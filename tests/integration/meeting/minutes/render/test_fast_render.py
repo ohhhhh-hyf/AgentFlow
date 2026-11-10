@@ -34,8 +34,8 @@ def test_render_draft_objective() -> None:
         },
     }
     rendered = MinutesGenerationRender.render_draft(state)
-    assert rendered.startswith("# Q3规划会")
-    assert "## 全文摘要" in rendered
+    assert not rendered.startswith("# ")
+    assert rendered.startswith("## 全文摘要")
     assert "本周完成系统上线与联调。" in rendered
     assert "## 关键决策" in rendered
     assert "- 全员统一采用方案A" in rendered
@@ -78,8 +78,7 @@ def test_render_draft_personal() -> None:
         },
     }
     rendered = MinutesGenerationRender.render_draft(state)
-    # 动态推导为张三视角标题
-    assert rendered.startswith("# 张三视角会议纪要")
+    assert not rendered.startswith("# ")
     assert "## 职责相关事项" in rendered
     # 组名行独占且不带 "- " 前缀
     assert "\n**与我相关**：\n- 今天先把配置改完，明天给结论" in rendered
@@ -196,7 +195,7 @@ def test_produce_line_minutes_no_template_fallback_zero_llm() -> None:
             line_res = state["lines"]["minutes"]
             assert line_res["fill_mode"] == "draft"
             rendered_text = line_res["rendered"]
-            assert "# 测试周会" in rendered_text
+            assert not rendered_text.startswith("# ")
             # 真实 apply_citations 成功挂载状态演进
             assert "## 状态演进" in rendered_text
             assert "保持原有排期" in rendered_text

@@ -80,7 +80,7 @@ async def test_agenda_track_b_prompt_routing():
     mock_client.structured.reset_mock()
     async def mock_structured_draft(prompt, *args, **kwargs):
         from domains.meeting.models_generated import Minutes
-        return Minutes(headline="测试标题", executive_summary=["段落1"])
+        return Minutes(executive_summary=["段落1"])
     mock_client.structured.side_effect = mock_structured_draft
 
     await agent.run(
@@ -149,7 +149,7 @@ async def test_langgraph_agenda_state_propagation():
         if "meeting_understanding" in label:
             return MeetingUnderstanding(meeting_brief="测试", meeting_purpose="目的")
         elif "minutes/agent" in label:
-            return Minutes(headline="测试标题", executive_summary=["段落1"])
+            return Minutes(executive_summary=["段落1"])
         elif "minutes/supervisor" in label:
             return MinutesSupervisorReview(
                 decision="approve",

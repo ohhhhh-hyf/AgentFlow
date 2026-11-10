@@ -88,7 +88,6 @@ def test_minutes_agent_stale_purge_integration():
     class MockClient:
         async def structured(self, *args, **kwargs):
             return Minutes(
-                headline="测试例会",
                 executive_summary=["总结"],
                 key_decisions=["上线GPU集群", "8月18日前优化 minutes_trace"],
                 personally_relevant_points=["推进GPU集群上线"],

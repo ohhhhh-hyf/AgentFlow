@@ -27,7 +27,6 @@ pytestmark = pytest.mark.e2e
 
 def _dummy_minutes_draft() -> Minutes:
     return Minutes(
-        headline="系统架构与性能优化会",
         executive_summary=[
             "会议针对系统架构优化与QPS扩容方案展开研讨，明确了核心推进节奏。",
             "技术团队决定对网关服务实施重构，下周三完成灰度发布，目标支持12000 QPS。",

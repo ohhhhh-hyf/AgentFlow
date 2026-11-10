@@ -15,7 +15,7 @@ from domains.meeting.tasks.minutes.contracts import (
 
 pytestmark = pytest.mark.integration
 
-_TOP_KEYS = {"headline", "overview", "topics", "history_comparison"}
+_TOP_KEYS = {"overview", "topics", "history_comparison"}
 _TOPIC_KEYS = {
     "topic_name",
     "topic_summary",
@@ -28,7 +28,6 @@ _TOPIC_KEYS = {
 
 def _sample() -> dict:
     return {
-        "headline": "团队例会纪要",
         "overview": "本次例会围绕接口联调与上线准备展开。",
         "topics": [
             {
@@ -74,7 +73,6 @@ def test_contract_requires_natural_topic_summary_grouping() -> None:
 
 def test_model_fields_exact() -> None:
     assert [f.name for f in fields(TopicMajorMinutes)] == [
-        "headline",
         "overview",
         "topics",
         "history_comparison",
@@ -84,14 +82,13 @@ def test_model_fields_exact() -> None:
 def test_model_accepts_valid_sample() -> None:
     model = TopicMajorMinutes.validate(_sample())
 
-    assert model.headline == "团队例会纪要"
+    assert model.overview.startswith("本次例会")
     assert model.topics[0]["topic_name"] == "接口联调"
     assert model.model_dump()["topics"][0]["actions"] == ["张三周五前完成联调报告"]
 
 
 def test_model_allows_empty_topics_and_lists() -> None:
     data = {
-        "headline": "标题",
         "overview": "概况",
         "topics": [],
         "history_comparison": [],

@@ -110,7 +110,7 @@ def test_perspective_modeling_prompt_quality():
 def test_minutes_generation_prompts_decoupling():
     """验证客观与个人生成提示词完全解耦：客观保留共享基底，个人独立。"""
     # 3.1 客观基底仍保留原有事实/记忆规则
-    for phrase in ("session_segments（context_and_reasoning、key_facts）为结构骨架", "本场最新讨论", "项目推进背景", "history_comparison"):
+    for phrase in ("executive_summary", "key_decisions", "personally_relevant_points", "history_comparison"):
         assert phrase in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
     # 3.1.1 个人 Prompt 已独立：不再引用原文、用户画像、命中/雷达、旧视角字段
@@ -125,9 +125,7 @@ def test_minutes_generation_prompts_decoupling():
         assert phrase in MINUTES_PERSONAL_GENERATION_PROMPT, phrase
 
     # 3.2 客观提示词纯净化断言
-    assert "客观中立第三人称" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "全员平铺" in MINUTES_OBJECTIVE_GENERATION_PROMPT
-    assert "不设个人分组标签" in MINUTES_OBJECTIVE_GENERATION_PROMPT
+    assert "客观会议纪要" in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert "**本人相关**：" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
     assert "本人动作规范" not in MINUTES_OBJECTIVE_GENERATION_PROMPT
 
@@ -150,7 +148,7 @@ def test_personal_agent_uses_personal_contract() -> None:
         async def structured(self, system, user, model, contract, **kwargs):
             captured["system"] = system
             captured["contract"] = contract
-            return Minutes(headline="")
+            return Minutes()
 
     agent = MinutesGenerationAgent(FakeClient())
     asyncio.run(

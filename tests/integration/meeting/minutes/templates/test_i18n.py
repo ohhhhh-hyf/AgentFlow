@@ -90,12 +90,12 @@ async def test_minutes_agent_prompt_and_carry_enforce():
     # 模拟返回合法 Minutes 结构
     dummy_minutes = MagicMock()
     dummy_minutes.model_dump.return_value = {
-        "headline": "Sprint Planning",
         "executive_summary": ["Team aligned on goals."],
         "key_decisions": ["Launch on Friday."],
         "personally_relevant_points": [],
         "risks_and_blockers": [],
         "unresolved_questions": [],
+        "history_comparison": [],
     }
     mock_client.structured = AsyncMock(return_value=dummy_minutes)
 
@@ -111,13 +111,12 @@ async def test_minutes_agent_prompt_and_carry_enforce():
     assert "## 语言红线" in sys_prompt_en
     assert "[TBD]" in sys_prompt_en
 
-    # 2. 验证 enforce_minutes_draft 英文默认标题为 'Meeting Minutes'
-    draft_no_title = {"headline": "", "executive_summary": ["test"]}
-    enforced_en = enforce_minutes_draft(draft_no_title, {}, lang="en")
-    assert enforced_en["headline"] == "Meeting Minutes"
-
-    enforced_zh = enforce_minutes_draft(draft_no_title, {}, lang="zh")
-    assert enforced_zh["headline"] == "会议纪要"
+    # 2. 验证 enforce_minutes_draft 补全 6 核心字段且不引入 headline
+    draft_partial = {"executive_summary": ["test"]}
+    enforced = enforce_minutes_draft(draft_partial, {}, lang="en")
+    assert "headline" not in enforced
+    assert enforced["executive_summary"] == ["test"]
+    assert enforced["key_decisions"] == []
 
 
 @pytest.mark.anyio
@@ -185,7 +184,6 @@ async def test_end_to_end_english_minutes_pipeline():
         risks=["Network throughput during peak hours."],
     )
     dummy_draft = Minutes(
-        headline="Cloud Migration Architecture Sync",
         executive_summary=["The engineering team aligned on the Nov 15th cloud migration milestone."],
         key_decisions=["Target migration completion by Nov 15th."],
         personally_relevant_points=["[Bob] Submit migration runbook by Friday."],
@@ -321,7 +319,7 @@ async def test_agenda_en_generation_prompt_uses_roman_headings():
     class FakeClient:
         async def structured(self, system, *args, **kwargs):
             captured["system"] = system
-            return Minutes(headline="Test")
+            return Minutes()
 
     agent = MinutesGenerationAgent(FakeClient())
     ctx = (

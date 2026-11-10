@@ -46,7 +46,7 @@ class FakeLLM:
         if "meeting_understanding" in label:
             return MeetingUnderstanding(meeting_brief="测试简报", meeting_purpose="项目讨论")
         if "minutes/agent" in label:
-            return Minutes(headline="测试标题", executive_summary=["段落1"])
+            return Minutes(executive_summary=["段落1"])
         if "minutes/supervisor" in label:
             return MinutesSupervisorReview(
                 decision="approve",

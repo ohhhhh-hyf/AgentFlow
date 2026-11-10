@@ -216,7 +216,7 @@ def test_persist_no_project_and_headline(tmp_path: Path) -> None:
     name = str(projects[pid].get("name") or "")
     expect("小艺慧记Agent" in name and "复盘纪要" not in name, "项目名是核心专名而非 headline", name)
     rows = list_meetings(tmp, "u1")
-    expect(rows and rows[-1].get("title") == "小艺一期复盘纪要", "jsonl 标题可用 headline 展示", str(rows))
+    expect(rows and rows[-1].get("title") == "", "jsonl 标题已与 headline 解耦置空", str(rows))
     expect(rows[-1].get("project_id") == pid, "jsonl project_id 不是 headline 的 safe_id", str(rows[-1].get("project_id")))
     persist_after_run(
         tmp, "u1", "", "req_a", t1, {"minutes": {"headline": "小艺一期复盘纪要"}}, u1,

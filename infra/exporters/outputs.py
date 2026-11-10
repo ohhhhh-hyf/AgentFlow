@@ -143,11 +143,7 @@ def save_report_artifacts(
 
     # has_template：仅当显式走过门禁（True/False）时视为有模板约束
     has_template = gate_ok is not None
-    # 视角标题（如有）作为 H1 前缀；正文已自带 # 标题时不再重复叠加
     title = str(data.get("title") or "").strip()
-    if not text.lstrip().startswith("# "):
-        if title:
-            text = f"# {title}\n\n{text}"
     compact = hooks_for(ctx.name).compact_plain
     if compact is not None and not has_template:
         text = compact(line_name, text)

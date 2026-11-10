@@ -35,7 +35,6 @@ def _team_template() -> str:
 
 def _topic_draft() -> dict:
     return {
-        "headline": "团队例会纪要",
         "overview": "本次例会围绕接口联调展开。",
         "topics": [
             {
@@ -182,7 +181,7 @@ def test_render_draft_topic_major_fallback() -> None:
 
     text = MinutesGenerationRender.render_draft(state)
 
-    assert "# 团队例会纪要" in text
+    assert not text.startswith("# ")
     assert "## 全文摘要" in text
     assert "## 议题梳理" in text
     assert "### 一. 接口联调" in text

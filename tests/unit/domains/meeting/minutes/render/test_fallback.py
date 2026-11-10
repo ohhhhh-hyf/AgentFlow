@@ -1,4 +1,4 @@
-"""minutes 兜底渲染：7 字段 → 通用纪要栏目的确定性映射。"""
+"""minutes 兜底渲染：6 字段 → 通用纪要栏目的确定性映射。"""
 from __future__ import annotations
 
 from domains.meeting.tasks.minutes.steps.minutes_render import (
@@ -9,7 +9,6 @@ from domains.meeting.tasks.minutes.steps.minutes_render import (
 
 def test_render_fallback_minutes_maps_seven_fields() -> None:
     draft = {
-        "headline": "架构同步会",
         "executive_summary": [
             "本次会议聚焦网关重构与发布计划。",
             "### 一. 网关注册\n- 注册链路时延降到 120ms。",
@@ -24,8 +23,9 @@ def test_render_fallback_minutes_maps_seven_fields() -> None:
 
     rendered = render_fallback_minutes(draft, objective=True)
 
-    # 标题与栏目齐全
-    assert rendered.startswith("# 架构同步会")
+    # 纯章节正文，不拼装 # 标题
+    assert not rendered.startswith("# ")
+    assert rendered.startswith("## 全文摘要")
     for heading in (
         "## 全文摘要",
         "## 要点梳理",
@@ -68,7 +68,6 @@ def test_render_fallback_minutes_maps_seven_fields() -> None:
 
 def test_render_fallback_minutes_single_summary_has_no_points_section() -> None:
     draft = {
-        "headline": "周会",
         "executive_summary": ["本周进度正常。"],
         "key_decisions": ["继续按计划推进"],
     }
@@ -82,7 +81,6 @@ def test_render_fallback_minutes_single_summary_has_no_points_section() -> None:
 
 def test_render_fallback_minutes_omits_empty_sections() -> None:
     draft = {
-        "headline": "周会",
         "executive_summary": ["本周进度正常。"],
         "key_decisions": [],
         "personally_relevant_points": [],
@@ -106,15 +104,12 @@ def test_render_fallback_minutes_empty_draft_message() -> None:
         "Please refer directly to the meeting transcript."
     )
 
-    # 有标题但七个字段全空：保留标题，正文给兜底提示
-    rendered = render_fallback_minutes({"headline": "空会"}, objective=True)
-    assert rendered.startswith("# 空会")
-    assert "请直接参考会议原文。" in rendered
+    rendered = render_fallback_minutes({"executive_summary": []}, objective=True)
+    assert rendered == "请直接参考会议原文。"
 
 
 def test_render_fallback_minutes_personal_headings() -> None:
     draft = {
-        "headline": "",
         "executive_summary": ["围绕张三负责的网关模块展开。"],
         "personally_relevant_points": ["今天先把配置改完"],
         "risks_and_blockers": ["配置权限尚未下发"],
@@ -127,7 +122,7 @@ def test_render_fallback_minutes_personal_headings() -> None:
         user_name="张三",
     )
 
-    assert rendered.startswith("# 张三视角会议纪要")
+    assert not rendered.startswith("# ")
     assert "## 职责相关事项" in rendered
     assert "## 全员执行要点" not in rendered
     assert "- 今天先把配置改完" in rendered
@@ -136,7 +131,6 @@ def test_render_fallback_minutes_personal_headings() -> None:
 
 def test_render_fallback_minutes_english_headings() -> None:
     draft = {
-        "headline": "AI Architecture Sync",
         "executive_summary": [
             "Aligned on the multi-agent protocol.",
             "### I. Gateway\n- Latency reduced to 120ms.",
@@ -150,6 +144,7 @@ def test_render_fallback_minutes_english_headings() -> None:
 
     rendered = render_fallback_minutes(draft, objective=True, is_en=True)
 
+    assert not rendered.startswith("# ")
     for heading in (
         "## Executive Summary",
         "## Key Discussion Points",
@@ -170,7 +165,6 @@ def test_render_draft_uses_fallback_layout_for_agenda_blocks() -> None:
         "lines": {
             "minutes": {
                 "draft": {
-                    "headline": "议题纪要",
                     "executive_summary": [
                         "全场概览。",
                         "### 一. Agent长期记忆\n- 需要解决长期记忆问题。",

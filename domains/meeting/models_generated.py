@@ -119,7 +119,6 @@ class Mindmap(ModelMixin):
 class Minutes(ModelMixin):
     """Minutes输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
-    headline: str
     executive_summary: list[str] = field(default_factory=list)
     key_decisions: list[str] = field(default_factory=list)
     personally_relevant_points: list[str] = field(default_factory=list)
@@ -130,7 +129,6 @@ class Minutes(ModelMixin):
     @classmethod
     def validate(cls, data: dict) -> "Minutes":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        _string(data["headline"], "headline")
         _string_list(data["executive_summary"], "executive_summary")
         _string_list(data["key_decisions"], "key_decisions")
         _string_list(data["personally_relevant_points"], "personally_relevant_points")
@@ -174,7 +172,6 @@ class MultiStyles(ModelMixin):
 class PersonalMinutes(ModelMixin):
     """PersonalMinutes输出（浅校验：仅校验第一层键与类型，嵌套不校验）。"""
 
-    headline: str
     executive_summary: list[str] = field(default_factory=list)
     key_decisions: list[str] = field(default_factory=list)
     personally_relevant_points: list[str] = field(default_factory=list)
@@ -185,7 +182,6 @@ class PersonalMinutes(ModelMixin):
     @classmethod
     def validate(cls, data: dict) -> "PersonalMinutes":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        _string(data["headline"], "headline")
         _string_list(data["executive_summary"], "executive_summary")
         _string_list(data["key_decisions"], "key_decisions")
         _string_list(data["personally_relevant_points"], "personally_relevant_points")

@@ -158,7 +158,7 @@ def test_minutes_agent_label_includes_template_id() -> None:
 
         async def structured(self, *args, **kwargs):
             self.label = str(kwargs.get("label") or "")
-            return Minutes(headline="测试纪要", executive_summary=["本周完成联调。"])
+            return Minutes(executive_summary=["本周完成联调。"])
 
     client = FakeClient()
     agent = MinutesGenerationAgent(client)

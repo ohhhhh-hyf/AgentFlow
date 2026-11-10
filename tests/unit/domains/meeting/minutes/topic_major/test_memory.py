@@ -11,7 +11,6 @@ from domains.meeting.tasks.minutes.contracts import MINUTES_FALLBACK_RULES
 
 def _topic_draft() -> dict:
     return {
-        "headline": "团队例会纪要",
         "overview": "本次例会围绕接口联调与上线准备展开。",
         "topics": [
             {
@@ -39,7 +38,6 @@ def test_draft_has_fact_recognizes_topic_major() -> None:
     assert _draft_has_fact(_topic_draft())
     assert _draft_has_fact(
         {
-            "headline": "",
             "overview": "概况",
             "topics": [],
             "history_comparison": [],
@@ -56,7 +54,7 @@ def test_extract_topic_major_meeting_fact() -> None:
         time="2026-11-03 10:00",
     )
 
-    assert fact.title == "团队例会纪要"
+    assert fact.title == ""
     assert fact.summary.startswith("本次例会围绕接口联调")
     assert fact.decisions == ["按 B 方案执行", "周三晚开始灰度"]
     assert fact.risks == ["依赖外部团队，可能延迟", "监控覆盖不足"]

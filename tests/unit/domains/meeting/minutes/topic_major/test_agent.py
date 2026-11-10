@@ -23,7 +23,6 @@ from domains.meeting.tasks.minutes.steps.minutes_agent import (
 def _topic_result() -> TopicMajorMinutes:
     return TopicMajorMinutes.validate(
         {
-            "headline": "团队例会纪要",
             "overview": "本次例会围绕接口联调展开。",
             "topics": [
                 {
@@ -117,7 +116,7 @@ class _AgentStub:
 
         class _Out:
             def model_dump(self) -> dict:
-                return {"headline": "测试纪要"}
+                return {"overview": "测试纪要"}
 
         return _Out()
 
@@ -157,7 +156,7 @@ def test_agent_node_injects_layout_and_topic_titles() -> None:
         "lang": "zh",
         "lines": {
             "minutes": {
-                "draft": {"headline": "测试纪要"},
+                "draft": {"overview": "测试纪要"},
                 "revision_feedback": [],
             }
         },

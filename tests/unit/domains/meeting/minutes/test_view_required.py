@@ -25,7 +25,7 @@ class _AgentClient:
     async def structured(self, system, user, model, contract, **kwargs):
         self.system = system
         self.label = str(kwargs.get("label") or "")
-        return Minutes(headline="测试纪要")
+        return Minutes()
 
 
 class _SupervisorClient:

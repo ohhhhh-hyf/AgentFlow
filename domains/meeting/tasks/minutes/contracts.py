@@ -17,7 +17,6 @@ class MinutesGenerationContract(GenerationContract):
     """纪要草稿输出契约。"""
 
     fields = [
-        StrField("headline", "会议纪要标题"),
         StrListField(
             "executive_summary",
             "正文研讨（数组每项 = 一段正文，以业务事项为主干，写清背景依据、方案举措与结论定调；"
@@ -70,7 +69,6 @@ class PersonalMinutesGenerationContract(GenerationContract):
     """个人视角纪要草稿输出契约（只消费会议理解 + 本人视角模型）。"""
 
     fields = [
-        StrField("headline", "个人视角纪要标题（8–18字，突出本人战线或核心主题）"),
         StrListField(
             "executive_summary",
             "本人主线与业务进展：首项为 personal_summary + meeting_brief 的个人定调概览；"
@@ -117,7 +115,6 @@ MINUTES_SUPERVISOR_OUTPUT_CONTRACT = MinutesSupervisorContract.to_output_contrac
 # - 不出现「来自 MeetingUnderstanding……」的上游搬运说明；
 # - 字段含义只描述议程模式下的 schema 语义，不夹带示例或写法引导。
 MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT = """{
-  "headline": "",
   "executive_summary": [],
   "key_decisions": [],
   "personally_relevant_points": [],
@@ -127,7 +124,6 @@ MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT = """{
 }
 
 字段说明：
-- headline：会议纪要标题
 - executive_summary：正文研讨（按审定议题或业务模块组织；关键事实、量化指标与结论完整）
 - key_decisions：决策（现场明确拍板的最终决议；每条独立完整）
 - personally_relevant_points：执行要点（有明确分工则写，无则 []；交代责任人、任务、交付物与时限）
@@ -138,7 +134,6 @@ MINUTES_AGENDA_GENERATION_OUTPUT_CONTRACT = """{
 # topic_major 议题主序专用输出契约（普通字符串，不新增 *GenerationContract 子类，
 # 避免 sync_domain 生成多余模型；对应手写模型 TopicMajorMinutes）。
 MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT = """{
-  "headline": "",
   "overview": "",
   "topics": [
     {
@@ -154,7 +149,6 @@ MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT = """{
 }
 
 字段说明：
-- headline：会议纪要标题（8–18 字，公文标题风格）
 - overview：全场概况（单段；不承载跨议题行动/风险清单）
 - topics：按【现场审定的有效议题清单】逐项输出；N 个有效议题必须输出 N 条，顺序与清单一致
 - topic_name：议题全称本体，只填清单「议题：」后面的标题；不得带 `1.`、`议题：`、`议题一：`、`###` 等前缀或序号；不得改名、合并、拆分、重排
@@ -167,10 +161,9 @@ MINUTES_TOPIC_MAJOR_GENERATION_OUTPUT_CONTRACT = """{
 
 # 降级拼装规则（声明式类）：fallback 节点由 sync_domain.py 检测子类后生成
 class MinutesFallbackRules(FallbackRules):
-    """纪要降级拼装：headline + 5 段（带标签）+ 免责声明。"""
+    """纪要降级拼装：5 段（带标签）+ 免责声明。"""
 
     sections = [
-        Raw("headline"),
         Join("executive_summary", "会议要点"),
         Join("key_decisions", "关键决策"),
         Join(

@@ -54,7 +54,7 @@ async def _capture_system_prompt(
     class FakeClient:
         async def structured(self, system, *args, **kwargs):
             captured["system"] = system
-            return Minutes(headline="测试标题")
+            return Minutes()
 
     agent = MinutesGenerationAgent(FakeClient())
     await agent.run(shared_context, view=view, lang=lang)

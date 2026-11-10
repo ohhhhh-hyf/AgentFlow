@@ -187,7 +187,6 @@ _EMPTY_MINDMAP = {
 }
 
 _EMPTY_MINUTES = {
-    "headline": "",
     "executive_summary": [],
     "key_decisions": [],
     "personally_relevant_points": [],
@@ -272,7 +271,6 @@ _REJECT_AGENDA_MINUTES_REVIEW = {
     "decision_fidelity_check": {"status": "fail", "findings": ["LLM 调用失败，未完成审核"]},
     "feedback": ["LLM 调用失败，未完成审核，转降级输出"],
 }
-
 
 # ── 拒绝审核常量生成区结束 ──
 
@@ -497,14 +495,7 @@ class _Nodes(DomainNodes):
     # ── 领域钩子：视角标题 / 展示标题 ─────────────────────────
 
     def _compute_title(self, state) -> str:
-        """标题：优先用纪要草稿的 headline（根据会议内容总结的主题标题），回退视角标题。"""
-        try:
-            draft = _line(state, "minutes").get("draft") or {}
-            headline = str(draft.get("headline") or "").strip()
-            if headline:
-                return headline
-        except Exception:  # noqa: BLE001 - 取 headline 失败回退视角标题
-            pass
+        """标题：纪要不再生成动态 headline，返回视角标题（供内部元数据使用）。"""
         if self._minutes_view(state, "minutes") == VIEW_AGENDA_OBJECTIVE:
             return "客观会议纪要"
         if bool(state.get("objective_perspective")):

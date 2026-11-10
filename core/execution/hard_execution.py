@@ -373,7 +373,6 @@ MINUTES_CARRY_MAP: dict[str, str] = {
 
 
 _MINUTES_CONTRACT_KEYS = (
-    "headline",
     "executive_summary",
     "key_decisions",
     "personally_relevant_points",
@@ -386,7 +385,7 @@ _MINUTES_CONTRACT_KEYS = (
 def _ensure_all_minutes_keys(d: dict[str, Any]) -> dict[str, Any]:
     for key in _MINUTES_CONTRACT_KEYS:
         if key not in d:
-            d[key] = "" if key == "headline" else []
+            d[key] = []
     return d
 
 
@@ -445,7 +444,7 @@ def enforce_minutes_draft(
     不再用上游全局 risks / open_questions 清洗个人草稿。
     真人第一版不做 memory purge（草稿上下文不再包含原文）。
     议题增强模式下，以草稿自身提炼为准，跳过上游搬运覆盖。
-    返回字典严格闭环保证 7 个契约键完整无缺。
+    返回字典严格闭环保证 6 个契约键完整无缺。
     """
     if hasattr(draft, "model_dump"):
         data = draft.model_dump()
@@ -474,12 +473,6 @@ def enforce_minutes_draft(
     mode_key = (mode or "objective").strip().lower()
     if mode_key == "personal":
         upstream = dict(understanding or {})
-        headline = str(data.get("headline") or "").strip()
-        if not headline:
-            brief = str(upstream.get("meeting_brief") or "").strip()
-            data["headline"] = brief or (
-                "Meeting Minutes" if str(lang or "").strip().lower() == "en" else "会议纪要"
-            )
         # 只有理解层确实产出了 decisions，才用它约束草稿；理解整体为空时保留草稿标题/决策。
         if any(upstream.values()):
             data["key_decisions"] = subset_upstream_items(
@@ -500,8 +493,6 @@ def enforce_minutes_draft(
         data,
         understanding,
         MINUTES_CARRY_MAP,
-        headline_field="headline",
-        purpose_field="meeting_purpose",
         lang=lang,
     )
     if not understanding or not any(understanding.values()):

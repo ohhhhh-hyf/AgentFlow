@@ -75,7 +75,7 @@ class _MockLLMClient:
                 risks=[],
             )
         if model is Minutes:
-            return Minutes(headline="复盘会议", executive_summary=["总结"])
+            return Minutes(executive_summary=["总结"])
         if model is MinutesSupervisorReview:
             return MinutesSupervisorReview(
                 decision="approve",

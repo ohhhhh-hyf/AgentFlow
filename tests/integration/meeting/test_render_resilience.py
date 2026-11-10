@@ -244,7 +244,8 @@ async def test_produce_line_second_insurance_zero_llm_fallback() -> None:
 
     item = await queue.get()
     assert item["type"] == "chunk"
-    assert "# 核心架构评审会" in item["text"]
+    assert not item["text"].startswith("# ")
+    assert "## 全文摘要" in item["text"]
     assert "## 关键决策" in item["text"]
     assert "- 封板日期定为10月30日" in item["text"]
     assert "## 风险与阻塞" in item["text"]

@@ -616,9 +616,7 @@ def persist_after_run(
             )
         else:
             resolved = resolve_bind(registry, fact, project or "", user_id, meetings)
-        headline = _report_headline(reports, "minutes") or _report_headline(reports, "minutes_styles")
-        if headline:
-            fact.title = headline
+        fact.title = ""
         fact.project_id = resolved.project_id if resolved.is_bound else ""
         fact.bind = resolved.as_dict()
         meeting = fact.as_dict()

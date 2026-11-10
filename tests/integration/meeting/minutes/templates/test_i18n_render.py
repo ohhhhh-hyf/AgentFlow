@@ -51,7 +51,6 @@ def test_minutes_render_prompt_and_fallback_draft():
         "lines": {
             "minutes": {
                 "draft": {
-                    "headline": "AI Architecture Sync",
                     "executive_summary": ["Aligned on multi-agent protocol and language parameters."],
                     "key_decisions": ["Adopt slot-assembly architecture for all agents."],
                     "personally_relevant_points": ["[Alice] Deliver unit test suite by EOD."],
@@ -62,7 +61,7 @@ def test_minutes_render_prompt_and_fallback_draft():
         }
     }
     rendered_en = MinutesGenerationRender.render_draft(state_en)
-    assert "# AI Architecture Sync" in rendered_en
+    assert not rendered_en.startswith("# ")
     assert "## Executive Summary" in rendered_en
     assert "## Key Decisions" in rendered_en
     assert "## Action Items" in rendered_en

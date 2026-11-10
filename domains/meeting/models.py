@@ -115,11 +115,10 @@ class TopicMajorMinutes(ModelMixin):
     """topic_major 议题主序草稿输出（手写模型，不进 models_generated.py）。
 
     结构：
-    - 顶层：headline / overview / topics / history_comparison；
+    - 顶层：overview / topics / history_comparison；
     - 每条议题：topic_name + topic_summary / decisions / actions / risks / open_questions。
     """
 
-    headline: str
     overview: str
     topics: list[dict[str, Any]] = field(default_factory=list)
     history_comparison: list[str] = field(default_factory=list)
@@ -143,7 +142,6 @@ class TopicMajorMinutes(ModelMixin):
     @classmethod
     def validate(cls, data: dict) -> "TopicMajorMinutes":
         _exact_fields(data, [f.name for f in fields(cls)], cls.__name__)
-        _string(data["headline"], "headline")
         _string(data["overview"], "overview")
 
         if not isinstance(data["topics"], list):
