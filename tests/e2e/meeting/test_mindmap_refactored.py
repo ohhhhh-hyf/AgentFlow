@@ -134,7 +134,7 @@ def test_mindmap_single_task_pipeline_fast_path() -> None:
     # 2. 验证生成 Agent 接收的上下文：纯净仅包含【会议原文】，不含空 JSON 字典
     mindmap_gen_call = next((sys, usr) for m, sys, usr in client.structured_calls if m is Mindmap)
     sys_prompt, usr_prompt = mindmap_gen_call
-    assert "会议思维导图架构师" in sys_prompt
+    assert "专业的内容结构化专家" in sys_prompt
     assert "【会议原文】" in usr_prompt
     assert "会议理解" not in usr_prompt, "跳过理解后，不应给大纲生成注入会议理解空 JSON"
 

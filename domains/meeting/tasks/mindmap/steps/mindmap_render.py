@@ -4,9 +4,6 @@ from collections.abc import AsyncIterator
 
 import re
 from infra.llm import LLMClient
-from core.runner.prompt_utils import build_render_prompt
-
-from ..prompts import MINDMAP_RENDER_PROMPT, MINDMAP_RENDER_TEMPLATE_PROMPT
 
 
 def normalize_mindmap_outline(text: str) -> str:
@@ -65,15 +62,6 @@ class MindmapRender:
             return normalize_mindmap_outline(outline)
         title = str(draft.get("title") or "").strip() or "思维导图"
         return f"# {title}\n\n- 暂无思维导图大纲"
-
-    @staticmethod
-    def _prompt_and_user(context: str, template: str) -> tuple[str, str]:
-        return build_render_prompt(
-            context,
-            template,
-            MINDMAP_RENDER_PROMPT,
-            MINDMAP_RENDER_TEMPLATE_PROMPT,
-        )
 
     async def run(self, approved_context: str, template: str = "") -> str:
         """若被外部显式调用，直接通过确定性物理清洗器清洗输出，零 LLM 开销。"""
