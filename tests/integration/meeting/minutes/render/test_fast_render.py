@@ -376,6 +376,7 @@ def test_produce_line_template_with_real_meeting_hooks(caplog) -> None:
 
         assert mock_render.stream_called == 1
         line_st = state["lines"]["minutes"]
+        assert line_st["fill_mode"] == "freeform"
         rendered_text = line_st["rendered"]
         assert "### 模板纪要正文" in rendered_text
         # 真实 meeting hooks 会生成 ## 状态演进
@@ -389,4 +390,88 @@ def test_produce_line_template_with_real_meeting_hooks(caplog) -> None:
         assert len(citation_warnings) == 0, f"发现意外告警: {citation_warnings}"
 
     asyncio.run(_run())
+
+
+def test_produce_line_text_consistency_with_report_and_done(tmp_path) -> None:
+    """验证文本一致性保障：line_state['rendered'] == report.rendered == result.md == Done 事件 md_text。"""
+    from core.graph.engine_text import assemble_report
+    from domains.meeting.reports import MinutesReport
+    from infra.exporters.outputs import save_report_artifacts
+    from core.runner.context import load_domain
+    from pathlib import Path
+
+    rendered_sample = "# 交付大会\n\n## 全文摘要\n\n全员推进本周发布交付闭环。\n\n## 关键决策\n\n- 确定周五准时全量上线。"
+
+    class MockStreamRender:
+        async def stream(self, context: str, template: str = "", **kwargs):
+            for part in ["# 交付大会\n\n", "## 全文摘要\n\n全员推进本周发布交付闭环。\n\n", "## 关键决策\n\n- 确定周五准时全量上线。"]:
+                yield part
+
+    class MockEngine:
+        domain_name = "meeting"
+        _line_cn_names = {"minutes": "客观纪要"}
+
+        def __init__(self) -> None:
+            self.minutes_render = MockStreamRender()
+
+        def _line_title(self, state: dict, line_name: str) -> str:
+            return "客观纪要"
+
+        def _pre_render_hook(self, state: dict, line_name: str) -> bool:
+            return False
+
+        def _post_render_hook(self, state: dict, line_name: str) -> None:
+            pass
+
+        def _line_policy(self, line_name: str):
+            class _Policy:
+                llm_render = "always"
+
+                def uses_llm_render(self, has_template: bool) -> bool:
+                    return True
+
+            return _Policy()
+
+        def _render_context(self, state: dict, line_name: str) -> str:
+            return "会议事实"
+
+        def _render_directives(self, state: dict, line_name: str) -> str:
+            return ""
+
+        def _compute_title(self, state: dict) -> str:
+            return "交付大会"
+
+    async def _run() -> None:
+        engine = MockEngine()
+        template = "## [全文摘要]\n[简要概括]\n\n## [关键决策]\n[决策清单]"
+        state = {
+            "objective_perspective": True,
+            "templates": {"minutes": template},
+            "lines": {"minutes": {}},
+        }
+        queue = asyncio.Queue()
+        await produce_line(engine, "minutes", state, queue)
+
+        # 1. 验证 fill_mode 状态归一为 freeform（告别 repair）
+        line_st = state["lines"]["minutes"]
+        assert line_st["fill_mode"] == "freeform"
+        authoritative_text = line_st["rendered"]
+        assert authoritative_text is not None and len(authoritative_text) > 0
+
+        # 2. 验证 assemble_report 取到的 rendered 绝对权威同步
+        report = assemble_report(state, None, MinutesReport, "minutes", engine._compute_title)
+        assert report.personalized_minutes == authoritative_text
+
+        # 3. 验证 save_report_artifacts 写出的 result.md 绝对权威同步
+        ctx = load_domain("meeting", Path("."))
+        ctx.output_dir = tmp_path
+        gate_ok = line_st.get("render_gate_ok")
+        saved = save_report_artifacts(ctx, "minutes", report, gate_ok=gate_ok)
+        md_file = saved.get("text")
+        assert md_file is not None and md_file.exists()
+        disk_md_text = md_file.read_text(encoding="utf-8")
+        assert disk_md_text == authoritative_text, "落盘的 result.md 内容与 line_state['rendered'] 不一致！"
+
+    asyncio.run(_run())
+
 

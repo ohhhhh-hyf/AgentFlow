@@ -244,57 +244,6 @@ async def _render_run(
         kwargs["layout"] = layout
     return await render.run(context, template, **kwargs)
 
-# ── 渲染修订指令（从 produce_line 抽出，独立便于调整；函数内 format 插值）──
-
-_COMPRESS_REVISION = (
-    "【篇幅修订·压缩】当前正文汉字约 {han}，"
-    "超过模板约 {bound}–{hi} 字上界。"
-    "请**整体改写压缩**到约 {target}–{hi} 字（汉字合计必须≤{hi}），"
-    "不是截断半句或硬砍半段："
-    "每节改短句、删套话/长清单/次要枝节，"
-    "只留关键结论/数字/归属；结构贴合模板点名栏目；"
-    "压缩后语句须完整通顺；勿虚构、勿在正文写字数说明。"
-)
-
-_EXPAND_REVISION = (
-    "【篇幅不足·深度扩写要求】当前正文汉字约 {han}，"
-    "少于模板约 {lo}–{hi} 字。"
-    "请在严格忠实原文前提下从以下 4 个维度回溯原文补充细节展开：\n"
-    "1. 补充各议题讨论的具体背景痛点、起因脉络与现状矛盾；\n"
-    "2. 展开各方在现场提出的具体事实论据、对比数据、账目金额与技术指标参数；\n"
-    "3. 补充关键发言人的原话表态、立场倾向、顾虑焦点与探讨细节；\n"
-    "4. 细化后续决议与行动措施的具体落地步骤、责任主体与协同配合对象。\n\n"
-    "要求：结构严格贴合模板点名栏目；语句完整通顺；严禁凭空编造事实，严禁在正文中输出字数说明或元解释。"
-)
-
-_GATE_REPAIR = (
-    "【强执行门禁未通过，必须修正】\n"
-    "{issues}\n\n"
-    "硬性要求：每条表格数据独占一行；遵守模板约 N 行；"
-    "禁止残留 [占位符]；禁止空表。"
-)
-
-_OVERLONG_COMPRESS = (
-    "【字数必须达标】当前正文超出**全文**约 {hi} 字上限。"
-    "请**整体改写压缩**到约 {hi} 字以内："
-    "每句改短，删除过程铺陈/套话/展开论证/次要细节，"
-    "只留关键结论/数字/责任人/时限；"
-    "压缩后语句完整通顺；勿虚构；勿在正文写字数说明。"
-)
-
-_OVERLONG_SECTION = (
-    "【段落字数必须达标】只压缩超限的那一节，"
-    "不要用某一段的上限去压其它节或表格。"
-    "压缩后语句完整通顺；勿虚构；勿在正文写字数说明。"
-)
-
-_KEEP_COMPRESSING = (
-    "【字数仍超限，继续压缩】"
-    "上一版约 {han} 字，仍超过约 {hi} 字。"
-    "请进一步压缩到约 {hi} 字：合并同类句、"
-    "去掉可省修饰，只保留结论/数字/责任人/时限。"
-)
-
 
 def _apply_memory_citations(
     engine,
@@ -541,82 +490,15 @@ async def produce_line(
                     raise
 
         is_brief = _is_brief_style(line_name, state, template)
-        if (
-            template
-            and full_text
-            and is_router_enabled()
-            and fill_mode in {"freeform", "repair"}
-            and hasattr(render, "run")
-        ):
-            try:
-                try:
-                    from core.templates.router import _body_han_count
-                    from core.templates.length_budget import effective_doc_budget
-                except ImportError:
-                    from core.templates.router import _body_han_count
-                    from core.templates.length_budget import effective_doc_budget
-            except Exception:  # noqa: BLE001
-                effective_doc_budget = None  # type: ignore[assignment]
-                _body_han_count = None  # type: ignore[assignment]
-            span = (
-                effective_doc_budget(_doc_han(state), template)
-                if effective_doc_budget
-                else None
-            )
-            if span and _body_han_count:
-                lo_i, hi_i = int(span[0]), int(span[1])
-                # 短会议（转写规模小或已走审核快速通道）公文骨架底噪刚性强，豁免整篇压缩重写，直接放行；
-                # 篇幅波动由下方 advisory 记录监控，避免发起耗时 10-30s 的多轮整篇 LLM 压缩重写
-                is_short_doc = (
-                    _doc_han(state) < 3000
-                    or bool(line(state, line_name).get("review_bypassed"))
-                )
-                if hi_i and not is_short_doc:
-                    for _rev in range(2):
-                        han = _body_han_count(full_text)
-                        if han > hi_i:
-                            target = (
-                                (lo_i + hi_i) // 2
-                                if lo_i
-                                else max(hi_i - 40, hi_i * 4 // 5)
-                            )
-                            try:
-                                compressed = await _render_run(
-                                    render,
-                                    f"{context}\n\n"
-                                    f"{_COMPRESS_REVISION.format(han=han, bound=lo_i or hi_i, hi=hi_i, target=target)}\n\n"
-                                    f"【当前正文】\n{full_text}",
-                                    template,
-                                    cap,
-                                    view=view,
-                                    layout=layout,
-                                )
-                            except Exception:  # noqa: BLE001
-                                compressed = ""
-                            if compressed and compressed.strip():
-                                full_text = compressed
-                                fill_mode = "repair"
-                                logger.info(
-                                    "freeform too long (%s>%s), compress rev#%s (%s)",
-                                    han,
-                                    hi_i,
-                                    _rev + 1,
-                                    line_name,
-                                )
-                                continue
-                        # 字数未超上限（包括低于下限）直接放行，避免无效扩写与幻觉；偏短由下方 advisory 记录监控
-                        break
-
         if template and full_text and is_router_enabled():
             gate = gate_render_output(template, full_text)
             full_text = gate["text"]
             enforce_notes = list(gate.get("notes") or [])
             gate_issues = list(gate.get("issues") or [])
             gate_ok = bool(gate.get("gate_ok"))
-            hard0 = list(gate.get("hard_issues") or [])
             advisory = list(gate.get("advisory_issues") or [])
-            # 篇幅咨询：模板没声明全文预算时用档位（原文规模）比一次，只记录不返工——
-            # 治"太薄/太炸"的第一道是 prompt 里的【篇幅预算】与 max_tokens 上限，不是整篇重渲染。
+            # 篇幅咨询：模板没声明全文预算时用档位（原文规模）比一次，纯旁路监控只记录不返工——
+            # 治"太薄/太炸"的第一道是 prompt 里的【篇幅预算】与 max_tokens 上限，不再调用 LLM 二次压缩重写。
             try:
                 try:
                     from core.templates.length_budget import effective_doc_budget
@@ -638,111 +520,9 @@ async def produce_line(
                         f"正文约 {han_now} 字，低于本篇参考下限 {lo2} 字（档位）"
                     )
             if advisory:
-                # 咨询级：只记录（不触发返工）——超长条/段、缺失说明句，观察一批再收紧
+                # 咨询级：只记录（不触发返工）——供日志与质量大盘监控
                 line(state, line_name)["render_advisory_issues"] = advisory
                 logger.info("advisory line=%s：%s", line_name, "；".join(advisory))
-
-            # 段落级字数超出已由 enforce_render_output 按句界确定性拆分（零额外调用）；
-            # 只剩这类问题时不再触发整篇返工——篇幅属形态问题，整篇重渲染代价与收益不成比例
-            # （2026-09 实测：为字数返工要多花 30–60s）。
-            repair_issues = [x for x in gate_issues if "超出段落字数上限" not in x]
-            if (repair_issues or not gate_ok) and hasattr(render, "run"):
-                logger.warning(
-                    "template gate failed (%s), try repair: %s",
-                    line_name,
-                    "；".join(repair_issues),
-                )
-                issues_text = "\n".join(f"- {x}" for x in repair_issues)
-                repair_context = (
-                    f"{context}\n\n"
-                    f"{_GATE_REPAIR.format(issues=issues_text)}"
-                )
-                # 字数超限（_overlong_issue 触发）时追加强压缩指令，
-                # 与「篇幅修订·压缩」同强度，避免 LLM 把 issue 当轻提示
-                compress_hi = None
-                over_issue = next(
-                    (x for x in gate_issues if "超出字数上限" in x), None
-                )
-                if over_issue:
-                    try:
-                        try:
-                            from core.templates.template_eval import parse_document_char_budget
-                        except ImportError:
-                            from core.templates.template_eval import parse_document_char_budget
-                    except Exception:  # pragma: no cover
-                        parse_document_char_budget = None  # type: ignore[assignment]
-                    budget = (
-                        parse_document_char_budget(template or "")
-                        if parse_document_char_budget
-                        else {}
-                    )
-                    compress_hi = budget.get("hi")
-                    if compress_hi:
-                        repair_context += f"\n\n{_OVERLONG_COMPRESS.format(hi=compress_hi)}"
-                    elif "段落字数上限" in over_issue:
-                        repair_context += f"\n\n{_OVERLONG_SECTION}"
-
-                # repair：字数超限时最多两轮压缩，仍超限则句子级截断兜底
-                def _han_count(s: str) -> int:
-                    return sum(1 for c in s if "\u4e00" <= c <= "\u9fff")
-
-                for _round in range(2 if compress_hi else 1):
-                    try:
-                        repaired = await _render_run(
-                            render, repair_context, template, cap, view=view, layout=layout
-                        )
-                    except Exception:  # noqa: BLE001
-                        logger.warning(
-                            "repair failed (%s)", line_name, exc_info=True
-                        )
-                        repaired = ""
-                    if not (repaired and repaired.strip()):
-                        break
-                    gate2 = gate_render_output(template, repaired)
-                    hard2 = list(gate2.get("hard_issues") or [])
-                    if not (gate2["gate_ok"] or len(hard2) < len(hard0)):
-                        break
-                    full_text = gate2["text"]
-                    enforce_notes = list(gate2.get("notes") or [])
-                    gate_issues = list(gate2.get("issues") or [])
-                    gate_ok = bool(gate2.get("gate_ok"))
-                    fill_mode = "repair"
-                    hard0 = hard2
-                    still_over = compress_hi and any(
-                        "超出字数上限" in x for x in gate_issues
-                    )
-                    if not still_over or _round + 1 >= 2:
-                        break
-                    han_now = _han_count(full_text)
-                    repair_context = (
-                        f"{context}\n\n"
-                        f"{_KEEP_COMPRESSING.format(han=han_now, hi=compress_hi)}\n\n"
-                        f"【上一版正文】\n{full_text}"
-                    )
-                # 两轮压缩后仍超限：句子级截断兜底（保完整句，宁少勿多）
-                if (
-                    compress_hi
-                    and full_text
-                    and _han_count(full_text) > int(compress_hi) * 1.05
-                ):
-                    try:
-                        try:
-                            from core.execution.hard_execution import truncate_to_budget
-                        except ImportError:
-                            from core.execution.hard_execution import truncate_to_budget
-                    except Exception:  # pragma: no cover
-                        truncate_to_budget = None  # type: ignore[assignment]
-                    if truncate_to_budget:
-                        truncated = truncate_to_budget(
-                            full_text, int(compress_hi)
-                        )
-                        if truncated and truncated != full_text:
-                            full_text = truncated
-                            gate2 = gate_render_output(template, full_text)
-                            gate_issues = list(gate2.get("issues") or [])
-                            hard0 = list(gate2.get("hard_issues") or [])
-                            gate_ok = bool(gate2.get("gate_ok"))
-                            fill_mode = "repair"
 
 
         full_text = _apply_memory_citations(
