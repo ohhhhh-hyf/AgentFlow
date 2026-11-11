@@ -14,7 +14,7 @@ Accurately record patient chief complaints, physician diagnosis, treatment plans
 [Record diagnostic conclusions or preliminary impressions, key laboratory/imaging examination results, and physician's clinical analysis of the findings, articulating objective metrics and diagnostic rationale.]
 
 ## [Treatment Plan]
-[Medical advice checklist: List item by item categorized by diagnostic tests, lifestyle modifications, and medication directives; if medication is prescribed, pharmaceutical details are presented in the standardized table below; omit the table if no medication was discussed without outputting an empty table.]
+[Medical advice checklist: List item by item categorized by diagnostic tests, lifestyle modifications, and medication directives; if medication is prescribed, pharmaceutical details must be carried by the table below, strictly preserving the header columns word-for-word; if no medication was discussed or prescribed, the table must still be retained with a fallback row (e.g. "| None prescribed | — | — | — | — |"); never omit the table or convert it into a bulleted list.]
 
 | Medication Name | Dosage | Frequency | Route | Precautions / Notes |
 | --- | --- | --- | --- | --- |
