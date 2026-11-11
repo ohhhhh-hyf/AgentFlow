@@ -93,6 +93,7 @@ def _supervisor_system(supervisor: _SupervisorStub) -> MeetingAgentSystem:
     system._supervisor_fast_path_chars = 2000
     system._supervisor_guardrail_range = (2000, 5000)
     system.minutes_supervisor = supervisor
+    system._skip_minutes_supervisor = False
     return system
 
 

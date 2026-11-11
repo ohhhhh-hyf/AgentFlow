@@ -79,7 +79,6 @@ def _perspective() -> PersonalPerspective:
 
 def _draft() -> Minutes:
     return Minutes(
-        headline="demo 评审个人纪要",
         executive_summary=["申家坤负责压测，周五前提交报告。"],
         key_decisions=["周五上线"],
         personally_relevant_points=["**本人相关**：", "周五前提交报告"],
@@ -197,13 +196,7 @@ def test_personal_single_line_pipeline_with_fake_llm() -> None:
         for model, system_prompt, user in client.structured_calls
         if model is MinutesSupervisorReview
     ]
-    assert len(supervisor_calls) == 1
-    assert "个人视角审查范围" in supervisor_calls[0][0]
-    assert "key_decisions" in supervisor_calls[0][0]
-    supervisor_user = supervisor_calls[0][1]
-    assert "纪要草稿：" in supervisor_user
-    assert "【本用户命中】" not in supervisor_user
-    assert "【重点关注雷达】" not in supervisor_user
+    assert len(supervisor_calls) == 0, "个人视角纪要全量免审放行，不再调用 MinutesSupervisorReview"
 
     assert client.render_calls
     render_prompt, render_user = client.render_calls[0]

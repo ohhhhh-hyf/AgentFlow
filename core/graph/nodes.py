@@ -814,6 +814,18 @@ class DomainNodes:
                         line_name,
                         "；".join(findings[:3]),
                     )
+            # ── 纪要全量免审快速通道（minutes 所有类型直接跳过审核 Agent，直通渲染）──
+            if (
+                line_name == "minutes"
+                and not bypass
+                and not degraded
+                and getattr(self, "_skip_minutes_supervisor", True)
+                and getattr(self, "_supervisor_fast_path_chars", 1) != 0
+            ):
+                from domains.meeting.domain_config import minutes_skip_supervisor_enabled
+
+                if minutes_skip_supervisor_enabled():
+                    bypass = "minutes_direct_skip"
             if bypass:
                 progress("[agent:skip] name=%s_review line=%s reason=%s", line_name, line_name, bypass)
                 return {

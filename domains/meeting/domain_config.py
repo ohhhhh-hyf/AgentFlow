@@ -47,6 +47,17 @@ LINE_KINDS: dict[str, object] = {
 SUPERVISOR_FAST_PATH_CHARS = 2000
 SUPERVISOR_GUARDRAIL_RANGE = (2000, 5000)
 
+# ── minutes 任务线全量免审放行开关 ──────────────────────────────
+# 默认开启：minutes 任务线所有类型（普通客观/个人/议程/主序）直接跳过审核 Agent，
+# 确定性 0ms 直通渲染，彻底消除前置 LLM 审查耗时与返工风险。
+MINUTES_SKIP_SUPERVISOR_ENV = "MINUTES_SKIP_SUPERVISOR"
+
+
+def minutes_skip_supervisor_enabled() -> bool:
+    """读取 minutes 全量免审开关：默认开启，设置为 0/false/off/no 时关闭。"""
+    value = os.getenv(MINUTES_SKIP_SUPERVISOR_ENV, "on").strip().lower()
+    return value not in ("0", "false", "off", "no")
+
 # ── 场景识别 Agent 开关与短会阈值 ─────────────────────────────
 # MINUTES_TEMPLATE_AUTO:
 #   off    关闭（默认），空 template 仍走 general_minutes

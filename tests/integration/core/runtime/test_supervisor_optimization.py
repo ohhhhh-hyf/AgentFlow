@@ -76,6 +76,7 @@ def _make_system(stub: _StubSupervisor):
     }
     system._line_cn_names = {"minutes": "纪要"}
     system.minutes_supervisor = stub
+    system._skip_minutes_supervisor = False
     return system
 
 
