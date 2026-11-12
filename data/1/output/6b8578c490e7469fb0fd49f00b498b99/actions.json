@@ -1,0 +1,100 @@
+[
+  {
+    "title": "小艺慧记日程图片接入",
+    "item": "尽快实现将会议日程以图片方式输入小艺慧记，并整合生成按议题分段的会议纪要，同时支持识别议题主讲人并标注发言人。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [
+      "小艺慧记团队"
+    ],
+    "acceptance_criteria": "用户上传日程图片后，小艺慧记能自动按议题分段生成纪要，并正确标注发言人。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记声纹识别优化",
+    "item": "优化小艺慧记的声纹识别能力，目标是在10人左右的项目组会议中，经过三天标注后，能自动识别并标注发言人，无需后续手动标注。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [
+      "媒体院"
+    ],
+    "acceptance_criteria": "在小型会议场景下，经过三天标注后，系统能自动识别并标注所有发言人。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记能力统一",
+    "item": "围绕小艺慧记，将华为终端上的录音机、备忘录、华为笔记等录音相关能力统一整合，基础能力与小艺慧记打通，各产品线负责各自UI。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [
+      "录音机团队",
+      "备忘录团队",
+      "华为笔记团队"
+    ],
+    "acceptance_criteria": "各录音相关产品线能调用小艺慧记的基础能力，实现录音、转写、摘要等功能。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记议题分段功能",
+    "item": "在小艺慧记中实现按会议议题自动分段的功能，用户上传日程或图片后，能自动识别议题并分段生成纪要。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [],
+    "acceptance_criteria": "小艺慧记能根据日程或图片自动识别议题并分段。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记云侧系统升级",
+    "item": "基于agent架构，升级小艺慧记云侧系统，支持多模态输入和理解，针对不同身份（使用者、发言者）用不同agent分析。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [],
+    "acceptance_criteria": "云侧系统支持多模态输入，并能按身份进行差异化分析。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记UI优化",
+    "item": "优化小艺慧记的UI，解决原始音频放置和拖拽等交互问题。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [],
+    "acceptance_criteria": "UI交互流畅，用户能方便地查看和操作原始音频。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记与日程绑定",
+    "item": "实现小艺慧记与日历日程的绑定，用户可上传日程图片或截图，自动生成按议题分段的会议纪要。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [],
+    "acceptance_criteria": "用户上传日程图片后，小艺慧记能自动生成按议题分段的纪要。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记发言人识别修复",
+    "item": "修复小艺慧记中发言人识别错误的问题，特别是声纹识别不准确导致的误标。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [],
+    "acceptance_criteria": "发言人识别准确率显著提升，不再出现明显误标。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记多模态输入支持",
+    "item": "支持小艺慧记通过图片、语音等多模态输入，并整合到会议纪要生成流程中。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [],
+    "acceptance_criteria": "用户可通过图片或语音输入，小艺慧记能正确处理并生成纪要。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记语义分段优化",
+    "item": "优化小艺慧记的语义分段功能，提升分段准确性，确保按议题正确分段。",
+    "owner": "宋凯",
+    "deadline": null,
+    "collaborators": [],
+    "acceptance_criteria": "语义分段准确率提升，能正确区分不同议题。",
+    "dependency": null
+  }
+]

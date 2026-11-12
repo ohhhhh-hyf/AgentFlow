@@ -1,0 +1,101 @@
+[
+  {
+    "title": "小艺唤醒规格拉通",
+    "item": "向各产品线提出小艺唤醒规格统一要求，明确高端与低端各一套规格，推动产品线按统一规格适配，必要时上升TMT决策。",
+    "owner": "贾永利",
+    "deadline": null,
+    "collaborators": [
+      "高畅",
+      "产品线"
+    ],
+    "acceptance_criteria": "各产品线统一小艺唤醒规格，高端与低端各一套，不再频繁变更。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记图片日程接入",
+    "item": "实现小艺慧记通过图片或截图方式输入会议日程，自动识别议题并生成按议题分段的会议纪要。",
+    "owner": "王总",
+    "deadline": null,
+    "collaborators": [
+      "小艺慧记团队"
+    ],
+    "acceptance_criteria": "用户上传日程图片后，小艺慧记能按议题生成分段纪要。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记声纹识别优化",
+    "item": "优化小艺慧记的声纹识别能力，实现小规模会议（10人左右）中，经过三天标注后无需再手动标注，自动识别发言人。",
+    "owner": "王总",
+    "deadline": null,
+    "collaborators": [
+      "媒体院"
+    ],
+    "acceptance_criteria": "小规模会议中，三天标注后自动识别发言人，无需手动标注。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记能力整合",
+    "item": "将小艺慧记、小艺通话、小艺照相馆等自有工具进行scale化改造，接入小艺主对话，实现能力统一调用。",
+    "owner": "贾永利",
+    "deadline": null,
+    "collaborators": [
+      "小艺团队",
+      "软件工程团队"
+    ],
+    "acceptance_criteria": "小艺主对话可直接调用小艺慧记等能力，无需跳转独立工具。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记资源聚焦",
+    "item": "围绕小艺慧记整合华为终端上的录音、备忘录、笔记等能力，统一基础能力，各产品线仅保留UI差异化。",
+    "owner": "贾永利",
+    "deadline": null,
+    "collaborators": [
+      "各产品线"
+    ],
+    "acceptance_criteria": "录音、备忘录、笔记等统一调用小艺慧记基础能力，UI由各产品线自行负责。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记议题分段优化",
+    "item": "优化小艺慧记的语义分段功能，实现按会议议题自动分段，并识别议题主讲人。",
+    "owner": "王总",
+    "deadline": null,
+    "collaborators": [
+      "小艺慧记团队"
+    ],
+    "acceptance_criteria": "小艺慧记能按议题自动分段，并正确标注主讲人。",
+    "dependency": null
+  },
+  {
+    "title": "小艺慧记发言人识别修复",
+    "item": "修复小艺慧记发言人识别错误的问题，确保正确标注发言人。",
+    "owner": "王总",
+    "deadline": null,
+    "collaborators": [],
+    "acceptance_criteria": "小艺慧记能正确识别并标注发言人。",
+    "dependency": null
+  },
+  {
+    "title": "小艺健康分析趣味化",
+    "item": "优化小艺健康分析内容，增加趣味性和情感化表达，避免千篇一律的回复。",
+    "owner": "小艺健康团队",
+    "deadline": null,
+    "collaborators": [
+      "优健康APP"
+    ],
+    "acceptance_criteria": "小艺健康分析能提供多样化、有趣的回复，提升用户使用意愿。",
+    "dependency": null
+  },
+  {
+    "title": "小艺分屏看广告demo",
+    "item": "制作小艺分屏看广告的demo，实现分屏显示广告内容，同时用户可进行其他操作。",
+    "owner": "丁博",
+    "deadline": null,
+    "collaborators": [
+      "生态合作方"
+    ],
+    "acceptance_criteria": "demo演示分屏看广告功能，并得到生态合作方认可。",
+    "dependency": null
+  }
+]

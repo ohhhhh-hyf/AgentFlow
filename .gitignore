@@ -5,12 +5,6 @@ __pycache__/
 .pytest_cache/
 .idea/
 
-# 只忽略仓库根目录的记忆落盘，不要误伤 tools/memory 源码包
-.claude/
-.reasonix/
-
-.ocrvenv/
-
 # codegraph index cache
 .codegraph/
 .cac/
@@ -18,10 +12,4 @@ __pycache__/
 
 # 测试运行产生的隔离目录
 data/test_user/
-logs/
 
-
-# coverage artifacts
-.coverage
-.coverage.*
-htmlcov/
