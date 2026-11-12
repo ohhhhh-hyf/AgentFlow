@@ -103,8 +103,12 @@ def test_actions_only_bypasses_meeting_understanding_and_perspective() -> None:
     )
     assert "网关鉴权" in full_text
     assert "完成网关鉴权重构" in full_text
-    assert "**网关鉴权重构**： 完成网关鉴权重构（责任方：张三 配合方：李四）" in full_text
-    assert "1. **" not in full_text
+    import json
+    parsed_items = json.loads(full_text)
+    assert isinstance(parsed_items, list)
+    assert len(parsed_items) == 2
+    assert parsed_items[0]["title"] == "网关鉴权重构"
+    assert parsed_items[0]["owner"] == "张三"
     assert client.render_calls == []
 
     actions_calls = [
@@ -125,3 +129,36 @@ def test_actions_render_policy_is_programmatic() -> None:
     from domains.meeting.domain_config import LINE_KINDS
 
     assert LINE_KINDS["actions"]["llm_render"] == "never"
+
+
+def test_actions_only_calendar_backfill_on(monkeypatch) -> None:
+    monkeypatch.setenv("ACTIONS_CALENDAR_BACKFILL", "on")
+    client = _FakeClient()
+    system = MeetingAgentSystem(client=client)
+
+    async def _consume():
+        events = []
+        async for event in system.run_streaming(
+            transcript="张三：我周五前把网关鉴权重构完，李四配合联调。",
+            user={"name": "张三"},
+            lines=["actions"],
+            lang="zh",
+            meeting_time="2026-10-29 10:00:00",
+        ):
+            events.append(event)
+        return events
+
+    events = asyncio.run(_consume())
+    full_text = "".join(
+        event.get("text", "")
+        for event in events
+        if event.get("type") == "chunk" and event.get("line") == "actions"
+    )
+    import json
+    parsed_items = json.loads(full_text)
+    assert isinstance(parsed_items, list)
+    assert len(parsed_items) == 2
+    # 任务1是 null，绝不被覆盖
+    assert parsed_items[1]["deadline"] is None
+    assert parsed_items[1]["deadline_display"] is None
+    assert parsed_items[1]["deadline_raw"] is None

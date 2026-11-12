@@ -86,7 +86,6 @@ def _action(item: dict, path: str) -> None:
     required = {
         "title",
         "item",
-        "evidence",
     }
     allowed = {
         "title", "item", "owner", "deadline", "collaborators",
@@ -107,7 +106,8 @@ def _action(item: dict, path: str) -> None:
         )
     _string(item["title"], f"{path}.title")
     _string(item["item"], f"{path}.item")
-    _string(item["evidence"], f"{path}.evidence")
+    if "evidence" in item and item["evidence"] is not None:
+        _string(item["evidence"], f"{path}.evidence")
     if "owner" in item:
         _string(item["owner"], f"{path}.owner", nullable=True)
     if "deadline" in item:

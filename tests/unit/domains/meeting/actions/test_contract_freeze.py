@@ -31,7 +31,7 @@ def test_actions_objective_output_is_frozen() -> None:
     assert "delegated_actions" in ACTIONS_OBJECTIVE_REMOVED_OUTPUT_FIELDS
 
 
-def test_actions_objective_item_fields_are_frozen_to_eight() -> None:
+def test_actions_objective_item_fields_are_frozen_to_seven() -> None:
     assert ACTIONS_OBJECTIVE_ITEM_FIELD_NAMES == (
         "title",
         "item",
@@ -40,9 +40,8 @@ def test_actions_objective_item_fields_are_frozen_to_eight() -> None:
         "collaborators",
         "acceptance_criteria",
         "dependency",
-        "evidence",
     )
-    assert len(ACTIONS_OBJECTIVE_ITEM_FIELD_NAMES) == 8
+    assert len(ACTIONS_OBJECTIVE_ITEM_FIELD_NAMES) == 7
 
 
 def test_removed_item_fields_are_not_in_target() -> None:

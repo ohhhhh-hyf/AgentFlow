@@ -11,6 +11,7 @@ from .agent import (
     run_deadline_agent,
     run_deadline_agent_sync,
 )
+from .enrich import enrich_actions_deadlines
 from .llm import CalendarLLM, extract_json_object
 from .models import DeadlineIR, ResolvedDeadline
 from .tool import resolve_deadline, resolve_deadlines
@@ -23,6 +24,7 @@ __all__ = [
     "build_graph",
     "extract_irs",
     "extract_json_object",
+    "enrich_actions_deadlines",
     "resolve_deadline",
     "resolve_deadlines",
     "run_deadline_agent",

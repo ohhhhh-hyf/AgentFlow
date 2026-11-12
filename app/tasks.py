@@ -350,7 +350,13 @@ def _output_file_name(
     saved_paths: dict[str, Path | None],
 ) -> str:
     """产物文件名：有页面版返回 {task}.html；
-    只有文本产物（actions/risks/minutes_styles/minutes_trace）返回 {task}.md；无产物返回空串。"""
+    只有文本产物（actions/risks/minutes_styles/minutes_trace）返回 {task}.md；
+    actions 任务返回 actions_update.json 或 actions.json；无产物返回空串。"""
+    if line == "actions":
+        if saved_paths.get("actions_update_json"):
+            return "actions_update.json"
+        if saved_paths.get("actions_json"):
+            return "actions.json"
     if saved_paths.get("html"):
         return f"{line}.html"
     if saved_paths.get("md"):
