@@ -682,6 +682,10 @@ class DomainNodes:
             # 显式写 degraded=False：返工成功后清除此前失败标记
             dur = time.time() - _t0
             draft = result.model_dump()
+            if line_name == "actions" and isinstance(draft.get("actions"), list):
+                from domains.meeting.tasks.actions.steps.actions_agent import filter_valid_actions
+
+                draft["actions"] = filter_valid_actions(draft["actions"])
             # 历史对照（域钩子给的跨场对比）：只落在声明了该字段的草稿上，不新增键
             if memory_comparison and "history_comparison" in draft:
                 draft["history_comparison"] = memory_comparison
@@ -826,6 +830,18 @@ class DomainNodes:
 
                 if minutes_skip_supervisor_enabled():
                     bypass = "minutes_direct_skip"
+            # ── 待办全量免审快速通道（actions 直接跳过审核 Agent，直通渲染）──
+            if (
+                line_name == "actions"
+                and not bypass
+                and not degraded
+                and getattr(self, "_skip_actions_supervisor", True)
+                and getattr(self, "_supervisor_fast_path_chars", 1) != 0
+            ):
+                from domains.meeting.domain_config import actions_skip_supervisor_enabled
+
+                if actions_skip_supervisor_enabled():
+                    bypass = "actions_direct_skip"
             if bypass:
                 progress("[agent:skip] name=%s_review line=%s reason=%s", line_name, line_name, bypass)
                 return {

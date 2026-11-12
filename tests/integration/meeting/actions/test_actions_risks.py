@@ -152,7 +152,7 @@ def test_action_items_flat_contract_compatibility() -> None:
             {
                 "title": "线上告警监控",
                 "item": "跟进线上告警指标监控",
-                "owner": None,
+                "owner": "运维团队",
                 "deadline": None,
                 "collaborators": [],
                 "acceptance_criteria": None,

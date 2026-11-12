@@ -1990,11 +1990,15 @@ class MeetingAgentSystem(_Nodes):
         """actions 审核通过后、渲染前，按开关批量回填 calendar 绝对时间。"""
         if line_name != "actions":
             return
+        from domains.meeting.tasks.actions.steps.actions_agent import filter_valid_actions
+
         sub = _line(state, "actions")
         draft = sub.get("draft") or {}
         raw_actions = draft.get("actions")
         if isinstance(raw_actions, list):
-            sub["raw_actions"] = [dict(a) for a in raw_actions if isinstance(a, dict)]
+            valid_actions = filter_valid_actions(raw_actions)
+            draft["actions"] = valid_actions
+            sub["raw_actions"] = [dict(a) for a in valid_actions if isinstance(a, dict)]
 
         if not actions_calendar_backfill_enabled():
             return
@@ -2004,33 +2008,33 @@ class MeetingAgentSystem(_Nodes):
         sub = _line(state, "actions")
         if bool(sub.get("degraded")):
             return
+        from domains.meeting.tasks.actions.steps.actions_agent import filter_valid_actions
+
         draft = sub.get("draft") or {}
         raw_actions = sub.get("raw_actions") or draft.get("actions")
         if not isinstance(raw_actions, list) or not raw_actions:
             return
 
+        valid_actions = filter_valid_actions(raw_actions)
+        if not valid_actions:
+            return
+
         meeting_time = str(state.get("meeting_time") or "").strip()
         if not meeting_time:
-            logger.warning(
-                "[actions:calendar] skipped: meeting_time is empty"
-            )
             return
 
         try:
             from infra.calendar import CalendarLLM, enrich_actions_deadlines
 
             enriched = await enrich_actions_deadlines(
-                actions=raw_actions,
+                actions=valid_actions,
                 meeting_start_time=meeting_time,
                 client=CalendarLLM(self.client),
                 inplace=False,
             )
+            enriched = filter_valid_actions(enriched)
             draft["actions"] = enriched
             sub["actions_update"] = enriched
-            logger.info(
-                "[actions:calendar] enriched %d actions with absolute deadlines",
-                len(enriched),
-            )
         except Exception:  # noqa: BLE001 - 回填失败不影响 actions 主结果
-            logger.warning("[actions:calendar] enrich failed", exc_info=True)
+            logger.warning("calendar enrich failed", exc_info=True)
 

@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Dict, List, Optional, Protocol, Sequence, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -24,6 +25,8 @@ from .llm import CalendarLLM
 from .models import DeadlineIR, ExtractionResponse, ResolvedDeadline
 from .prompts import DEADLINE_EXTRACTION_SYSTEM_PROMPT, build_extraction_user_prompt
 from .tool import resolve_deadlines
+
+logger = logging.getLogger("agentflow")
 
 
 class CalendarLLMProtocol(Protocol):

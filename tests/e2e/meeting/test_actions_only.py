@@ -30,12 +30,22 @@ def _items() -> ActionItems:
             {
                 "title": "补充GPU驱动版本",
                 "item": "补充测试环境GPU驱动版本",
-                "owner": None,
+                "owner": "李四",
                 "deadline": None,
                 "collaborators": [],
                 "acceptance_criteria": None,
                 "dependency": None,
                 "evidence": "需要补充测试环境的GPU驱动版本。",
+            },
+            {
+                "title": "缺失责任人探讨",
+                "item": "泛泛讨论但未落实责任人",
+                "owner": None,
+                "deadline": None,
+                "collaborators": [],
+                "acceptance_criteria": None,
+                "dependency": None,
+                "evidence": "大家有空可以探讨一下。",
             },
         ],
     )

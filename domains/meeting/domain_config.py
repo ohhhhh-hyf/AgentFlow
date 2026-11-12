@@ -58,6 +58,17 @@ def minutes_skip_supervisor_enabled() -> bool:
     value = os.getenv(MINUTES_SKIP_SUPERVISOR_ENV, "on").strip().lower()
     return value not in ("0", "false", "off", "no")
 
+
+# ── actions 任务线全量免审放行开关 ──────────────────────────────
+# 默认开启：actions 任务线直接跳过审核 Agent，确定性 0ms 直通渲染，消除前置 LLM 审查耗时与返工风险。
+ACTIONS_SKIP_SUPERVISOR_ENV = "ACTIONS_SKIP_SUPERVISOR"
+
+
+def actions_skip_supervisor_enabled() -> bool:
+    """读取 actions 全量免审开关：默认开启，设置为 0/false/off/no 时关闭。"""
+    value = os.getenv(ACTIONS_SKIP_SUPERVISOR_ENV, "on").strip().lower()
+    return value not in ("0", "false", "off", "no")
+
 # ── 场景识别 Agent 开关与短会阈值 ─────────────────────────────
 # MINUTES_TEMPLATE_AUTO:
 #   off    关闭（默认），空 template 仍走 general_minutes

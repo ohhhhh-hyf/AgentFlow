@@ -93,6 +93,7 @@ def _action(item: dict, path: str) -> None:
         # calendar 审核后回填的派生字段（开关开启时出现）
         "deadline_time", "deadline_start", "deadline_end",
         "deadline_time_slot", "deadline_kind",
+        "deadline_raw", "deadline_display",
     }
     if not isinstance(item, dict):
         raise OutputValidationError(f"{path} 必须是 JSON 对象")
@@ -113,11 +114,19 @@ def _action(item: dict, path: str) -> None:
     if "deadline" in item:
         _string(item["deadline"], f"{path}.deadline", nullable=True)
     if "collaborators" in item:
+        if isinstance(item["collaborators"], str):
+            item["collaborators"] = [item["collaborators"].strip()] if item["collaborators"].strip() else []
+        elif item["collaborators"] is None:
+            item["collaborators"] = []
         _string_list(item["collaborators"], f"{path}.collaborators")
     if "acceptance_criteria" in item:
         _string(item["acceptance_criteria"], f"{path}.acceptance_criteria", nullable=True)
     if "dependency" in item:
         _string(item["dependency"], f"{path}.dependency", nullable=True)
+    if "deadline_raw" in item:
+        _string(item["deadline_raw"], f"{path}.deadline_raw", nullable=True)
+    if "deadline_display" in item:
+        _string(item["deadline_display"], f"{path}.deadline_display", nullable=True)
     for key in (
         "deadline_time",
         "deadline_start",

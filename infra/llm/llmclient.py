@@ -889,6 +889,13 @@ class LLMClient:
                     label=label,
                 )
             except RuntimeError as exc:
+                logger.warning(
+                    "[llm:retry] label=%s attempt=%d/%d err=%s",
+                    tag,
+                    attempt + 1,
+                    self.max_retries + 1,
+                    exc,
+                )
                 if attempt >= self.max_retries or not self._retryable_runtime_error(exc):
                     self._record_failure()
                     raise
@@ -1051,6 +1058,13 @@ class LLMClient:
                     self._response_cache[cache_key] = content
                 return content
             except RuntimeError as exc:
+                logger.warning(
+                    "[llm:retry] label=%s attempt=%d/%d err=%s",
+                    tag,
+                    attempt + 1,
+                    self.max_retries + 1,
+                    exc,
+                )
                 if attempt >= self.max_retries or not self._retryable_runtime_error(exc):
                     self._record_failure()
                     raise
