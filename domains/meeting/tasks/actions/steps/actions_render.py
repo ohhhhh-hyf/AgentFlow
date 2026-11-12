@@ -213,11 +213,14 @@ class ActionItemsRender:
 
     @staticmethod
     def render_draft(state: dict) -> str:
-        """无模板时按草稿字段排清单，与渲染 prompt 格式一致，不调 LLM。"""
+        """待办渲染层直接产出/透传平铺 JSON 字符串，不再调用冗长的 Markdown 拼接逻辑。"""
+        import json
+
         actions = (
             (state.get("lines") or {}).get("actions", {}).get("draft") or {}
         )
-        return ActionItemsRender.render_items(list(actions.get("actions") or []))
+        items = list(actions.get("actions") or [])
+        return json.dumps(items, ensure_ascii=False, indent=2)
 
     @staticmethod
     def format_action(index: int, item: dict) -> str:

@@ -71,6 +71,10 @@ def save_task_outputs(
             result["md"] = _copy_as(Path(paths["text"]), out / target_name)
         if result["html"] is None and paths.get("html"):
             result["html"] = _copy_as(Path(paths["html"]), out / f"{_line}.html")
+        if paths.get("actions_update_json"):
+            result["actions_update_json"] = _copy_as(Path(paths["actions_update_json"]), out / "actions_update.json")
+        if paths.get("actions_json"):
+            result["actions_json"] = _copy_as(Path(paths["actions_json"]), out / "actions.json")
         if result["md"] and result["html"]:
             break
     return result

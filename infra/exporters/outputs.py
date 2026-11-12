@@ -132,7 +132,7 @@ def save_report_artifacts(
             ``quality_warning`` 与同目录的 ``result_rejected.md`` 承担，不靠"不落盘"表达。
     """
     # 按线命名的任务线（产物为 {line_name}.md 与 {line_name}.html，对齐 {line_name}.html 模式）
-    line_named_md = line_name in {"actions", "risks", "minutes_styles", "minutes_trace", "consensus_decision"}
+    line_named_md = line_name in {"risks", "minutes_styles", "minutes_trace", "consensus_decision"}
 
     out_dir = task_output_dir(ctx, line_name)
     data = report_to_dict(report)
@@ -153,9 +153,9 @@ def save_report_artifacts(
     # （表格写法变体被判「固定文字丢失」），此时不落盘会让用户拿不到可用内容。
     # 质量信号由两条承担：API 的 quality_warning（带门禁原因）与同目录的
     # result_rejected.md（备查副本）。
-    # library / graph 只输出 text（API 响应携带），不落盘 md/html；
-    # graph 的交互 HTML 由 export_graph 单独落盘（见 runner）
-    if line_name not in ("library", "graph"):
+    # library / graph / actions 只输出 text（API 响应携带），不落盘 md/html；
+    # actions 产物完全由结构化 JSON 承载，豁免生成 actions.md 与 actions.html
+    if line_name not in ("library", "graph", "actions"):
         md_path = out_dir / (
             f"{line_name}.md" if line_named_md else "result.md"
         )
@@ -197,6 +197,40 @@ def save_report_artifacts(
             html_path = out_dir / f"{line_name}.html"
             html_path.write_text(domain_html, encoding="utf-8")
             paths["html"] = html_path
+    if line_name == "actions":
+        import json
+        from domains.meeting.domain_config import actions_calendar_backfill_enabled
+
+        final_actions = data.get("actions") or []
+        # 1. 还原纯净的 7 字段原始待办（平铺 JSON 数组），落盘 actions.json
+        raw_actions = []
+        for it in final_actions:
+            if isinstance(it, dict):
+                raw_it = dict(it)
+                if "deadline_raw" in raw_it:
+                    raw_it["deadline"] = raw_it.get("deadline_raw")
+                raw_it.pop("deadline_raw", None)
+                raw_it.pop("deadline_display", None)
+                raw_actions.append(raw_it)
+            else:
+                raw_actions.append(it)
+
+        actions_json_path = out_dir / "actions.json"
+        actions_json_path.write_text(
+            json.dumps(raw_actions, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        paths["actions_json"] = actions_json_path
+
+        # 2. 开关开启时，额外落盘增强后的 actions_update.json
+        if actions_calendar_backfill_enabled():
+            actions_update_path = out_dir / "actions_update.json"
+            actions_update_path.write_text(
+                json.dumps(final_actions, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            paths["actions_update_json"] = actions_update_path
+
     if line_name == "review":
         import json
 

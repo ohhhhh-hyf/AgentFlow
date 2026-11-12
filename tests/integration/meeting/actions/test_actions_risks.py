@@ -180,9 +180,14 @@ def test_action_items_flat_contract_compatibility() -> None:
     assert "契约解耦与单测" in rendered_text
     assert "完成新旧契约解耦与单测编写" in rendered_text
     assert "核心团队" in rendered_text
-    assert "（责任方：核心团队 配合方：测试组、运维组）" in rendered_text
+    assert "测试组" in rendered_text
+    assert "运维组" in rendered_text
     assert "线上告警监控" in rendered_text
     assert "跟进线上告警指标监控" in rendered_text
+    import json
+    parsed_rendered = json.loads(rendered_text)
+    assert isinstance(parsed_rendered, list)
+    assert len(parsed_rendered) == 2
 
     # 3. 验证经过 LLMClient 结构化解析器时不会被剥离 actions
     import json

@@ -13,7 +13,7 @@ from core.schema.contracts import (
 from core.schema.fallback_rules import FallbackRules, Lines
 
 
-# 待办只做客观输出：单一扁平 actions 数组，每条 8 字段。
+# 待办只做客观输出：单一扁平 actions 数组，每条 7 字段。
 # assigned/unassigned 由 owner 是否为 null 在展示层派生。
 ACTIONS_OBJECTIVE_OUTPUT_FIELDS = ("actions",)
 ACTIONS_OBJECTIVE_ITEM_FIELD_NAMES = (
@@ -24,7 +24,6 @@ ACTIONS_OBJECTIVE_ITEM_FIELD_NAMES = (
     "collaborators",
     "acceptance_criteria",
     "dependency",
-    "evidence",
 )
 ACTIONS_OBJECTIVE_REMOVED_ITEM_FIELDS = (
     "category",
@@ -33,6 +32,7 @@ ACTIONS_OBJECTIVE_REMOVED_ITEM_FIELDS = (
     "deliverable",
     "status",
     "confidence",
+    "evidence",
 )
 ACTIONS_OBJECTIVE_REMOVED_OUTPUT_FIELDS = (
     "assigned_actions",
@@ -49,7 +49,6 @@ ACTION_ITEM_FIELDS = [
     StrListField("collaborators", "原文提到的协同对象/配合方；每个元素一个对象；未提及为空数组"),
     StrField("acceptance_criteria", "原文明示的验收标准、完成判定或交付物；未提及为null"),
     StrField("dependency", "原文明示的前置条件或前置动作；无明确前后制约为null"),
-    StrField("evidence", "原文或actions_text中支撑此待办的可定位摘录"),
 ]
 
 
