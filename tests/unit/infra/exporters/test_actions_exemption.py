@@ -14,8 +14,8 @@ def test_actions_exempted_from_md_and_html_and_saves_flat_json(tmp_path: Path, m
     report_data = {
         "title": "待办清单",
         "actions": [
-            {"title": "任务1", "item": "动作1", "deadline": "明天下午"},
-            {"title": "任务2", "item": "动作2", "deadline": None},
+            {"title": "任务1", "item": "动作1", "owner": "张三", "deadline": "明天下午"},
+            {"title": "任务2", "item": "动作2", "owner": "李四", "deadline": None},
         ],
         "personalized_text": '[{"title": "任务1", "item": "动作1"}]',
     }
@@ -53,6 +53,7 @@ def test_actions_saves_both_jsons_when_backfill_on(tmp_path: Path, monkeypatch) 
             {
                 "title": "任务1",
                 "item": "动作1",
+                "owner": "张三",
                 "deadline": "2026-10-30T18:00:00",
                 "deadline_raw": "明天下午",
                 "deadline_display": "2026/10/30 下午",
@@ -60,6 +61,7 @@ def test_actions_saves_both_jsons_when_backfill_on(tmp_path: Path, monkeypatch) 
             {
                 "title": "任务2",
                 "item": "动作2",
+                "owner": "李四",
                 "deadline": None,
                 "deadline_raw": None,
                 "deadline_display": None,

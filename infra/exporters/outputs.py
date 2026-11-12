@@ -200,8 +200,10 @@ def save_report_artifacts(
     if line_name == "actions":
         import json
         from domains.meeting.domain_config import actions_calendar_backfill_enabled
+        from domains.meeting.tasks.actions.steps.actions_agent import filter_valid_actions
 
-        final_actions = data.get("actions") or []
+        final_actions = filter_valid_actions(data.get("actions") or [])
+        data["actions"] = final_actions
         # 1. 还原纯净的 7 字段原始待办（平铺 JSON 数组），落盘 actions.json
         raw_actions = []
         for it in final_actions:
@@ -214,6 +216,8 @@ def save_report_artifacts(
                 raw_actions.append(raw_it)
             else:
                 raw_actions.append(it)
+
+        raw_actions = filter_valid_actions(raw_actions)
 
         actions_json_path = out_dir / "actions.json"
         actions_json_path.write_text(

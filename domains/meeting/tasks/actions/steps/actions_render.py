@@ -87,6 +87,8 @@ class ActionItemsRender:
     @staticmethod
     def extract_actions(state: MeetingState) -> list[dict]:
         """从 state 中提取最终扁平待办列表（降级兜底用，不调 LLM）。"""
+        from .actions_agent import filter_valid_actions
+
         actions = (
             (state.get("lines") or {})
             .get("actions", {})
@@ -94,8 +96,7 @@ class ActionItemsRender:
             or {}
         )
         items = list(actions.get("actions") or [])
-        # actions 不消费会议理解；只清理占位符 owner，不按参会名单推断人名。
-        return validate_action_roster(items, set())
+        return filter_valid_actions(items)
 
     @staticmethod
     def render_items(items: list[dict]) -> str:
@@ -215,12 +216,14 @@ class ActionItemsRender:
     def render_draft(state: dict) -> str:
         """待办渲染层直接产出/透传平铺 JSON 字符串，不再调用冗长的 Markdown 拼接逻辑。"""
         import json
+        from .actions_agent import filter_valid_actions
 
         actions = (
             (state.get("lines") or {}).get("actions", {}).get("draft") or {}
         )
         items = list(actions.get("actions") or [])
-        return json.dumps(items, ensure_ascii=False, indent=2)
+        valid_items = filter_valid_actions(items)
+        return json.dumps(valid_items, ensure_ascii=False, indent=2)
 
     @staticmethod
     def format_action(index: int, item: dict) -> str:

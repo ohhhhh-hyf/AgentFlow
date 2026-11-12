@@ -7,11 +7,15 @@
 """
 from __future__ import annotations
 
+import logging
 import re
+import time
 from typing import Any, Dict, List, Optional, Sequence
 
 from .agent import CalendarLLMProtocol, run_deadline_agent
 from .config import DEFAULT_TIMEZONE
+
+logger = logging.getLogger("agentflow")
 
 
 _SLOT_TIME_MAP = {
@@ -100,6 +104,7 @@ async def enrich_actions_deadlines(
     # 1. 严格 1:1 提取 deadline 字符串，遇到空值提取为空串以保持数组长度恒等
     raw_texts = [str(a.get("deadline") or "").strip() for a in target_actions]
 
+    t0 = time.time()
     # 2. 边界检查：若全场待办全无 deadline，或开会时间为空，0ms 短路返回
     if not any(raw_texts) or not str(meeting_start_time or "").strip():
         for action in target_actions:
@@ -131,6 +136,14 @@ async def enrich_actions_deadlines(
             action["deadline_display"] = raw_val
             action["deadline"] = None
 
+    dur = time.time() - t0
+    resolved_cnt = sum(1 for a in target_actions if a.get("deadline"))
+    logger.info(
+        "[calendar:enrich:done] dur=%.2fs resolved=%d raw_kept=%d",
+        dur,
+        resolved_cnt,
+        len(target_actions) - resolved_cnt,
+    )
     return target_actions
 
 

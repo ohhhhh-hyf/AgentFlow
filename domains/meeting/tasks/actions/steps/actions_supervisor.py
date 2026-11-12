@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from domains.shared.supervisor import StructuredDomainSupervisor
 
 from ....models import ActionItemsSupervisorReview
@@ -18,3 +20,26 @@ class ActionItemsSupervisor(StructuredDomainSupervisor):
     review_model = ActionItemsSupervisorReview
     output_contract = ACTION_ITEMS_SUPERVISOR_OUTPUT_CONTRACT
     label = "actions/supervisor"
+
+    async def review(self, context: str, **kwargs: Any) -> ActionItemsSupervisorReview:
+        merged_kwargs = dict(self.extra_kwargs)
+        valid_keys = {
+            "temperature",
+            "max_tokens",
+            "timeout",
+            "allow_missing",
+            "preserve_content_on_validation_error",
+        }
+        for k, v in kwargs.items():
+            if k in valid_keys:
+                merged_kwargs[k] = v
+        if "timeout" not in merged_kwargs:
+            merged_kwargs["timeout"] = 45.0  # 防死锁硬超时防御
+        return await self.client.structured(
+            self._system_prompt,
+            context,
+            self.review_model,
+            self.output_contract,
+            label=self.label,
+            **merged_kwargs,
+        )
