@@ -185,23 +185,35 @@ def test_sync_actions_dual_state_with_time(mock_chat_json):
     assert "actions_update" in res
     assert res["monitor"]["calendar_executed"] is True
 
+    # 验证 data.text 返回平铺增强待办且 file_name 为 actions_update.json
+    assert res["data"]["file_name"] == "actions_update.json"
+    assert isinstance(res["data"]["text"], list)
+    assert res["data"]["text"] == res["actions_update"]
+
     # 验证 actions_update 回填了绝对时间
     act_update = res["actions_update"][0]
     assert act_update["deadline_display"] == "2026/10/31 18:00"
     assert act_update["deadline"] == "2026-10-31T18:00:00"
 
-    # 验证落盘文件包含两份
+    # 验证落盘文件：actions.json 与 actions_update.json 独立存在且均为纯平铺数组
     expected_file = DEMO_ROOT / "data" / user_id / "output" / request_id / "actions.json"
     assert expected_file.is_file()
     disk_data = json.loads(expected_file.read_text(encoding="utf-8"))
-    assert "actions" in disk_data
-    assert "actions_update" in disk_data
+    assert isinstance(disk_data, list)
+    assert len(disk_data) == 1
+    assert disk_data[0]["deadline"] == "明天18:00"
 
-    # 验证 output 目录下仅有 actions.json
+    expected_update_file = DEMO_ROOT / "data" / user_id / "output" / request_id / "actions_update.json"
+    assert expected_update_file.is_file()
+    disk_update = json.loads(expected_update_file.read_text(encoding="utf-8"))
+    assert isinstance(disk_update, list)
+    assert len(disk_update) == 1
+    assert disk_update[0]["deadline_display"] == "2026/10/31 18:00"
+
+    # 验证 output 目录下有且仅有 actions.json 与 actions_update.json 两个文件
     output_dir = expected_file.parent
-    files = list(output_dir.iterdir())
-    assert len(files) == 1
-    assert files[0].name == "actions.json"
+    files = sorted(f.name for f in output_dir.iterdir())
+    assert files == ["actions.json", "actions_update.json"]
 
 
 @patch("infra.llm.client.LLMClient.chat_json")
@@ -248,12 +260,25 @@ def test_sync_actions_dual_state_without_time(mock_chat_json):
     assert "actions_update" not in res  # 态 B 绝不含 actions_update
     assert res["monitor"]["calendar_executed"] is False
 
-    # 验证落盘文件仅包含 actions
+    # 验证 data.text 返回平铺待办且 file_name 为 actions.json
+    assert res["data"]["file_name"] == "actions.json"
+    assert isinstance(res["data"]["text"], list)
+    assert res["data"]["text"] == res["actions"]
+
+    # 验证落盘文件：仅生成 actions.json 纯平铺数组，不生成 actions_update.json
     expected_file = DEMO_ROOT / "data" / user_id / "output" / request_id / "actions.json"
     assert expected_file.is_file()
     disk_data = json.loads(expected_file.read_text(encoding="utf-8"))
-    assert "actions" in disk_data
-    assert "actions_update" not in disk_data
+    assert isinstance(disk_data, list)
+    assert len(disk_data) == 1
+
+    expected_update_file = DEMO_ROOT / "data" / user_id / "output" / request_id / "actions_update.json"
+    assert not expected_update_file.exists()
+
+    output_dir = expected_file.parent
+    files = list(output_dir.iterdir())
+    assert len(files) == 1
+    assert files[0].name == "actions.json"
 
 
 @patch("infra.llm.client.LLMClient.stream_text")

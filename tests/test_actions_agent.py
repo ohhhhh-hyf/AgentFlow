@@ -217,11 +217,23 @@ def test_extract_actions_agent_mock_dual_states(tmp_path: Path):
         assert res_a["actions_update"][0]["deadline_display"] == "2026/10/31 18:00"
         assert res_a["actions_update"][0]["deadline"] == "2026-10-31T18:00:00"
 
-        # 验证落盘文件包含两份
+        # 验证 data.text 返回平铺待办且 file_name 对齐
+        assert res_a["data"]["file_name"] == "actions_update.json"
+        assert isinstance(res_a["data"]["text"], list)
+        assert res_a["data"]["text"] == res_a["actions_update"]
+
+        # 验证落盘文件：actions.json 与 actions_update.json 均为纯平铺数组
         assert out_file_a.is_file()
         disk_data_a = json.loads(out_file_a.read_text(encoding="utf-8"))
-        assert "actions" in disk_data_a
-        assert "actions_update" in disk_data_a
+        assert isinstance(disk_data_a, list)
+        assert len(disk_data_a) == 2
+
+        out_file_update_a = out_file_a.parent / "actions_update.json"
+        assert out_file_update_a.is_file()
+        disk_update_a = json.loads(out_file_update_a.read_text(encoding="utf-8"))
+        assert isinstance(disk_update_a, list)
+        assert len(disk_update_a) == 2
+        assert disk_update_a[0]["deadline_display"] == "2026/10/31 18:00"
 
         # ── 2. 态 B：未提供会议时间（完全跳过 Calendar） ──────────────────
         out_file_b = tmp_path / "user2" / "output" / "req2" / "actions.json"
@@ -243,10 +255,18 @@ def test_extract_actions_agent_mock_dual_states(tmp_path: Path):
         assert res_b["monitor"]["calendar_executed"] is False
         assert len(res_b["actions"]) == 2
 
-        # 验证落盘文件仅包含 actions
+        # 验证 data.text 返回平铺待办且 file_name 对齐
+        assert res_b["data"]["file_name"] == "actions.json"
+        assert isinstance(res_b["data"]["text"], list)
+        assert res_b["data"]["text"] == res_b["actions"]
+
+        # 验证落盘文件：仅生成 actions.json 纯平铺数组，不生成 actions_update.json
         assert out_file_b.is_file()
         disk_data_b = json.loads(out_file_b.read_text(encoding="utf-8"))
-        assert "actions" in disk_data_b
-        assert "actions_update" not in disk_data_b
+        assert isinstance(disk_data_b, list)
+        assert len(disk_data_b) == 2
+
+        out_file_update_b = out_file_b.parent / "actions_update.json"
+        assert not out_file_update_b.is_file()
 
     asyncio.run(_test())

@@ -209,32 +209,55 @@ async def extract_actions_agent(
     else:
         # 态 B：未传时间，完全跳过 Calendar（0ms 开销）
         logger.info("[ACTIONS:STATE] mode=without_time skip_calendar=true")
-        payload = {
-            "actions": normalized_actions,
-        }
 
-    # 6. 用户级隔离落盘：data/{user_id}/output/{request_id}/actions.json
+    target_actions = enriched_actions if (has_time and enriched_actions is not None) else normalized_actions
+    target_file_name = "actions_update.json" if (has_time and enriched_actions is not None) else "actions.json"
+
+    # 6. 用户级隔离落盘（完全剥离 actions 字典外壳，落盘纯平铺 JSON 数组）
     if output_path:
         target_path = Path(output_path)
+        target_dir = target_path.parent
     else:
-        target_path = DEFAULT_DATA_DIR / uid / "output" / req_id / "actions.json"
+        target_dir = DEFAULT_DATA_DIR / uid / "output" / req_id
+        target_path = target_dir / target_file_name
 
+    target_dir.mkdir(parents=True, exist_ok=True)
+    actions_file = target_dir / "actions.json"
     try:
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        logger.info(f"[ARTIFACT:SAVE] type=actions path={target_path}")
+        actions_file.write_text(json.dumps(normalized_actions, ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.info(f"[ARTIFACT:SAVE] type=actions path={actions_file}")
     except Exception as io_err:
-        logger.warning(f"[ARTIFACT:SAVE:ERROR] type=actions path={target_path} err={io_err}")
+        logger.warning(f"[ARTIFACT:SAVE:ERROR] type=actions path={actions_file} err={io_err}")
+
+    if has_time and enriched_actions is not None:
+        actions_update_file = target_dir / "actions_update.json"
+        try:
+            actions_update_file.write_text(json.dumps(enriched_actions, ensure_ascii=False, indent=2), encoding="utf-8")
+            logger.info(f"[ARTIFACT:SAVE] type=actions_update path={actions_update_file}")
+        except Exception as io_err:
+            logger.warning(f"[ARTIFACT:SAVE:ERROR] type=actions_update path={actions_update_file} err={io_err}")
 
     cost_time = round(time.perf_counter() - start_time, 2)
     logger.info(
         f"[ACTIONS:DONE] req_id={req_id} count={len(normalized_actions)} "
-        f"calendar={has_time} dur={cost_time:.2f}s file={target_path}"
+        f"calendar={has_time} dur={cost_time:.2f}s file={target_file_name}"
     )
+
+    # 控制台实时输出剥离外壳后的最终平铺待办 JSON 数组
+    print(
+        f"\n[ACTIONS:RESULT] req_id={req_id} count={len(target_actions)} "
+        f"file={target_file_name}:\n"
+        f"{json.dumps(target_actions, ensure_ascii=False, indent=2)}"
+    )
+
     response_data: dict[str, Any] = {
         "code": 0,
         "message": "success",
         "request_id": req_id,
+        "data": {
+            "text": target_actions,
+            "file_name": target_file_name,
+        },
         "actions": normalized_actions,
         "monitor": {
             "cost_time": cost_time,
