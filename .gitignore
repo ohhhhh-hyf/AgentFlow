@@ -1,0 +1,42 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches and environments
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+
+# IDE & Editor configs
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Environment variables & secrets (CRITICAL: Do NOT commit secrets)
+.env
+.env.local
+*.env
+
+# Service runtime logs
+logs/
+*.log
+
+# Runtime user outputs (keep data/*/docs/ test assets, ignore generated outputs)
+data/*/output/
+data/test_*/
+data/user_*/
+data/real_user_*/
+
+# Temporary and test Excel runs
+*.bak.xlsx
+api_test/*.bak.xlsx
+api_test/sample_*.xlsx
+api_test/test_run.xlsx

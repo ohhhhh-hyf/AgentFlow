@@ -1,0 +1,264 @@
+"""端到端集成测试 (FastAPI TestClient):
+验证统一入口 POST /api/agent/v1/stream 与 POST /api/agent/v1。
+覆盖以下核心契约：
+1. 流式 NDJSON 直出与 chunk / done 事件解析；
+2. 用户级目录物理隔离落盘 (data/{user_id}/output/{request_id}/)；
+3. 纪要仅产生 minutes.md，待办仅产生 actions.json；
+4. 待办双态逻辑（传 time 走 Calendar 生成 actions + actions_update，未传 time 跳过 Calendar 仅生成 actions）；
+5. 英文多语言后处理与序号罗马化；
+6. Request-Id 与 User-Id 穿透传递。
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+DEMO_ROOT = Path(__file__).resolve().parent.parent
+if str(DEMO_ROOT) not in sys.path:
+    sys.path.insert(0, str(DEMO_ROOT))
+
+from main import app
+
+client = TestClient(app)
+
+
+def test_health_check():
+    """测试健康探针."""
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+
+
+@patch("infra.llm.client.LLMClient.stream_text")
+def test_stream_minutes_endpoint_user_isolation(mock_stream, tmp_path: Path):
+    """测试 POST /api/agent/v1/stream: 流式 NDJSON 直出、用户隔离落盘与后处理."""
+    # 模拟大模型输出带围栏与方括号的 Markdown
+    async def _mock_stream_tokens(*args, **kwargs):
+        yield "好的，为您整理如下纪要：\n```markdown\n"
+        yield "# [全文摘要]\n本次会议研讨顺利。\n\n"
+        yield "# [要点梳理]\n## [板块一]\n- 方案落地完成。\n"
+        yield "```"
+
+    mock_stream.side_effect = _mock_stream_tokens
+
+    user_id = "test_user_001"
+    request_id = "req_stream_abc123"
+
+    req_body = {
+        "task": "minutes",
+        "transcript": "今天召开核心系统架构评审会...",
+        "template": "general_minutes",
+        "lang": "zh",
+    }
+
+    headers = {
+        "X-User-Id": user_id,
+        "X-Request-Id": request_id,
+    }
+
+    # 执行流式请求
+    response = client.post("/api/agent/v1/stream", json=req_body, headers=headers)
+    assert response.status_code == 200
+    assert response.headers.get("X-Request-Id") == request_id
+    assert "application/x-ndjson" in response.headers.get("content-type", "")
+
+    # 解析 NDJSON 事件帧
+    lines = [line.strip() for line in response.text.splitlines() if line.strip()]
+    assert len(lines) >= 2  # 包含至少若干 chunk 和最后的 done
+
+    done_event = None
+    chunks = []
+    for line in lines:
+        evt = json.loads(line)
+        if evt.get("type") == "chunk":
+            chunks.append(evt.get("text", ""))
+        elif evt.get("type") == "done":
+            done_event = evt
+
+    assert done_event is not None
+    assert done_event["code"] == 0
+    assert done_event["request_id"] == request_id
+    assert done_event["data"]["file_name"] == "minutes.md"
+
+    # 验证后处理清洗效果：方括号和代码围栏被剥离
+    final_content = done_event["data"]["content"]
+    assert "# 全文摘要" in final_content
+    assert "[" not in final_content
+    assert "```" not in final_content
+
+    # 验证用户级隔离落盘路径
+    expected_file = DEMO_ROOT / "data" / user_id / "output" / request_id / "minutes.md"
+    assert expected_file.is_file()
+    assert expected_file.read_text(encoding="utf-8") == final_content
+
+    # 验证 output 目录下仅有 minutes.md，绝无其他冗余文件
+    output_dir = expected_file.parent
+    files = list(output_dir.iterdir())
+    assert len(files) == 1
+    assert files[0].name == "minutes.md"
+
+
+@patch("infra.llm.client.LLMClient.stream_text")
+def test_stream_minutes_english_localization(mock_stream):
+    """测试英文模式下流式输出、英文模板与序号罗马化."""
+    async def _mock_stream_tokens(*args, **kwargs):
+        yield "# [Executive Summary]\nThe project has achieved all targets.\n\n"
+        yield "## 一. [Infrastructure Update]\n- Completed cloud migration.\n"
+
+    mock_stream.side_effect = _mock_stream_tokens
+
+    user_id = "user_en_test"
+    req_body = {
+        "transcript": "Project status review meeting...",
+        "template": "general_minutes",
+        "lang": "en",
+    }
+    headers = {"X-User-Id": user_id}
+
+    response = client.post("/api/agent/v1/stream", json=req_body, headers=headers)
+    assert response.status_code == 200
+
+    lines = [line.strip() for line in response.text.splitlines() if line.strip()]
+    done_evt = json.loads(lines[-1])
+    content = done_evt["data"]["content"]
+
+    # 验证标题清洗与英文序号转换 (## 一. -> ## I.)
+    assert "# Executive Summary" in content
+    assert "## I. Infrastructure Update" in content
+
+
+@patch("infra.llm.client.LLMClient.chat_json")
+def test_sync_actions_dual_state_with_time(mock_chat_json):
+    """测试 POST /api/agent/v1 (task='actions'): 态 A 传时间 -> 产出并落盘 actions + actions_update."""
+    mock_chat_json.return_value = {
+        "actions": [
+            {
+                "title": "性能压测",
+                "item": "组织核心链路性能基准压测",
+                "owner": "李四",
+                "deadline": "明天18:00",
+                "collaborators": ["张三"],
+                "acceptance_criteria": "TPS > 3000",
+                "dependency": None,
+            }
+        ]
+    }
+
+    user_id = "user_act_state_a"
+    request_id = "req_act_with_time"
+
+    req_body = {
+        "task": "actions",
+        "transcript": "李四负责核心链路性能压测，明天18:00前完成...",
+        "time": "2026-10-30 10:00:00",  # 传了时间 -> 态 A
+    }
+    headers = {
+        "X-User-Id": user_id,
+        "X-Request-Id": request_id,
+    }
+
+    response = client.post("/api/agent/v1", json=req_body, headers=headers)
+    assert response.status_code == 200
+    res = response.json()
+
+    assert res["code"] == 0
+    assert res["request_id"] == request_id
+    assert "actions" in res
+    assert "actions_update" in res
+    assert res["monitor"]["calendar_executed"] is True
+
+    # 验证 actions_update 回填了绝对时间
+    act_update = res["actions_update"][0]
+    assert act_update["deadline_display"] == "2026/10/31 18:00"
+    assert act_update["deadline"] == "2026-10-31T18:00:00"
+
+    # 验证落盘文件包含两份
+    expected_file = DEMO_ROOT / "data" / user_id / "output" / request_id / "actions.json"
+    assert expected_file.is_file()
+    disk_data = json.loads(expected_file.read_text(encoding="utf-8"))
+    assert "actions" in disk_data
+    assert "actions_update" in disk_data
+
+    # 验证 output 目录下仅有 actions.json
+    output_dir = expected_file.parent
+    files = list(output_dir.iterdir())
+    assert len(files) == 1
+    assert files[0].name == "actions.json"
+
+
+@patch("infra.llm.client.LLMClient.chat_json")
+def test_sync_actions_dual_state_without_time(mock_chat_json):
+    """测试 POST /api/agent/v1 (task='actions'): 态 B 未传时间 -> 跳过 Calendar，仅产出 actions."""
+    mock_chat_json.return_value = {
+        "actions": [
+            {
+                "title": "方案编写",
+                "item": "梳理总体技术架构设计方案",
+                "owner": "王五",
+                "deadline": "下周五",
+                "collaborators": [],
+                "acceptance_criteria": "通过评审",
+                "dependency": None,
+            }
+        ]
+    }
+
+    user_id = "user_act_state_b"
+    request_id = "req_act_no_time"
+
+    req_body = {
+        "task": "actions",
+        "transcript": "王五负责总体技术架构设计方案，下周五前输出...",
+        "time": "",  # 未传时间 -> 态 B
+    }
+    headers = {
+        "X-User-Id": user_id,
+        "X-Request-Id": request_id,
+    }
+
+    response = client.post("/api/agent/v1", json=req_body, headers=headers)
+    assert response.status_code == 200
+    res = response.json()
+
+    assert res["code"] == 0
+    assert res["request_id"] == request_id
+    assert "actions" in res
+    assert "actions_update" not in res  # 态 B 绝不含 actions_update
+    assert res["monitor"]["calendar_executed"] is False
+
+    # 验证落盘文件仅包含 actions
+    expected_file = DEMO_ROOT / "data" / user_id / "output" / request_id / "actions.json"
+    assert expected_file.is_file()
+    disk_data = json.loads(expected_file.read_text(encoding="utf-8"))
+    assert "actions" in disk_data
+    assert "actions_update" not in disk_data
+
+
+@patch("infra.llm.client.LLMClient.stream_text")
+def test_sync_minutes_endpoint(mock_stream):
+    """测试 POST /api/agent/v1 (task='minutes'): 同步返回纪要."""
+    async def _mock_stream_tokens(*args, **kwargs):
+        yield "# 全文摘要\n同步接口生成成功。"
+
+    mock_stream.side_effect = _mock_stream_tokens
+
+    user_id = "user_sync_min"
+    req_body = {
+        "task": "minutes",
+        "transcript": "讨论内容...",
+        "template": "general_minutes",
+    }
+    headers = {"X-User-Id": user_id}
+
+    response = client.post("/api/agent/v1", json=req_body, headers=headers)
+    assert response.status_code == 200
+    res = response.json()
+
+    assert res["code"] == 0
+    assert res["data"]["file_name"] == "minutes.md"
+    assert "# 全文摘要" in res["data"]["content"]
