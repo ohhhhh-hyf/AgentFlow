@@ -103,6 +103,26 @@ def build_minutes_user_message(
     return "\n\n".join(parts)
 
 
+def _resolve_doc_path(doc_item: str | Path) -> Path | None:
+    """容错定位文档路径: 支持绝对路径、相对当前工作目录、相对 DEMO_ROOT 及相对 data 目录."""
+    p = Path(doc_item)
+    if p.is_file():
+        return p.resolve()
+    demo_root = DEFAULT_DATA_DIR.parent
+    if (demo_root / p).is_file():
+        return (demo_root / p).resolve()
+    if (DEFAULT_DATA_DIR / p).is_file():
+        return (DEFAULT_DATA_DIR / p).resolve()
+    parts = list(p.parts)
+    if parts and parts[0] in ("demo", "data"):
+        sub_p = Path(*parts[1:])
+        if (demo_root / sub_p).is_file():
+            return (demo_root / sub_p).resolve()
+        if (DEFAULT_DATA_DIR / sub_p).is_file():
+            return (DEFAULT_DATA_DIR / sub_p).resolve()
+    return None
+
+
 async def stream_minutes_agent(
     *,
     transcript: str,
@@ -145,17 +165,31 @@ async def stream_minutes_agent(
         or ""
     )
     if not agenda_source and docs:
+        logger.info(f"[AGENDA:INPUT] received docs_count={len(docs)} docs={docs}")
         for doc_item in docs:
-            doc_path = Path(str(doc_item))
-            if doc_path.is_file() and doc_path.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".bmp"):
+            resolved_doc = _resolve_doc_path(doc_item)
+            if not resolved_doc:
+                logger.warning(f"[AGENDA:DOC:NOT_FOUND] Cannot find doc file on disk: {doc_item}")
+                continue
+            if resolved_doc.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".bmp"):
+                logger.info(f"[VLM:REQ] file={resolved_doc.name} path={resolved_doc} size={resolved_doc.stat().st_size}B")
                 try:
                     from infra.vlm.agenda_client import extract_agenda_from_image
-                    vlm_res = extract_agenda_from_image(doc_path.read_bytes())
+                    vlm_res = extract_agenda_from_image(resolved_doc)
                     if vlm_res and vlm_res.get("agenda_items"):
+                        items = vlm_res["agenda_items"]
+                        titles = [str(it.get("title", "")) for it in items]
+                        logger.info(f"[VLM:RES] status=success items={len(items)} titles={titles}")
                         agenda_source = vlm_res
                         break
+                    else:
+                        logger.warning(f"[VLM:RES] status=empty_or_failed file={resolved_doc.name}")
                 except Exception as vlm_err:
-                    logger.warning(f"VLM extraction failed for {doc_path}: {vlm_err}, fallback to normal mode")
+                    logger.warning(f"[VLM:RES:ERROR] file={resolved_doc.name} err={vlm_err}")
+    elif agenda_source:
+        logger.info(f"[AGENDA:INPUT] source=text_or_plan len={len(str(agenda_source))}")
+    else:
+        logger.info("[AGENDA:INPUT] source=none mode=normal")
 
     agenda_result = process_agenda_for_minutes(
         transcript=transcript,
@@ -164,6 +198,12 @@ async def stream_minutes_agent(
     is_agenda = agenda_result.has_valid_agenda
     valid_agendas = agenda_result.valid_agendas
     formatted_transcript = agenda_result.tagged_transcript if is_agenda else transcript
+
+    logger.info(
+        f"[AGENDA:DECISION] is_agenda={is_agenda} valid_count={len(valid_agendas)} "
+        f"mode={'topic_major' if is_agenda else 'normal'} "
+        f"reason={'aligned ' + str(len(valid_agendas)) + ' discussion topics' if is_agenda else 'no valid discussion aligned, fallback normal'}"
+    )
 
     # 2. 智能模板匹配（无开关，未指定则强制自动触发）
     chosen_template = (template_id or extra_params.get("template") or "").strip()
