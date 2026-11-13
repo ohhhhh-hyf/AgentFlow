@@ -22,8 +22,15 @@ from typing import Any
 
 from PIL import Image, ImageOps
 import requests
+from dotenv import load_dotenv
 
 logger = logging.getLogger("infra.vlm.agenda")
+
+# 保证优先加载 demo 根目录 .env
+_DEMO_ROOT = Path(__file__).resolve().parents[2]
+if (_DEMO_ROOT / ".env").is_file():
+    load_dotenv(_DEMO_ROOT / ".env", override=False)
+load_dotenv(override=False)
 
 # 默认服务配置（优先从环境变量/.env读取）
 DEFAULT_VLM_ENDPOINT = os.getenv("VLM_AGENDA_ENDPOINT", "http://10.34.23.78:8888/predict")
@@ -174,19 +181,20 @@ class AgendaVisionClient:
 
     def __init__(
         self,
-        endpoint_url: str = DEFAULT_VLM_ENDPOINT,
-        app_id: str = DEFAULT_VLM_APP_ID,
-        sign_key: str = DEFAULT_VLM_SIGN_KEY,
-        b_id: str = DEFAULT_VLM_BID,
-        flow_id: str = DEFAULT_VLM_FLOWID,
-        timeout: int = DEFAULT_VLM_TIMEOUT,
+        endpoint_url: str | None = None,
+        app_id: str | None = None,
+        sign_key: str | None = None,
+        b_id: str | None = None,
+        flow_id: str | None = None,
+        timeout: int | None = None,
     ) -> None:
-        self.endpoint_url = endpoint_url
-        self.app_id = app_id
-        self.sign_key = sign_key
-        self.b_id = b_id
-        self.flow_id = flow_id
-        self.timeout = timeout
+        self.endpoint_url = endpoint_url or os.getenv("VLM_AGENDA_ENDPOINT") or DEFAULT_VLM_ENDPOINT
+        self.app_id = app_id or os.getenv("VLM_AGENDA_APPID") or DEFAULT_VLM_APP_ID
+        self.sign_key = sign_key or os.getenv("VLM_AGENDA_SIGNKEY") or DEFAULT_VLM_SIGN_KEY
+        self.b_id = b_id or os.getenv("VLM_AGENDA_BID") or DEFAULT_VLM_BID
+        self.flow_id = flow_id or os.getenv("VLM_AGENDA_FLOWID") or DEFAULT_VLM_FLOWID
+        timeout_val = timeout if timeout is not None else int(os.getenv("VLM_AGENDA_TIMEOUT", str(DEFAULT_VLM_TIMEOUT)))
+        self.timeout = timeout_val
 
     def extract_agenda(
         self,
