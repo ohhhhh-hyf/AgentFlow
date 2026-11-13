@@ -101,5 +101,8 @@ pytest tests/ -v
 * **`extra` 字段说明**：
   * `template`：模板名称（留空自动智能分类）；
   * `time`：会议召开时间（待办传时间走 Calendar 回填，未传则跳过 Calendar）；
-  * `agenda_plan`：直接注入结构化议程 JSON。
+  * `agenda_plan`：直接注入结构化议程（强类型 `AgendaPlan` 契约，支持字典或 JSON 字符串）：
+    - `meta`（选填）：`theme`（会议主题）、`attendees`（主持人/与会人）；
+    - `items`（对象数组）：既定议程项列表。**仅 `title`（议题全称）为唯一核心必填**；`seq`（序号）、`presenters`（汇报人列表）、`time_range`（起止时段）均为选填，缺省自动编排补齐；
+    - 兼容 VLM 团队直传扁平格式（`theme`, `attendees`, `agenda_items`）。
 

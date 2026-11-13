@@ -496,11 +496,28 @@ container: 议题梳理
 
 ### 2. 核心 Pydantic 契约定义
 ```python
+class AgendaItem(BaseModel):
+    """单项既定议程强类型契约 (严格对齐 2+4 核心字段，仅 title 必填)"""
+    title: str = Field(..., min_length=1, description="议题全称【唯一核心必填】")
+    seq: str = Field(default="", description="议程序号（选填，如 '01'，缺省自动编排）")
+    presenters: list[str] = Field(default_factory=list, description="主讲人/汇报人列表（选填）")
+    time_range: str = Field(default="", description="预定起止时段（选填，如 '14:00-14:30'）")
+
+class AgendaMeta(BaseModel):
+    """议程顶层元数据强类型契约"""
+    theme: str = Field(default="", description="会议总主题或议程标题（选填）")
+    attendees: str = Field(default="", description="主持人/召集人/全场与会人员名单（选填）")
+
+class AgendaPlan(BaseModel):
+    """全会议程大盘强类型契约 (兼容 2+4 核心 items 契约与 VLM 扁平 agenda_items 契约)"""
+    meta: AgendaMeta = Field(default_factory=AgendaMeta)
+    items: list[AgendaItem] = Field(default_factory=list)
+
 class Extra(BaseModel):
     """任务差异参数（严格对齐根项目）"""
     template: str = ""                                  # 模板名称（如 general_minutes，空则自动分类）
     time: str = ""                                      # 会议时间（如 2026/11/13 14:00，用于待办推导绝对时间）
-    agenda_plan: Optional[Union[dict[str, Any], str]] = None  # 结构化议程字典或 JSON 字符串
+    agenda_plan: Optional[AgendaPlan] = None            # 强类型议程大盘 (支持 AgendaPlan 字典或 JSON 字符串，仅 title 必填)
 
 class TaskRequest(BaseModel):
     """统一严格请求体契约"""

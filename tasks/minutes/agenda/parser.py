@@ -521,11 +521,12 @@ def ensure_agenda_plan(data: dict[str, Any] | list[Any] | AgendaPlan | str, tran
             plan = reconcile_presenter_names(plan, transcript=transcript)
         return plan
     if isinstance(data, dict):
-        theme = str(data.get("theme") or "").strip()
-        raw_att = data.get("attendees") or []
+        meta_dict = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+        theme = str(meta_dict.get("theme") or data.get("theme") or "").strip()
+        raw_att = meta_dict.get("attendees") or data.get("attendees") or []
         attendees = "、".join(raw_att) if isinstance(raw_att, list) else str(raw_att).strip()
         items = []
-        raw_items = data.get("agenda_items") or data.get("agenda_plan") or data.get("items") or []
+        raw_items = data.get("items") or data.get("agenda_items") or data.get("agenda_plan") or []
         for it in raw_items:
             if isinstance(it, dict):
                 title = str(it.get("title") or it.get("topic") or "").strip()

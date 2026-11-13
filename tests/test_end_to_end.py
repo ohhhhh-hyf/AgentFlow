@@ -364,3 +364,93 @@ def test_actions_text_in_actions_agent(mock_chat_json):
     assert res["code"] == 0
     assert len(res["actions"]) == 1
     assert res["actions"][0]["title"] == "合同确认"
+
+
+def test_agenda_plan_schema_strict_validation():
+    """测试 agenda_plan 强类型契约校验: 仅 title 必填，支持标准 items、VLM 直传与合法 JSON."""
+    # 1. 最小合法报文: 仅传 title (其他字段自适应缺省)
+    req_minimal = {
+        "task": "minutes",
+        "texts": {"transcript": "发言者1：开会。"},
+        "extra": {
+            "agenda_plan": {
+                "items": [
+                    {"title": "自研芯片量产评审"}  # 仅 title
+                ]
+            }
+        }
+    }
+    resp1 = client.post("/api/agent/v1/stream", json=req_minimal)
+    assert resp1.status_code == 200
+
+    # 2. 缺失必填字段 title 时拦截报 422
+    req_no_title = {
+        "task": "minutes",
+        "texts": {"transcript": "发言者1：开会。"},
+        "extra": {
+            "agenda_plan": {
+                "items": [
+                    {"seq": "01", "presenters": ["张三"]}  # 缺少核心必填 title
+                ]
+            }
+        }
+    }
+    resp2 = client.post("/api/agent/v1/stream", json=req_no_title)
+    assert resp2.status_code == 422
+
+    # 3. title 为空字符串时拦截报 422
+    req_empty_title = {
+        "task": "minutes",
+        "texts": {"transcript": "发言者1：开会。"},
+        "extra": {
+            "agenda_plan": {
+                "items": [
+                    {"title": "   "}
+                ]
+            }
+        }
+    }
+    resp3 = client.post("/api/agent/v1/stream", json=req_empty_title)
+    assert resp3.status_code == 422
+
+    # 4. 非法 JSON 字符串拦截报 422
+    req_bad_json = {
+        "task": "minutes",
+        "texts": {"transcript": "发言者1：开会。"},
+        "extra": {
+            "agenda_plan": "invalid json string {{"
+        }
+    }
+    resp4 = client.post("/api/agent/v1/stream", json=req_bad_json)
+    assert resp4.status_code == 422
+
+    # 5. 合法 JSON 字符串反序列化并通过
+    req_json_str = {
+        "task": "minutes",
+        "texts": {"transcript": "发言者1：开会。"},
+        "extra": {
+            "agenda_plan": json.dumps({
+                "meta": {"theme": "技术例会", "attendees": "张三；李四"},
+                "items": [{"title": "算法调优", "presenters": ["李四"]}]
+            })
+        }
+    }
+    resp5 = client.post("/api/agent/v1/stream", json=req_json_str)
+    assert resp5.status_code == 200
+
+    # 6. VLM 团队直传扁平格式归一并通过
+    req_vlm = {
+        "task": "minutes",
+        "texts": {"transcript": "发言者1：开会。"},
+        "extra": {
+            "agenda_plan": {
+                "theme": "技术评审",
+                "attendees": ["张三", "李四"],
+                "agenda_items": [
+                    {"title": "视觉多模态接口上线", "presenters": ["王工"]}
+                ]
+            }
+        }
+    }
+    resp6 = client.post("/api/agent/v1/stream", json=req_vlm)
+    assert resp6.status_code == 200

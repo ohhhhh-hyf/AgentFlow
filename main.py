@@ -15,7 +15,7 @@ from typing import Any, Optional, Union
 from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from infra.telemetry import setup_logging, unify_uvicorn_loggers
 from infra.telemetry.middleware import LoggingMiddleware
@@ -48,13 +48,128 @@ app.add_middleware(
 TEXT_KEYS = ("transcript", "keypoints", "notes", "vision_info", "actions_text")
 
 
+class AgendaItem(BaseModel):
+    """单项既定议程强类型契约 (严格对齐 2+4 核心字段，仅 title 必填)."""
+
+    title: str = Field(..., min_length=1, description="议题全称（【唯一核心必填】，语义对齐与打标依据）")
+    seq: str = Field(default="", description="议程序号（选填，如 '01'，缺省自动编排）")
+    presenters: list[str] = Field(default_factory=list, description="主讲人/汇报人姓名列表（选填）")
+    time_range: str = Field(default="", description="预定起止时段（选填，如 '14:00-14:30'）")
+
+    @field_validator("title")
+    @classmethod
+    def _validate_title(cls, v: str) -> str:
+        s = (v or "").strip()
+        if not s:
+            raise ValueError("title 不能为空")
+        return s
+
+    @field_validator("presenters", mode="before")
+    @classmethod
+    def _validate_presenters(cls, v: Any) -> list[str]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            from tasks.minutes.agenda.parser import clean_presenter_names
+
+            return clean_presenter_names(v)
+        if isinstance(v, list):
+            res: list[str] = []
+            for it in v:
+                s = str(it).strip()
+                if s:
+                    res.append(s)
+            return res
+        return []
+
+    @field_validator("seq", mode="before")
+    @classmethod
+    def _validate_seq(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        s = str(v).strip()
+        if s.isdigit() and len(s) == 1:
+            return f"0{s}"
+        return s
+
+
+class AgendaMeta(BaseModel):
+    """议程顶层元数据强类型契约."""
+
+    theme: str = Field(default="", description="会议总主题或议程标题（选填）")
+    attendees: str = Field(default="", description="主持人/召集人/全场与会人员名单（选填）")
+
+    @field_validator("attendees", mode="before")
+    @classmethod
+    def _validate_attendees(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, list):
+            return "；".join(str(it).strip() for it in v if str(it).strip())
+        return str(v).strip()
+
+
+class AgendaPlan(BaseModel):
+    """全会议程大盘强类型契约 (严格对齐根项目 2+4 规范，兼容标准 items 与 VLM 扁平 agenda_items)."""
+
+    meta: AgendaMeta = Field(default_factory=AgendaMeta)
+    items: list[AgendaItem] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_plan(cls, data: Any) -> Any:
+        if data is None:
+            return {"meta": {}, "items": []}
+        if isinstance(data, str):
+            import json
+
+            s = data.strip()
+            if not s:
+                return {"meta": {}, "items": []}
+            try:
+                data = json.loads(s)
+            except Exception as err:
+                raise ValueError(f"agenda_plan JSON 字符串解析失败: {err}") from err
+
+        if not isinstance(data, dict):
+            raise ValueError("agenda_plan 必须是字典或合法 JSON 字符串")
+
+        # 兼容 VLM 团队直传扁平格式: {"theme": ..., "attendees": [...], "agenda_items": [...]}
+        if "items" not in data and "agenda_items" in data:
+            raw_items = data.get("agenda_items") or []
+            meta_theme = data.get("theme") or ""
+            meta_att = data.get("attendees") or ""
+            items_list = []
+            for idx, it in enumerate(raw_items, 1):
+                if isinstance(it, dict):
+                    it_copy = dict(it)
+                    if not it_copy.get("seq"):
+                        it_copy["seq"] = f"{idx:02d}"
+                    items_list.append(it_copy)
+            return {
+                "meta": {
+                    "theme": meta_theme,
+                    "attendees": meta_att,
+                },
+                "items": items_list,
+            }
+
+        # 标准格式: 若 items 中的项缺少 seq，自动按 01, 02 补齐
+        if "items" in data and isinstance(data["items"], list):
+            for idx, it in enumerate(data["items"], 1):
+                if isinstance(it, dict) and not it.get("seq"):
+                    it["seq"] = f"{idx:02d}"
+
+        return data
+
+
 class Extra(BaseModel):
     """任务差异参数（严格对齐根项目）."""
 
     template: str = Field(default="", description="模板 ID（如 general_minutes，留空自动智能分类）")
     time: str = Field(default="", description="会议起始时间（如 2026/11/13 14:00，待办用于 Calendar 推导）")
-    agenda_plan: Optional[Union[dict[str, Any], str]] = Field(
-        default=None, description="结构化议程字典或 JSON 字符串"
+    agenda_plan: Optional[AgendaPlan] = Field(
+        default=None, description="结构化议程大盘强类型契约 (支持 AgendaPlan 结构字典或 JSON 字符串)"
     )
 
     @field_validator("agenda_plan", mode="before")
@@ -71,13 +186,13 @@ class Extra(BaseModel):
 
                 parsed = json.loads(v_str)
                 if not isinstance(parsed, dict):
-                    raise ValueError("agenda_plan JSON string must parse to a dictionary")
+                    raise ValueError("agenda_plan JSON 字符串必须解析为字典")
                 return parsed
             except Exception as err:
-                raise ValueError(f"Invalid JSON string for agenda_plan: {err}") from err
-        if isinstance(v, dict):
+                raise ValueError(f"agenda_plan 包含无效 JSON 字符串: {err}") from err
+        if isinstance(v, (dict, AgendaPlan)):
             return v
-        raise ValueError("agenda_plan must be a dictionary or a JSON string")
+        raise ValueError("agenda_plan 必须是字典、AgendaPlan 对象或合法 JSON 字符串")
 
 
 class TaskRequest(BaseModel):
@@ -155,7 +270,7 @@ async def stream_agent_endpoint(
     extra_dict = {
         "template": body.extra.template,
         "time": body.extra.time,
-        "agenda_plan": body.extra.agenda_plan,
+        "agenda_plan": body.extra.agenda_plan.model_dump() if body.extra.agenda_plan else None,
     }
 
     async def _event_generator():
@@ -216,7 +331,7 @@ async def sync_agent_endpoint(
     extra_dict = {
         "template": body.extra.template,
         "time": body.extra.time,
-        "agenda_plan": body.extra.agenda_plan,
+        "agenda_plan": body.extra.agenda_plan.model_dump() if body.extra.agenda_plan else None,
     }
 
     markdown_text, last_done = await generate_minutes(
