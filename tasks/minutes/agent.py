@@ -89,7 +89,7 @@ def build_minutes_user_message(
     )
     parts.append(template_block)
 
-    # 5. 尾部指令区（临门一脚）
+    # 5. 尾部指令区
     if is_agenda and valid_agendas:
         parts.append(_build_agenda_tail_anchor(valid_agendas))
     else:
