@@ -33,7 +33,7 @@ def test_prompts_selection():
     # 1. 普通纪要
     prompt_normal = select_minutes_prompt(is_agenda=False)
     assert prompt_normal == NORMAL_MINUTES_PROMPT
-    assert "严禁使用任何 ```markdown" in prompt_normal
+    assert "纯净 Markdown 直出" in prompt_normal
     assert "方括号 `[...]`" in prompt_normal
     assert "# 栏目名" in prompt_normal
 
