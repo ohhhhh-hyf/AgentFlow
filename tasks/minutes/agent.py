@@ -103,23 +103,41 @@ def build_minutes_user_message(
     return "\n\n".join(parts)
 
 
-def _resolve_doc_path(doc_item: str | Path) -> Path | None:
-    """容错定位文档路径: 支持绝对路径、相对当前工作目录、相对 DEMO_ROOT 及相对 data 目录."""
-    p = Path(doc_item)
-    if p.is_file():
-        return p.resolve()
-    demo_root = DEFAULT_DATA_DIR.parent
-    if (demo_root / p).is_file():
-        return (demo_root / p).resolve()
-    if (DEFAULT_DATA_DIR / p).is_file():
-        return (DEFAULT_DATA_DIR / p).resolve()
-    parts = list(p.parts)
+def resolve_image_doc_path(user_id: str, name: str) -> Path | None:
+    """根据 user_id 和文件名解析 data/{user_id}/docs 目录下图片的物理路径.
+
+    严格对齐根项目 domains/meeting/agenda_vision.py:39-49 标准实现。
+    """
+    raw = (name or "").strip()
+    if not raw:
+        return None
+    raw_path = Path(raw)
+    # 1. 尝试直接作为完整有效物理路径
+    if raw_path.is_file():
+        return raw_path.resolve()
+
+    # 2. 核心规范：data/{user_id}/docs/{name}
+    uid = (user_id or "").strip()
+    if uid:
+        user_p = (DEFAULT_DATA_DIR / uid / "docs" / raw).resolve()
+        if user_p.is_file():
+            return user_p
+
+    # 3. 兜底全局 docs 目录：data/docs/{name}
+    fallback_p = (DEFAULT_DATA_DIR / "docs" / raw).resolve()
+    if fallback_p.is_file():
+        return fallback_p
+
+    # 4. 容错用户传 "1/docs/xxx.png" 或 "demo/data/1/docs/xxx.png"
+    parts = list(raw_path.parts)
     if parts and parts[0] in ("demo", "data"):
         sub_p = Path(*parts[1:])
+        demo_root = DEFAULT_DATA_DIR.parent
         if (demo_root / sub_p).is_file():
             return (demo_root / sub_p).resolve()
         if (DEFAULT_DATA_DIR / sub_p).is_file():
             return (DEFAULT_DATA_DIR / sub_p).resolve()
+
     return None
 
 
@@ -165,11 +183,11 @@ async def stream_minutes_agent(
         or ""
     )
     if not agenda_source and docs:
-        logger.info(f"[AGENDA:INPUT] received docs_count={len(docs)} docs={docs}")
+        logger.info(f"[AGENDA:INPUT] received docs_count={len(docs)} user_id={uid} docs={docs}")
         for doc_item in docs:
-            resolved_doc = _resolve_doc_path(doc_item)
+            resolved_doc = resolve_image_doc_path(user_id=uid, name=doc_item)
             if not resolved_doc:
-                logger.warning(f"[AGENDA:DOC:NOT_FOUND] Cannot find doc file on disk: {doc_item}")
+                logger.warning(f"[AGENDA:DOC:NOT_FOUND] Cannot find doc file on disk: user_id={uid} name={doc_item}")
                 continue
             if resolved_doc.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".bmp"):
                 logger.info(f"[VLM:REQ] file={resolved_doc.name} path={resolved_doc} size={resolved_doc.stat().st_size}B")

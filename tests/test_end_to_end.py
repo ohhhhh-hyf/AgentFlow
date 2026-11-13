@@ -51,8 +51,12 @@ def test_stream_minutes_endpoint_user_isolation(mock_stream, tmp_path: Path):
 
     req_body = {
         "task": "minutes",
-        "transcript": "今天召开核心系统架构评审会...",
-        "template": "general_minutes",
+        "texts": {
+            "transcript": "今天召开核心系统架构评审会...",
+        },
+        "extra": {
+            "template": "general_minutes",
+        },
         "lang": "zh",
     }
 
@@ -114,8 +118,13 @@ def test_stream_minutes_english_localization(mock_stream):
 
     user_id = "user_en_test"
     req_body = {
-        "transcript": "Project status review meeting...",
-        "template": "general_minutes",
+        "task": "minutes",
+        "texts": {
+            "transcript": "Project status review meeting...",
+        },
+        "extra": {
+            "template": "general_minutes",
+        },
         "lang": "en",
     }
     headers = {"X-User-Id": user_id}
@@ -154,8 +163,12 @@ def test_sync_actions_dual_state_with_time(mock_chat_json):
 
     req_body = {
         "task": "actions",
-        "transcript": "李四负责核心链路性能压测，明天18:00前完成...",
-        "time": "2026-10-30 10:00:00",  # 传了时间 -> 态 A
+        "texts": {
+            "transcript": "李四负责核心链路性能压测，明天18:00前完成...",
+        },
+        "extra": {
+            "time": "2026-10-30 10:00:00",  # 传了时间 -> 态 A
+        },
     }
     headers = {
         "X-User-Id": user_id,
@@ -213,8 +226,12 @@ def test_sync_actions_dual_state_without_time(mock_chat_json):
 
     req_body = {
         "task": "actions",
-        "transcript": "王五负责总体技术架构设计方案，下周五前输出...",
-        "time": "",  # 未传时间 -> 态 B
+        "texts": {
+            "transcript": "王五负责总体技术架构设计方案，下周五前输出...",
+        },
+        "extra": {
+            "time": "",  # 未传时间 -> 态 B
+        },
     }
     headers = {
         "X-User-Id": user_id,
@@ -250,8 +267,12 @@ def test_sync_minutes_endpoint(mock_stream):
     user_id = "user_sync_min"
     req_body = {
         "task": "minutes",
-        "transcript": "讨论内容...",
-        "template": "general_minutes",
+        "texts": {
+            "transcript": "讨论内容...",
+        },
+        "extra": {
+            "template": "general_minutes",
+        },
     }
     headers = {"X-User-Id": user_id}
 
@@ -262,3 +283,84 @@ def test_sync_minutes_endpoint(mock_stream):
     assert res["code"] == 0
     assert res["data"]["file_name"] == "minutes.md"
     assert "# 全文摘要" in res["data"]["content"]
+
+
+def test_strict_contract_validation():
+    """测试 TaskRequest 契约严格校验 (非法 key 拦截与非法语种拦截)."""
+    # 1. 拦截 texts 中的非法 key (只允许 transcript, keypoints, notes, vision_info, actions_text)
+    bad_req_1 = {
+        "task": "minutes",
+        "texts": {
+            "transcript": "会议文本...",
+            "illegal_custom_field": "some_value",
+        },
+    }
+    resp1 = client.post("/api/agent/v1/stream", json=bad_req_1)
+    assert resp1.status_code == 422
+    assert "texts 只支持" in resp1.text
+
+    # 2. 拦截未知语种 (仅支持 zh 与 en)
+    bad_req_2 = {
+        "task": "minutes",
+        "texts": {"transcript": "会议文本..."},
+        "lang": "fr",
+    }
+    resp2 = client.post("/api/agent/v1/stream", json=bad_req_2)
+    assert resp2.status_code == 422
+    assert "lang 仅支持 'zh' 或 'en'" in resp2.text
+
+    # 3. 拦截 transcript 与 docs 同时为空
+    empty_req = {
+        "task": "minutes",
+        "texts": {"transcript": ""},
+        "docs": [],
+    }
+    resp3 = client.post("/api/agent/v1/stream", json=empty_req)
+    assert resp3.status_code == 400
+
+
+def test_docs_user_id_path_resolution():
+    """测试 docs 图片文件名根据 user_id 准确物理寻址定位."""
+    from tasks.minutes.agent import resolve_image_doc_path
+
+    # 当 user_id='1'，传入文件名 '小艺语音技术委员会.png'
+    resolved = resolve_image_doc_path(user_id="1", name="小艺语音技术委员会.png")
+    assert resolved is not None
+    assert resolved.is_file()
+    assert resolved.name == "小艺语音技术委员会.png"
+    assert "1" in resolved.parts
+    assert "docs" in resolved.parts
+
+
+@patch("infra.llm.client.LLMClient.chat_json")
+def test_actions_text_in_actions_agent(mock_chat_json):
+    """测试 actions_text 候选待办成功传入，并动态挂载进 Prompt."""
+    mock_chat_json.return_value = {
+        "actions": [
+            {
+                "title": "合同确认",
+                "item": "EPC需提供合同确认函",
+                "owner": "王工",
+                "deadline": None,
+                "collaborators": [],
+                "acceptance_criteria": None,
+                "dependency": None,
+            }
+        ]
+    }
+
+    req_body = {
+        "task": "actions",
+        "texts": {
+            "transcript": "张总：王工，EPC合同确认函抓紧推进一下。王工：好的收到。",
+            "actions_text": "1. EPC需提供合同确认函",
+        },
+    }
+    headers = {"X-User-Id": "user_test_act_text"}
+
+    response = client.post("/api/agent/v1", json=req_body, headers=headers)
+    assert response.status_code == 200
+    res = response.json()
+    assert res["code"] == 0
+    assert len(res["actions"]) == 1
+    assert res["actions"][0]["title"] == "合同确认"

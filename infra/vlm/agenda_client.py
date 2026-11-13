@@ -40,7 +40,7 @@ DEFAULT_VLM_SIGN_KEY = os.getenv(
 )
 DEFAULT_VLM_BID = os.getenv("VLM_AGENDA_BID", "llm_texthawk_test")
 DEFAULT_VLM_FLOWID = os.getenv("VLM_AGENDA_FLOWID", "llm_texthawk_test")
-DEFAULT_VLM_TIMEOUT = int(os.getenv("VLM_AGENDA_TIMEOUT", "60"))
+DEFAULT_VLM_TIMEOUT = int(os.getenv("VLM_AGENDA_TIMEOUT", "10"))
 
 # 通用级议程识别提示词
 AGENDA_VISION_PROMPT = """你是一名「会议议程与日程结构化解析专家」。请仔细识读图片中的文字、表格排版与时间流线，高保真提取会议议程清单，并严格按标准 JSON 格式输出。
@@ -199,7 +199,7 @@ class AgendaVisionClient:
     def extract_agenda(
         self,
         image_input: str | Path | bytes,
-        max_retries: int = 2,
+        max_retries: int = 1,
         retry_delay: float = 1.0,
     ) -> dict[str, Any] | None:
         """从图片提取结构化议程 JSON. 失败时直接返回 None 平滑降级走普通纪要."""
@@ -297,11 +297,12 @@ class AgendaVisionClient:
         session = requests.Session()
         session.trust_env = False
 
+        timeout_val = (min(3.0, float(self.timeout)), float(self.timeout))
         response = session.post(
             url,
             data=params_str.encode("utf-8"),
             headers=headers,
-            timeout=self.timeout,
+            timeout=timeout_val,
             verify=False,
         )
 

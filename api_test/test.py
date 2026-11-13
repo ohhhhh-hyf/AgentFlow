@@ -81,17 +81,23 @@ def save_workbook(wb, out: Path) -> bool:
 
 
 def build_payload(transcript: str, template: str, date: str) -> dict:
-    """构建与 demo 服务端完全对齐的请求体."""
+    """构建与 demo 服务端完全对齐的严格请求体."""
     return {
         "task": "minutes",
-        "transcript": transcript,
-        "template": template,
-        "texts": {"transcript": transcript, "keypoints": "", "notes": ""},
+        "texts": {
+            "transcript": transcript,
+            "keypoints": "",
+            "notes": "",
+            "vision_info": "",
+            "actions_text": "",
+        },
         "docs": [],
         "extra": {
-            "time": date,
             "template": template,
+            "time": date,
+            "agenda_plan": None,
         },
+        "lang": "zh",
     }
 
 

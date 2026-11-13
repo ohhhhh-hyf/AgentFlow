@@ -62,3 +62,44 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```bash
 pytest tests/ -v
 ```
+
+---
+
+## 接口调用契约（TaskRequest 标准格式）
+
+### 请求体字段说明
+
+```json
+{
+  "task": "minutes",
+  "texts": {
+    "transcript": "会议转写正文...",
+    "keypoints": "",
+    "notes": "",
+    "vision_info": "",
+    "actions_text": ""
+  },
+  "docs": [
+    "小艺语音技术委员会.png"
+  ],
+  "extra": {
+    "template": "general_minutes",
+    "time": "2026/11/13 14:00",
+    "agenda_plan": null
+  },
+  "lang": "zh"
+}
+```
+
+* **Headers 约定**：
+  * `X-User-Id`：用户标识（如 `1`）。`docs` 中的文件名会自动映射至 `data/{user_id}/docs/{filename}`；产物落盘至 `data/{user_id}/output/{request_id}/`。
+  * `X-Request-Id`：全局链路追踪唯一 ID。
+* **`texts` 字段说明**：
+  * `transcript`：会议语音转写全文（纪要或待办的核心输入）；
+  * `actions_text`：仅待办（`task="actions"`）消费的用户候选待办，纪要任务自动物理隔离；
+  * `keypoints` / `notes` / `vision_info`：辅助线索与术语参考材料。
+* **`extra` 字段说明**：
+  * `template`：模板名称（留空自动智能分类）；
+  * `time`：会议召开时间（待办传时间走 Calendar 回填，未传则跳过 Calendar）；
+  * `agenda_plan`：直接注入结构化议程 JSON。
+

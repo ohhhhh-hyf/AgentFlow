@@ -10,12 +10,12 @@ from __future__ import annotations
 import logging
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from infra.telemetry import setup_logging, unify_uvicorn_loggers
 from infra.telemetry.middleware import LoggingMiddleware
@@ -45,48 +45,89 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+TEXT_KEYS = ("transcript", "keypoints", "notes", "vision_info", "actions_text")
 
-class AgentRequestBody(BaseModel):
-    """通用请求体契约 (完全兼容老脚本与新标准)."""
+
+class Extra(BaseModel):
+    """任务差异参数（严格对齐根项目）."""
+
+    template: str = Field(default="", description="模板 ID（如 general_minutes，留空自动智能分类）")
+    time: str = Field(default="", description="会议起始时间（如 2026/11/13 14:00，待办用于 Calendar 推导）")
+    agenda_plan: Optional[Union[dict[str, Any], str]] = Field(
+        default=None, description="结构化议程字典或 JSON 字符串"
+    )
+
+    @field_validator("agenda_plan", mode="before")
+    @classmethod
+    def _validate_agenda_plan(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v_str = v.strip()
+            if not v_str:
+                return None
+            try:
+                import json
+
+                parsed = json.loads(v_str)
+                if not isinstance(parsed, dict):
+                    raise ValueError("agenda_plan JSON string must parse to a dictionary")
+                return parsed
+            except Exception as err:
+                raise ValueError(f"Invalid JSON string for agenda_plan: {err}") from err
+        if isinstance(v, dict):
+            return v
+        raise ValueError("agenda_plan must be a dictionary or a JSON string")
+
+
+class TaskRequest(BaseModel):
+    """统一严格请求体契约（严格对齐根项目，彻底移除 domain，严格固定 texts 与 extra）."""
 
     task: str = Field(default="minutes", description="任务类型: minutes (纪要) 或 actions (待办)")
-    transcript: str = Field(default="", description="会议原文文本或打标实录")
-    template: str = Field(default="", description="模板 ID (留空自动触发智能分类判定)")
-    docs: list[str] = Field(default_factory=list, description="相关文档或议程图片路径列表")
-    texts: dict[str, Any] = Field(default_factory=dict, description="辅助参考文本 (keypoints, notes, vision)")
-    extra: dict[str, Any] = Field(default_factory=dict, description="扩展参数 (可含 template, time, texts 等)")
-    lang: str = Field(default="zh", description="语言代码: zh (中文) 或 en (英文)")
-    user_id: str = Field(default="", description="用户 ID (可选，优先从 Header X-User-Id 读取)")
-    request_id: str = Field(default="", description="请求 ID (可选，优先从 Header X-Request-Id 读取)")
-    time: str = Field(default="", description="会议起始时间 (待办任务用于 Calendar 推导)")
+    texts: dict[str, str] = Field(
+        default_factory=dict,
+        description="文本内容容器，固定包含: transcript, keypoints, notes, vision_info, actions_text",
+    )
+    docs: list[str] = Field(
+        default_factory=list,
+        description="物理材料文件名列表（存放于 data/{user_id}/docs/ 下）",
+    )
+    extra: Extra = Field(default_factory=Extra, description="任务参数（template, time, agenda_plan）")
+    lang: str = Field(default="zh", description="语种代码: zh (中文) 或 en (英文)")
+
+    @field_validator("lang")
+    @classmethod
+    def _validate_lang(cls, value: str) -> str:
+        v = (value or "zh").strip().lower()
+        if v in {"en", "english"}:
+            return "en"
+        if v in {"zh", "ch", "cn", "chinese"}:
+            return "zh"
+        raise ValueError(f"lang 仅支持 'zh' 或 'en'，收到未知取值：{value}")
+
+    @field_validator("texts")
+    @classmethod
+    def _check_text_keys(cls, value: dict) -> dict:
+        unknown = sorted(set(value or {}) - set(TEXT_KEYS))
+        if unknown:
+            raise ValueError(f"texts 只支持 {TEXT_KEYS}，收到未知 key：{unknown}")
+        return {k: str(v) for k, v in (value or {}).items() if v is not None}
 
 
 def _resolve_ids(
-    body: AgentRequestBody,
     x_user_id: Optional[str],
     x_request_id: Optional[str],
 ) -> tuple[str, str]:
-    """统一解析用户 ID 与全局唯一请求跟踪 ID."""
-    user_id = (x_user_id or body.user_id or "default").strip()
+    """统一解析用户 ID 与全局唯一请求跟踪 ID (严格遵从 HTTP Header)."""
+    user_id = (x_user_id or "default").strip()
     if not user_id:
         user_id = "default"
 
-    req_id = (x_request_id or body.request_id or "").strip()
+    req_id = (x_request_id or "").strip()
     if not req_id:
         req_id = uuid.uuid4().hex
 
     return user_id, req_id
-
-
-def _resolve_transcript(body: AgentRequestBody) -> str:
-    """容错提取原文: 兼容顶层 transcript 与老脚本嵌套的 texts.transcript / extra.transcript."""
-    if body.transcript and body.transcript.strip():
-        return body.transcript.strip()
-    if isinstance(body.texts, dict) and body.texts.get("transcript"):
-        return str(body.texts["transcript"]).strip()
-    if isinstance(body.extra, dict) and body.extra.get("transcript"):
-        return str(body.extra["transcript"]).strip()
-    return ""
 
 
 @app.get("/")
@@ -98,34 +139,32 @@ async def health_check():
 
 @app.post("/api/agent/v1/stream")
 async def stream_agent_endpoint(
-    body: AgentRequestBody,
+    body: TaskRequest,
     response: Response,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_request_id: Optional[str] = Header(default=None, alias="X-Request-Id"),
 ):
     """纪要端到端流式直出接口 (NDJSON 事件流)."""
-    transcript_val = _resolve_transcript(body)
+    transcript_val = (body.texts.get("transcript") or "").strip()
     if not transcript_val and not body.docs:
-        raise HTTPException(status_code=400, detail="transcript 或 docs 不能同时为空")
+        raise HTTPException(status_code=400, detail="texts.transcript 与 docs 不能同时为空")
 
-    user_id, req_id = _resolve_ids(body, x_user_id, x_request_id)
+    user_id, req_id = _resolve_ids(x_user_id, x_request_id)
     response.headers["X-Request-Id"] = req_id
 
-    # 整合 texts 参数（body.texts 与 body.extra.texts 容错合并）
-    merged_texts = dict(body.texts)
-    if isinstance(body.extra.get("texts"), dict):
-        merged_texts.update(body.extra["texts"])
-
-    # 优先使用顶级 template，缺失则从 extra 取
-    template_id = body.template or str(body.extra.get("template") or "")
+    extra_dict = {
+        "template": body.extra.template,
+        "time": body.extra.time,
+        "agenda_plan": body.extra.agenda_plan,
+    }
 
     async def _event_generator():
         async for line in stream_minutes_agent(
             transcript=transcript_val,
-            template_id=template_id,
+            template_id=body.extra.template,
             docs=body.docs,
-            texts=merged_texts,
-            extra=body.extra,
+            texts=body.texts,
+            extra=extra_dict,
             user_id=user_id,
             request_id=req_id,
             lang=body.lang,
@@ -141,51 +180,51 @@ async def stream_agent_endpoint(
 
 @app.post("/api/agent/v1")
 async def sync_agent_endpoint(
-    body: AgentRequestBody,
+    body: TaskRequest,
     response: Response,
     x_user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
     x_request_id: Optional[str] = Header(default=None, alias="X-Request-Id"),
 ):
     """同步阻塞式 Agent 接口 (待办抽取任务 或 同步纪要生成)."""
-    transcript_val = _resolve_transcript(body)
-    if not transcript_val and not body.docs:
-        raise HTTPException(status_code=400, detail="transcript 或 docs 不能同时为空")
-
-    user_id, req_id = _resolve_ids(body, x_user_id, x_request_id)
+    transcript_val = (body.texts.get("transcript") or "").strip()
+    user_id, req_id = _resolve_ids(x_user_id, x_request_id)
     response.headers["X-Request-Id"] = req_id
 
     task_type = (body.task or "minutes").strip().lower()
 
     # 1. 待办任务分支 (actions)
     if task_type == "actions":
-        merged_texts = dict(body.texts)
-        if isinstance(body.extra.get("texts"), dict):
-            merged_texts.update(body.extra["texts"])
+        if not transcript_val:
+            raise HTTPException(status_code=400, detail="texts.transcript 不能为空")
 
-        meeting_time = (body.time or str(body.extra.get("time") or "")).strip()
+        meeting_time = (body.extra.time or "").strip()
 
         result = await extract_actions_agent(
             transcript=transcript_val,
             meeting_start_time=meeting_time,
-            texts=merged_texts,
-            extra=body.extra,
+            texts=body.texts,
+            extra={"time": meeting_time},
             user_id=user_id,
             request_id=req_id,
         )
         return JSONResponse(content=result, headers={"X-Request-Id": req_id})
 
     # 2. 同步纪要任务分支 (minutes)
-    template_id = body.template or str(body.extra.get("template") or "")
-    merged_texts = dict(body.texts)
-    if isinstance(body.extra.get("texts"), dict):
-        merged_texts.update(body.extra["texts"])
+    if not transcript_val and not body.docs:
+        raise HTTPException(status_code=400, detail="texts.transcript 与 docs 不能同时为空")
+
+    extra_dict = {
+        "template": body.extra.template,
+        "time": body.extra.time,
+        "agenda_plan": body.extra.agenda_plan,
+    }
 
     markdown_text, last_done = await generate_minutes(
         transcript=transcript_val,
-        template_id=template_id,
+        template_id=body.extra.template,
         docs=body.docs,
-        texts=merged_texts,
-        extra=body.extra,
+        texts=body.texts,
+        extra=extra_dict,
         user_id=user_id,
         request_id=req_id,
         lang=body.lang,
@@ -197,7 +236,7 @@ async def sync_agent_endpoint(
         "request_id": req_id,
         "data": {
             "content": markdown_text,
-            "text": markdown_text,  # 同时兼容读取 content 或 text 的客户端
+            "text": markdown_text,
             "file_name": "minutes.md",
         },
         "monitor": last_done.get("monitor", {}),
