@@ -25,6 +25,137 @@ _REQUIREMENT_BLOCK_RE = re.compile(
 )
 _HEADING_1_RE = re.compile(r"^#\s+([^\n]+)$", flags=re.MULTILINE)
 
+# 29 款标准业务场景中文名与英文模板 ID 双向对齐表（单一事实源）
+STANDARD_TEMPLATES: dict[str, str] = {
+    "团队例会": "team_meeting",
+    "项目进度会": "project_progress",
+    "决策评审会": "decision_review",
+    "工作研讨会": "workshop_session",
+    "总结复盘会": "retrospective_session",
+    "沟通交流会": "exchange_forum",
+    "课堂记录": "class_transcript",
+    "专题讲座": "special_lecture",
+    "小组讨论": "group_seminar",
+    "知识笔记": "knowledge_memo",
+    "辩论会": "debate_forum",
+    "调研访谈": "research_dialogue",
+    "采访记录": "interview_transcript",
+    "面试报告": "hiring_report",
+    "面试复盘": "interview_debrief",
+    "就医咨询": "clinical_advisory",
+    "心理咨询": "psychological_session",
+    "法律咨询": "legal_advisory",
+    "庭审记录": "court_transcript",
+    "合同审核": "contract_vetting",
+    "新闻发布": "media_briefing",
+    "产品发布": "product_launch",
+    "政府报告": "government_bulletin",
+    "媒体问答": "media_qa_session",
+    "通用纪要": "general_minutes",
+    "个人备忘": "personal_memo",
+    "对话记录": "conversation_transcript",
+    "参观游览": "site_visit_tour",
+    "家校沟通": "home_school_liaison",
+}
+
+# 常见别名容错
+TEMPLATE_ALIASES: dict[str, str] = {
+    "通用": "general_minutes",
+    "常规纪要": "general_minutes",
+    "通用纪要/其他": "general_minutes",
+    "通用/其他": "general_minutes",
+    "其他": "general_minutes",
+}
+
+KNOWN_TEMPLATE_IDS: set[str] = set(STANDARD_TEMPLATES.values())
+
+_YAML_MAPPING_CACHE: dict[str, str] | None = None
+
+
+def _load_yaml_template_mapping() -> dict[str, str]:
+    """从 YAML 配置文件中动态解析中英文映射（支持缓存与静默容错）。"""
+    global _YAML_MAPPING_CACHE
+    if _YAML_MAPPING_CACHE is not None:
+        return _YAML_MAPPING_CACHE
+
+    _YAML_MAPPING_CACHE = {}
+    candidate_paths = [
+        Path(__file__).resolve().parent.parent / "cm_template_v2_changed_0722.yaml",
+        Path(__file__).resolve().parent.parent.parent / "cm_template_v2_changed_0722.yaml",
+        Path.cwd() / "demo" / "cm_template_v2_changed_0722.yaml",
+        Path.cwd() / "cm_template_v2_changed_0722.yaml",
+    ]
+    for cp in candidate_paths:
+        if cp.is_file():
+            try:
+                import yaml
+
+                data = yaml.safe_load(cp.read_text(encoding="utf-8"))
+                templates = (data or {}).get("cm-template-v2", {}).get("templates", [])
+                for t in templates:
+                    raw_id = t.get("id", "")
+                    name = t.get("name", "")
+                    m = re.search(r"\.([^.]+)\}$", raw_id)
+                    tid = m.group(1).replace("-", "_") if m else raw_id
+                    if tid and name and tid != "user_customized":
+                        _YAML_MAPPING_CACHE[name] = tid
+                        _YAML_MAPPING_CACHE[tid.lower()] = tid
+                break
+            except Exception:
+                continue
+
+    return _YAML_MAPPING_CACHE
+
+
+def resolve_template_id(template_value: str | None) -> str:
+    """将输入的模板标识标准化为合法的英文模板 ID。
+
+    核心逻辑：
+    1. 空值或未指定 (None / '' / 纯空白) -> 返回 '' (触发上层智能模板分类器)；
+    2. 废除历史 'auto' / 'none' / '自动' 等魔法字符串，只要传了具体值直接进入严格映射；
+    3. 去除首尾空白，剥离可能附带的 '.md' 后缀（不区分大小写）；
+    4. 命中标准英文 ID（大小写不敏感，如 'project_progress'、'TEAM_MEETING'） -> 返回标准小写英文 ID；
+    5. 命中中文名称（如 '项目进度会'、'通用纪要'） -> 返回对应英文 ID；
+    6. 命中别名（如 '常规纪要'、'通用'） -> 返回 'general_minutes'；
+    7. 尝试动态加载 YAML 补充映射（若相关 YAML 配置文件存在）；
+    8. 未知标识 -> 返回清洗后的原标识字符串（由 load_template 寻址或平滑兜底）。
+    """
+    if template_value is None:
+        return ""
+    val = template_value.strip()
+    if not val:
+        return ""
+
+    if val.lower().endswith(".md"):
+        val = val[:-3].strip()
+    if not val:
+        return ""
+
+    folded = val.lower()
+
+    # 1. 命中已知标准英文 ID (大小写不敏感)
+    if folded in KNOWN_TEMPLATE_IDS:
+        return folded
+
+    # 2. 命中中文名称
+    if val in STANDARD_TEMPLATES:
+        return STANDARD_TEMPLATES[val]
+
+    # 3. 命中别名
+    if val in TEMPLATE_ALIASES:
+        return TEMPLATE_ALIASES[val]
+    if folded in TEMPLATE_ALIASES:
+        return TEMPLATE_ALIASES[folded]
+
+    # 4. 尝试 YAML 动态补充
+    yaml_mapping = _load_yaml_template_mapping()
+    if val in yaml_mapping:
+        return yaml_mapping[val]
+    if folded in yaml_mapping:
+        return yaml_mapping[folded]
+
+    return val
+
 
 @dataclass
 class Placeholder:
@@ -170,10 +301,12 @@ def load_template(
     if is_agenda is not None:
         mode = "agenda" if is_agenda else "normal"
 
-    if not template_id or not template_id.strip():
-        template_id = "general_minutes"
+    canonical_id = resolve_template_id(template_id)
+    if not canonical_id:
+        canonical_id = "general_minutes"
+    template_id = canonical_id
 
-    file_name = template_id if template_id.endswith(".md") else f"{template_id}.md"
+    file_name = f"{template_id}.md"
 
     if resources_root is None:
         resources_root = Path(__file__).resolve().parent.parent / "resources"

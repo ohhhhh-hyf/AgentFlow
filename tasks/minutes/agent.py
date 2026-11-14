@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
-from core.templates import load_template
+from core.templates import load_template, resolve_template_id
 from infra.llm.client import LLMClient
 from tasks.minutes.agenda.alignment import ValidAgendaItem, process_agenda_for_minutes
 from tasks.minutes.classifier.classifier import classify_template
@@ -223,15 +223,17 @@ async def stream_minutes_agent(
         f"reason={'aligned ' + str(len(valid_agendas)) + ' discussion topics' if is_agenda else 'no valid discussion aligned, fallback normal'}"
     )
 
-    # 2. 智能模板匹配（无开关，未指定则强制自动触发）
-    chosen_template = (template_id or extra_params.get("template") or "").strip()
-    if not chosen_template or chosen_template.lower() in ("auto", "none", ""):
+    # 2. 模板确定：未传或为空强制触发智能模板分类；传了具体值则直接走中英文映射
+    raw_template = (template_id or extra_params.get("template") or "").strip()
+    if not raw_template:
         matched_tid, _ = await classify_template(
             transcript=transcript,
             is_agenda=is_agenda,
             llm_client=client,
         )
         chosen_template = matched_tid or "general_minutes"
+    else:
+        chosen_template = resolve_template_id(raw_template)
 
     # 3. 动态加载模板正文与元数据 (支持多语言)
     template_content, metadata = load_template(chosen_template, is_agenda=is_agenda, lang=lang)

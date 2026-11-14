@@ -29,26 +29,41 @@ from tasks.minutes.prompts import (
 
 
 def test_prompts_selection():
-    """测试三大 System Prompt 路由选择与核心契约。"""
+    """测试三大 System Prompt 路由选择与核心契约（验证模块化解耦与加粗规则）。"""
+    from tasks.minutes.prompts import BASE_MINUTES_RULES
+
+    expected_base = BASE_MINUTES_RULES.replace("{lang_name}", "中文")
+
     # 1. 普通纪要
     prompt_normal = select_minutes_prompt(is_agenda=False)
     assert prompt_normal == NORMAL_MINUTES_PROMPT
     assert "纯净 Markdown 直出" in prompt_normal
     assert "方括号 `[...]`" in prompt_normal
     assert "# 栏目名" in prompt_normal
+    assert expected_base in prompt_normal
 
-    # 2. 议题纪要 (栏目主序)
+    # 2. 议题纪要 (栏目主序 · 栏内分议题)
     prompt_col = select_minutes_prompt(is_agenda=True, layout_mode="column_major")
     assert prompt_col == AGENDA_COLUMN_MAJOR_PROMPT
+    assert "栏目主序 · 栏内分议题模式" in prompt_col
     assert "## 一. [审定议题全称]" in prompt_col
-    assert "严禁自行改名、合并、拆分或重排" in prompt_col
+    assert "**按清单顺序为每一项有效议题 1:1 生成对应的二级小节**" in prompt_col
+    assert "**逐字一致**" in prompt_col
+    assert "**严禁遗漏、增删、改名、拆分或重排**" in prompt_col
+    assert "**严禁跨议题混写**" in prompt_col
+    assert expected_base in prompt_col
 
-    # 3. 议题纪要 (议题主序容器)
+    # 3. 议题纪要 (议题主序 · 议题内分栏)
     prompt_topic = select_minutes_prompt(is_agenda=True, layout_mode="topic_major")
     assert prompt_topic == AGENDA_TOPIC_MAJOR_PROMPT
-    assert "议题主序容器模式" in prompt_topic
-    assert "### 要点梳理" in prompt_topic
-    assert "### 结论共识" in prompt_topic
+    assert "议题主序 · 议题内分栏模式" in prompt_topic
+    assert "**按清单顺序为每一项有效议题 1:1 生成对应的二级大项**" in prompt_topic
+    assert "**逐字一致**" in prompt_topic
+    assert "**严禁遗漏、增删、改名、拆分或重排**" in prompt_topic
+    assert "形如 `### 子栏名`" in prompt_topic
+    assert "**严禁跨议题混写**" in prompt_topic
+    assert "容器" not in prompt_topic  # 确实验证彻底剥离历史“容器”技术债务
+    assert expected_base in prompt_topic
 
 
 def test_multi_source_assembly():
@@ -254,7 +269,8 @@ def test_stream_minutes_agent_mock_agenda_topic_major(tmp_path: Path):
         assert done["code"] == 0
 
         # 验证送入大模型的 Prompt 包含了 Topic Major 系统指令与前后双锚定
-        assert "议题主序容器模式" in captured_prompt["system"]
+        assert "议题主序 · 议题内分栏模式" in captured_prompt["system"]
+        assert "**按清单顺序为每一项有效议题 1:1 生成对应的二级大项**" in captured_prompt["system"]
         assert "【现场审定的有效议题清单】" in captured_prompt["prompt"]
         assert "【核心议程约束与执行指令】" in captured_prompt["prompt"]
         assert "支付系统重构" in captured_prompt["prompt"]
