@@ -3,9 +3,10 @@
 职责:
 1. 根据模式 (normal / agenda) 与语言 (zh / en) 加载 Markdown 模板;
 2. 议题模式自动优先从 agenda_templates 读取, 缺失时平滑回退 templates;
-3. 正则解析并剥离 <!-- layout ... --> 元数据 (mode, container);
-4. 正则解析并剥离 <!-- requirement ... --> 写作背景要求;
-5. 提供纯净的 Markdown 正文与结构化元数据供 Agent 消费.
+3. 正则解析并剥离 <!-- layout ... --> 元数据 (mode);
+4. 物理剥离历史残留 <!-- requirement ... --> 写作背景要求 (新架构中已彻底解耦废弃);
+5. 原生支持跨行、换行及内嵌复选框列表的方括号占位符 [...] 提取;
+6. 提供纯净的 Markdown 正文与结构化元数据供 Agent 消费.
 """
 from __future__ import annotations
 
@@ -26,12 +27,64 @@ _HEADING_1_RE = re.compile(r"^#\s+([^\n]+)$", flags=re.MULTILINE)
 
 
 @dataclass
+class Placeholder:
+    """方括号占位符详细信息 (原生支持跨行与嵌套结构)."""
+
+    raw: str  # 包含外层 [ ] 的完整字符串
+    inner: str  # 剥离外层 [ ] 后的内部描述内容
+    start: int  # 起始字符索引
+    end: int  # 结束字符索引 (不包含)
+
+
+def extract_placeholders(text: str) -> list[Placeholder]:
+    """提取模板中的所有方括号占位符，原生支持跨行换行及内嵌括号（如 `- [ ]` 待办复选框）。
+
+    与历史脆弱扫描器的核心差异：
+    1. 不按行切分 (免受 splitlines 截断影响)，按深度栈完整匹配跨行括号；
+    2. 支持内部包含 Markdown 列表、三级标题与子栏说明；
+    3. 排除 Markdown 链接语法（如 `[文字](http://...)`）。
+    """
+    placeholders: list[Placeholder] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] == "[" and (i == 0 or text[i - 1] != "\\"):
+            start = i
+            depth = 1
+            j = i + 1
+            while j < n and depth > 0:
+                if text[j] == "\\" and j + 1 < n:
+                    j += 2
+                    continue
+                if text[j] == "[":
+                    depth += 1
+                elif text[j] == "]":
+                    depth -= 1
+                j += 1
+            if depth == 0:
+                # 检查是否紧跟 ( 作为 Markdown 链接，如 [text](url)
+                is_link = j < n and text[j] == "("
+                if not is_link:
+                    raw = text[start:j]
+                    placeholders.append(
+                        Placeholder(
+                            raw=raw,
+                            inner=raw[1:-1],
+                            start=start,
+                            end=j,
+                        )
+                    )
+                i = j
+                continue
+        i += 1
+    return placeholders
+
+
+@dataclass
 class TemplateMetadata:
     """模板元数据载体."""
 
     mode: Literal["column_major", "topic_major", "normal"] = "column_major"
-    container: str = ""
-    requirement: str = ""
     source_path: str = ""
     extra: dict[str, str] = field(default_factory=dict)
 
@@ -43,6 +96,8 @@ class TemplateResult:
     text: str
     meta: TemplateMetadata
     sections: list[str] = field(default_factory=list)
+    placeholders: list[str] = field(default_factory=list)
+    placeholder_items: list[Placeholder] = field(default_factory=list)
 
     def __iter__(self):
         """支持作为二元组解构: text, metadata = load_template(...)"""
@@ -50,10 +105,9 @@ class TemplateResult:
         yield {
             "layout": {
                 "mode": self.meta.mode,
-                "container": self.meta.container,
             },
-            "requirement": self.meta.requirement,
             "sections": self.sections,
+            "placeholders": self.placeholders,
         }
 
 
@@ -62,11 +116,8 @@ def parse_template_metadata(raw_content: str) -> tuple[str, TemplateMetadata]:
     meta = TemplateMetadata()
     cleaned = raw_content
 
-    # 1. 抽取并剥离 <!-- requirement ... -->
-    m_req = _REQUIREMENT_BLOCK_RE.search(cleaned)
-    if m_req:
-        meta.requirement = m_req.group(1).strip()
-        cleaned = cleaned[: m_req.start()] + cleaned[m_req.end() :]
+    # 1. 抽取并物理剥离 <!-- requirement ... --> (废弃无用元数据，仅做剥离防污染)
+    cleaned = _REQUIREMENT_BLOCK_RE.sub("", cleaned)
 
     # 2. 抽取并剥离 <!-- layout ... -->
     m_layout = _LAYOUT_BLOCK_RE.search(cleaned)
@@ -77,7 +128,7 @@ def parse_template_metadata(raw_content: str) -> tuple[str, TemplateMetadata]:
         if inline_val:
             meta.mode = "topic_major" if "topic_major" in inline_val.lower() else "column_major"
 
-        # 解析多行 key: value
+        # 解析多行 key: value (向后兼容历史注释)
         if body_val:
             for line in body_val.splitlines():
                 if ":" in line:
@@ -86,9 +137,7 @@ def parse_template_metadata(raw_content: str) -> tuple[str, TemplateMetadata]:
                     v = v.strip()
                     if k == "mode":
                         meta.mode = "topic_major" if v.lower() == "topic_major" else "column_major"
-                    elif k == "container":
-                        meta.container = v
-                    else:
+                    elif k != "container":
                         meta.extra[k] = v
 
         cleaned = cleaned[: m_layout.start()] + cleaned[m_layout.end() :]
@@ -116,7 +165,7 @@ def load_template(
         resources_root: resources 目录的绝对路径, 默认指向 demo/resources
 
     Returns:
-        TemplateResult: 包含纯净 Markdown 文本、元数据及一级栏目清单
+        TemplateResult: 包含纯净 Markdown 文本、元数据、一级栏目清单及占位符清单
     """
     if is_agenda is not None:
         mode = "agenda" if is_agenda else "normal"
@@ -171,4 +220,14 @@ def load_template(
     # 提取一级标题栏目清单
     sections = _HEADING_1_RE.findall(cleaned_text)
 
-    return TemplateResult(text=cleaned_text, meta=metadata, sections=sections)
+    # 提取所有方括号占位符 (支持跨行)
+    items = extract_placeholders(cleaned_text)
+    placeholders = [item.inner for item in items]
+
+    return TemplateResult(
+        text=cleaned_text,
+        meta=metadata,
+        sections=sections,
+        placeholders=placeholders,
+        placeholder_items=items,
+    )

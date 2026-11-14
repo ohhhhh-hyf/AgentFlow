@@ -48,7 +48,7 @@ def test_prompts_selection():
     assert prompt_topic == AGENDA_TOPIC_MAJOR_PROMPT
     assert "议题主序容器模式" in prompt_topic
     assert "### 要点梳理" in prompt_topic
-    assert "### 结论定调" in prompt_topic
+    assert "### 结论共识" in prompt_topic
 
 
 def test_multi_source_assembly():
@@ -166,7 +166,7 @@ def test_stream_minutes_agent_mock_normal(tmp_path: Path):
             "# 要点梳理\n",
             "## 架构设计\n",
             "- 方案明确：采用分布式架构保障高可用。\n\n",
-            "# 结论定调\n",
+            "# 结论共识\n",
             "- **支付系统升级**：下周五前完成基准压测。\n",
         ]
 
