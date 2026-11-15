@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -258,8 +259,12 @@ async def stream_minutes_agent(
     # 6. 流式调用 LLMClient 并封装 NDJSON Chunk
     full_chunks: list[str] = []
     try:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
         async for token in client.stream_text(prompt=user_message, system=system_prompt):
             full_chunks.append(token)
+            sys.stdout.write(token)
+            sys.stdout.flush()
             chunk_event = {
                 "type": "chunk",
                 "line": "minutes",
@@ -267,7 +272,11 @@ async def stream_minutes_agent(
                 "text": token,
             }
             yield json.dumps(chunk_event, ensure_ascii=False) + "\n"
+        sys.stdout.write("\n")
+        sys.stdout.flush()
     except Exception as exc:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
         logger.error(f"LLM stream_text error: {exc}", exc_info=True)
         # 异常时下发错误帧
         err_event = {
