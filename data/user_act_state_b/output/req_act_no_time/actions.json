@@ -1,0 +1,11 @@
+[
+  {
+    "title": "方案编写",
+    "item": "梳理总体技术架构设计方案",
+    "owner": "王五",
+    "deadline": "下周五",
+    "collaborators": [],
+    "acceptance_criteria": "通过评审",
+    "dependency": null
+  }
+]

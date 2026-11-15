@@ -1,0 +1,15 @@
+[
+  {
+    "title": "性能压测",
+    "item": "组织核心链路性能基准压测",
+    "owner": "李四",
+    "deadline": "2026-10-31T18:00:00",
+    "collaborators": [
+      "张三"
+    ],
+    "acceptance_criteria": "TPS > 3000",
+    "dependency": null,
+    "deadline_raw": "明天18:00",
+    "deadline_display": "2026/10/31 18:00"
+  }
+]
