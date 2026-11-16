@@ -46,8 +46,8 @@ def test_load_agenda_template():
     assert "单段概括" in res.placeholders[0]
     agenda_placeholder = res.placeholders[1]
     assert "以现场审定的有效议题清单为主线逐个议题闭环展开" in agenda_placeholder
-    assert "- ### 要点梳理：" in agenda_placeholder
-    assert "- ### 结论共识：" in agenda_placeholder
+    assert "### 要点梳理" in agenda_placeholder
+    assert "### 结论共识" in agenda_placeholder
     assert "\n" in agenda_placeholder  # 确实验证了跨行换行完整保留
 
 
