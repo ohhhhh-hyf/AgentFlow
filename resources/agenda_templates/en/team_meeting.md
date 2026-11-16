@@ -8,7 +8,7 @@
 
 ### Work Progress
 Organize by task modules into subsections '#### Task Module / Work Stream' (omit adaptively if module is straightforward):
-Objectively articulate operational actions, milestone deliverables, and key quantitative metrics under this topic: state 'Task / Module Name: Core progress overview' as the main item, followed by line breaks detailing deliverables, execution specifics, and performance data; append representative verbatim quotes on a separate line below pivotal statements when appropriate (e.g., '  > "Verbatim quote..."'; omit adaptively if no representative quote exists).
+Expand section items independently by specific module or work item under this topic, stating 'Module / Work Item Name: Stage progress and core deliverables' as the main item, followed by line breaks detailing specific progress actions and key quantitative metrics point by point; append representative verbatim quotes on a separate line below pivotal statements when appropriate (e.g., '  > "Verbatim quote..."'; omit adaptively if no representative quote exists).
 
 ### Action Plans
 (Omit adaptively if no explicit follow-up arrangements exist for this topic) Synthesize agreed execution tasks, implementation plans, and cross-team actions established for this topic: state 'Action Item: Specific execution requirements' as the main item, detailing responsible owners, completion deadlines, expected deliverables, and prerequisite dependencies.

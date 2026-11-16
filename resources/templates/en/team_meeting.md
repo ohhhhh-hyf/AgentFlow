@@ -3,7 +3,7 @@
 
 # Progress & Updates
 [Organize by business topics into subsections '## Specific Discussion Topic':
-Objectively summarize specific progress actions, current milestone achievements, and key quantitative metrics across modules or team members, highlighting deliverables and breakthroughs;
+Expand section items independently by specific module or work item, stating 'Module / Work Item Name: Stage progress and core deliverables' as the main item, followed by line breaks detailing specific progress actions and key quantitative metrics point by point;
 Below key directives or definitive statements, quote representative verbatim remarks on a new line (e.g., '> "Verbatim quote..."'; omit naturally if no typical quote was stated).]
 
 # Action Items & Arrangements
