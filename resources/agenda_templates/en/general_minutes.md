@@ -7,6 +7,7 @@
 [Structured strictly around the approved agenda topics in a closed loop for each topic (each topic starts with '## I. Topic Title' as the header, outputting two fixed subsections '### Discussion Points' and '### Consensus & Decisions'):
 
 ### Discussion Points
+Organize by discussion themes into subsections '#### Specific Discussion Theme' (omit adaptively if content is straightforward):
 Objectively articulate proposal considerations, factual evidence, and specific requirements for this topic: state 'Proposal / Item Name: Core proposal or stance' as the main item, followed by line breaks detailing evidentiary facts, stakeholder positions, and operational requirements when multiple details exist.
 
 ### Consensus & Decisions

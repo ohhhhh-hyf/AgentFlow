@@ -7,6 +7,7 @@
 [Structured strictly around the approved agenda topics in a closed loop for each topic (each topic starts with '## I. Topic Title' as the header, outputting three fixed subsections '### Core Perspectives', '### Proposed Solutions', and '### Open Issues'):
 
 ### Core Perspectives
+Organize by discussion directions or scheme facets into subsections '#### Discussion Direction / Proposal Stance' (omit adaptively if facets are straightforward):
 Objectively present thought processes and argumentative threads, clarifying technical proposals and supporting rationale without chronological stream-of-consciousness: state 'Proposal / Core Perspective: Summary of proposal or key stance' as the main item, followed by line breaks detailing technical logic, implementation paths, and evidence.
 
 ### Proposed Solutions

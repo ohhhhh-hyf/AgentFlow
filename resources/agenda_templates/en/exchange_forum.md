@@ -7,6 +7,7 @@
 [Structured strictly around the approved agenda topics in a closed loop for each topic (each topic starts with '## I. Topic Title' as the header, outputting three fixed subsections '### Core Information', '### Stakeholder Demands', and '### Communication Outcomes'):
 
 ### Core Information
+Organize by discussion themes into subsections '#### Specific Discussion Theme' (omit adaptively if content is straightforward):
 Objectively articulate current business status, supporting rationale, milestone nodes, and quantitative metrics under this topic: state 'Specific Item / Metric Name: Fact statement' as the main item, followed by line breaks detailing operational specifics when multiple details exist.
 
 ### Stakeholder Demands

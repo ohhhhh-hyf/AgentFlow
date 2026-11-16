@@ -7,6 +7,7 @@
 [Structured strictly around the approved agenda topics in a closed loop for each topic (each topic starts with '## I. Topic Title' as the header, outputting four fixed subsections '### Key Deliverables', '### Highlights & Best Practices', '### Deficiencies & Learnings', and '### Actionable Improvements'):
 
 ### Key Deliverables
+Organize by business modules into subsections '#### Specific Business Module' (omit adaptively if module is straightforward):
 Objectively summarize key deliverables and quantitative metrics against target goals for this topic: state 'Deliverable / Outcome Name: Target achievement and core delivery summary' as the main item, followed by line breaks detailing key quantitative metrics and supporting facts.
 
 ### Highlights & Best Practices

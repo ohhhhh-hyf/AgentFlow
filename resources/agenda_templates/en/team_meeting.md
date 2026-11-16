@@ -7,6 +7,7 @@
 [Structured strictly around the approved agenda topics in a closed loop for each topic (each topic starts with '## I. Topic Title' as the header, outputting three fixed subsections '### Work Progress', '### Action Plans', and '### Unresolved Risks'):
 
 ### Work Progress
+Organize by task modules into subsections '#### Task Module / Work Stream' (omit adaptively if module is straightforward):
 Objectively articulate operational actions, milestone deliverables, and key quantitative metrics under this topic: state 'Task / Module Name: Core progress overview' as the main item, followed by line breaks detailing deliverables, execution specifics, and performance data; append representative verbatim quotes on a separate line below pivotal statements when appropriate (e.g., '  > "Verbatim quote..."'; omit adaptively if no representative quote exists).
 
 ### Action Plans

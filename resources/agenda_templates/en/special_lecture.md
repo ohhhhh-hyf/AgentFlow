@@ -7,6 +7,7 @@
 [Structured strictly around the approved agenda topics in a closed loop for each topic (each topic starts with '## I. Topic Title' as the header, outputting three fixed subsections '### Core Perspectives', '### Q&A Exchange', and '### Notable Quotes'):
 
 ### Core Perspectives
+Organize by core theses into subsections '#### Specific Thesis' (omit adaptively if theses are straightforward):
 Objectively articulate keynote speaker's core viewpoints and supporting evidence under this topic, clarifying argumentative threads: state 'Thesis / Topic Focus: Core proposition' as the main item, followed by line breaks detailing deductive logic, illustrative cases, and supporting data.
 
 ### Q&A Exchange

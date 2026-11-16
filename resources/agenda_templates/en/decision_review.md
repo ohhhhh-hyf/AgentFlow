@@ -7,6 +7,7 @@
 [Structured strictly around the approved agenda topics in a closed loop for each topic (each topic starts with '## I. Topic Title' as the header, outputting three fixed subsections '### Proposals & Inquiries', '### Review Decisions', and '### Actionable Revisions'):
 
 ### Proposals & Inquiries
+Organize by key evaluated dimensions into subsections '#### Evaluation Dimension / Proposal Module' (omit adaptively if content is straightforward):
 Objectively articulate proposal contents and deliberation details, presenting on separate lines core proposal stances, reviewers' concerns, and presenters' clarifications: state 'Proposal / Stance: Core proposition' as the main item, followed by line breaks detailing proposal specifics, reviewers' concerns, and presenters' responses.
 
 ### Review Decisions
