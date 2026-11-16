@@ -6,7 +6,7 @@
 Where step-by-step derivations, boundary conditions, or common pitfalls need elaboration, indent on lines below using blockquote syntax '> Dimension Name: Specific details'.]
 
 # Q&A Exchanges
-[(Display only when classroom interactions or Q&A occurred; omit adaptively if none) Extract pivotal student questions and instructor explanations, consolidating discussions around identical topics; lead with 'Question Summary / Focal Issue:' and format in paired '**Q**' and '**A**':
+[(Display only when classroom interactions or Q&A occurred; omit adaptively if none) Extract pivotal student questions and instructor explanations, leading with '**Question Summary / Focal Issue:**' as the main item, and formatting in paired '**Q**' and '**A**':
 **Q**: Extract specific question content;
 **A**: Provide definitive answer and core principles, incorporating instructor's pivotal pointers in quotation marks when appropriate, and summarizing problem-solving methodologies.]
 

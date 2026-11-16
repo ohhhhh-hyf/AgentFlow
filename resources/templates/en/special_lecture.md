@@ -3,7 +3,7 @@
 
 # Core Perspectives
 [Organize by core theses into subsections '## Specific Thesis':
-Articulate keynote speaker's core viewpoints and supporting evidence, clarifying argumentative threads; state core proposition and analytical conclusion as the main item, followed by line breaks detailing deductive logic, illustrative cases, and supporting data.]
+Synthesize the speaker's core viewpoints and argumentative details, stating '**Core Proposition or Analytical Conclusion**:' as the main item, followed by line breaks detailing relevant supporting arguments, analytical elaborations, and factual details point by point.]
 
 # Notable Quotes
 [(Display only when profound quotes exist; omit adaptively if none emerge) Extract speaker's memorable quotes condensing core stances, methodologies, or deep insights (maximum 6 quotes): record each quote using blockquote syntax, annotating conversational context below:

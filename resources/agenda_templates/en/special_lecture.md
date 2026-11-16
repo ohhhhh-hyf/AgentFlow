@@ -8,7 +8,7 @@
 
 ### Core Perspectives
 Organize by core theses into subsections '#### Specific Thesis' (omit adaptively if theses are straightforward):
-Objectively articulate keynote speaker's core viewpoints and supporting evidence under this topic, clarifying argumentative threads: state 'Thesis / Topic Focus: Core proposition' as the main item, followed by line breaks detailing deductive logic, illustrative cases, and supporting data.
+Synthesize the speaker's core viewpoints and argumentative details regarding this topic, stating '**Core Proposition or Analytical Conclusion**:' as the main item, followed by line breaks detailing relevant supporting arguments, analytical elaborations, and factual details point by point.
 
 ### Q&A Exchange
 (Generate only when interactive exchanges occurred regarding this topic; omit adaptively if none) Synthesize live questions and answers, omitting pleasantries and formatting in paired '**Q**' and '**A**':

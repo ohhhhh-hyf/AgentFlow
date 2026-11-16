@@ -3,8 +3,7 @@
 
 # Pleadings & Arguments
 [Organize by participating parties (or respective litigating camps) into subsections '## Party Designation':
-Objectively articulate claims, defense arguments, and factual rationales;
-State core claims or defense points as the main item, objectively detailing factual grounds, contractual stipulations, and statutory authorities.]
+Expand section items on standalone lines, stating '**Core Claims / Defense Points**: Explicit, specific litigation claims or motion to dismiss' as the main item, followed by line breaks detailing relevant supporting facts, rationale details, and legal grounds point by point.]
 
 # Evidence & Cross-Examination
 [Follow court sequence of evidence presentation, objectively detailing key evidence submitted by each party alongside opposing cross-examination opinions:
