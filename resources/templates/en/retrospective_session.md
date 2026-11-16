@@ -7,11 +7,11 @@ State 'Deliverable / Outcome Name: Target achievement and core delivery summary'
 
 # Highlights & Best Practices
 [Objectively summarize recognized effective practices, successful experiences, and landmark milestones:
-Format as 'Highlight / Practice Name: Specific methodology' on standalone lines, stating supporting facts; if commendations were given to teams or individuals, clearly identify recipients and outstanding contributions.]
+State 'Highlight / Practice Name: Specific methodology' point by point to provide supporting facts; if commendations were given to teams or individuals, clearly identify recipients and outstanding contributions.]
 
 # Deficiencies & Learnings
 [Objectively record underperforming stages, execution deviations, and bottleneck issues:
-Format as 'Deficiency / Deviation Name: Specific manifestation' on standalone lines, detailing business impacts and root causes or obstacles reflected upon during the session.]
+State 'Deficiency / Deviation Name: Specific manifestation' point by point, detailing business impacts and root causes or obstacles reflected upon during the session.]
 
 # Actionable Improvements
-[(Display only when explicit improvement arrangements exist; omit adaptively if none were planned) Specify improvement measures addressing identified deficiencies: detail target issues, designated owners, and completion timelines.]
+[(Display only when explicit improvement arrangements exist; omit adaptively if none were planned) Specify improvement measures addressing identified deficiencies: state '**Problem Target / Improvement Item**: Specific improvement measures' point by point, detailing specific target issues and corresponding improvement plans.]
