@@ -14,7 +14,14 @@ from tasks.minutes.agenda import (
     process_agenda_for_minutes,
     probe_valid_agendas,
 )
-from tasks.minutes.agenda.alignment import group_transcript_blocks
+from tasks.minutes.agenda.alignment import (
+    group_transcript_blocks,
+    _parse_timestamp_seconds,
+    _TRANSITION_ROADSIGN_PATTERN,
+    _BACKWARD_ROADSIGN_PATTERN,
+    _TRANSITION_ROADSIGN_PATTERN_EN,
+    _BACKWARD_ROADSIGN_PATTERN_EN,
+)
 
 
 def test_clean_presenter_names():
@@ -233,4 +240,244 @@ def test_group_transcript_blocks_formats():
     assert len(blocks_colon) == 2
     assert blocks_colon[0].speaker == "赵六"
     assert blocks_colon[1].speaker == "孙七"
+
+
+def test_parse_timestamp_seconds():
+    """测试时间戳秒数解析器."""
+    assert _parse_timestamp_seconds("00:00:03") == 3.0
+    assert _parse_timestamp_seconds("09:05:00") == 32700.0
+    assert _parse_timestamp_seconds("[00:01:30]") == 90.0
+    assert _parse_timestamp_seconds("(02:15)") == 135.0
+    assert _parse_timestamp_seconds("01:23.500") == 83.5
+    assert _parse_timestamp_seconds("") is None
+    assert _parse_timestamp_seconds(None) is None
+    assert _parse_timestamp_seconds("invalid:text") is None
+
+
+def test_expanded_transition_and_backward_patterns():
+    """测试扩充的口语化转场词与反向回溯路标."""
+    # 中文推进转场
+    assert _TRANSITION_ROADSIGN_PATTERN.search("我们来看一下这个方案")
+    assert _TRANSITION_ROADSIGN_PATTERN.search("下面切到下一个议题")
+    assert _TRANSITION_ROADSIGN_PATTERN.search("过一下这几个指标")
+    assert _TRANSITION_ROADSIGN_PATTERN.search("下面由张工进行汇报")
+    assert _TRANSITION_ROADSIGN_PATTERN.search("把麦交给李工")
+    assert _TRANSITION_ROADSIGN_PATTERN.search("现在看关于风控的部分")
+
+    # 中文反向回溯路标
+    assert _BACKWARD_ROADSIGN_PATTERN.search("好，现在回到议题一")
+    assert _BACKWARD_ROADSIGN_PATTERN.search("我们重新看第一个议题")
+    assert _BACKWARD_ROADSIGN_PATTERN.search("倒回去确认一下")
+    assert _BACKWARD_ROADSIGN_PATTERN.search("回头再对前面的方案")
+
+    # 英文推进转场
+    assert _TRANSITION_ROADSIGN_PATTERN_EN.search("let's turn to our next topic")
+    assert _TRANSITION_ROADSIGN_PATTERN_EN.search("moving on to the budget plan")
+    assert _TRANSITION_ROADSIGN_PATTERN_EN.search("hand over to Alice")
+
+    # 英文反向回溯路标
+    assert _BACKWARD_ROADSIGN_PATTERN_EN.search("let's circle back to item one")
+    assert _BACKWARD_ROADSIGN_PATTERN_EN.search("jump to the previous topic")
+    assert _BACKWARD_ROADSIGN_PATTERN_EN.search("revisit the first item")
+
+
+def test_opening_announcement_guard_single_block():
+    """测试开场单发言块集中宣读多项议程（报菜名）时，不提前冲刷跳过第一项实质议题."""
+    agenda_dict = {
+        "theme": "架构研讨与治理演进",
+        "agenda_items": [
+            {"seq": "01", "title": "交易链路架构演进", "presenters": []},
+            {"seq": "02", "title": "跨机房容灾部署规划", "presenters": []},
+            {"seq": "03", "title": "运营成本精细化管控", "presenters": []},
+        ],
+    }
+
+    transcript = """
+发言者 1 00:00:05
+大家早上好，今天北研所有三个议题：第一项交易链路架构演进，第二项跨机房容灾部署规划，第三项运营成本精细化管控。
+
+发言者 1 00:00:25
+下面我们首先有请张工汇报交易链路架构演进方案。
+
+发言者 2 00:00:35
+各位好，我来汇报交易链路架构演进。我们重构的核心目标是将 P99 时延降低 50%，重构完成后异步队列吞吐能力提升 3 倍，预计下月启动灰度放量。
+
+发言者 1 00:20:00
+好的，交易链路部分告一段落，下面我们切到跨机房容灾部署规划。
+
+发言者 3 00:20:20
+容灾部署这块我们规划了双活集群架构，两地三中心部署，数据强一致保障。
+    """.strip()
+
+    res = process_agenda_for_minutes(transcript, agenda_dict)
+    assert res.has_valid_agenda is True
+    # 验证识别出的议题清单：开场报菜名并未将第3项假激活，实际进行了 01 和 02 两项
+    valid_titles = [a.title for a in res.valid_agendas]
+    assert valid_titles == ["交易链路架构演进", "跨机房容灾部署规划"]
+    # 验证第 1 项议题完整保留且为第一个有效议题
+    assert res.valid_agendas[0].seq == "01"
+    assert res.valid_agendas[0].title == "交易链路架构演进"
+
+
+def test_opening_announcement_guard_rapid_consecutive_blocks():
+    """测试开场连续多个极短发言块宣读提纲时，当前议题因讨论不足 60 字受守卫保护不早跳."""
+    agenda_dict = {
+        "theme": "技术战略宣讲会",
+        "agenda_items": [
+            {"seq": "01", "title": "微服务治理方案", "presenters": []},
+            {"seq": "02", "title": "数据合规治理专项", "presenters": []},
+        ],
+    }
+
+    transcript = """
+发言者 1 00:00:05
+今天会议先看微服务治理方案。
+
+发言者 1 00:00:15
+接下来看数据合规治理专项。
+
+发言者 1 00:00:25
+下面请王工先开始讲微服务治理。
+
+发言者 2 00:00:35
+大家好，关于微服务治理方案，我们本期核心是做服务网格 Service Mesh 的下沉与全链路熔断治理，目前已覆盖 80% 核心集群，稳定性指标提升显著。
+
+发言者 1 00:15:00
+辛苦王工，微服务治理汇报完毕，下面我们切到数据合规治理专项。
+
+发言者 3 00:15:20
+数据合规这块，我们重点梳理了敏感字段与访问控制审计日志，全面满足监管合规要求。
+    """.strip()
+
+    res = process_agenda_for_minutes(transcript, agenda_dict)
+    assert res.has_valid_agenda is True
+    valid_titles = [a.title for a in res.valid_agendas]
+    assert valid_titles == ["微服务治理方案", "数据合规治理专项"]
+    # 验证王工的汇报正确归入第 1 个议题微服务治理
+    item1_blocks = res.valid_agendas[0].matched_blocks
+    assert any("Service Mesh" in b.content for b in item1_blocks)
+
+
+def test_track_b_controlled_backtracking():
+    """验证 Track B: 会议讨论议题 1 -> 议题 2 -> 显式回到议题 1，内容完整聚拢回前序议题."""
+    agenda_dict = {
+        "theme": "技术架构研讨会",
+        "agenda_items": [
+            {"seq": "01", "title": "微服务治理演进", "presenters": []},
+            {"seq": "02", "title": "跨机房容灾部署规划", "presenters": []},
+        ],
+    }
+
+    transcript = """
+发言者 1 00:00:10
+大家早上好，我们首先进入微服务治理演进的讨论。
+
+发言者 2 00:00:30
+我来汇报微服务治理演进。本期我们完成了网格化代理的下沉，整体调用链路时延优化了 30%，熔断策略已在生产集群全量生效。
+
+发言者 1 00:15:00
+辛苦王工。接下来我们切到跨机房容灾部署规划。
+
+发言者 3 00:15:30
+关于跨机房容灾部署规划，我们规划了双活集群架构，两地三中心部署，专线延迟压到 15ms 以内，保障核心业务故障分钟级自动切换。
+
+发言者 1 00:30:00
+好，容灾部分明确了。现在我们回到议题一（微服务治理演进），把刚才讨论的时延兜底指标再核对一下。
+
+发言者 2 00:30:30
+好的，关于微服务治理的时延兜底指标，我们补充了降级超时阈值设为 200ms 的保护规则，已与 SRE 团队完成确认。
+
+发言者 1 00:40:00
+没问题，今天的两项技术议题全部拍板通过，散会！
+    """.strip()
+
+    res = process_agenda_for_minutes(transcript, agenda_dict)
+    assert res.has_valid_agenda is True
+    valid_titles = [a.title for a in res.valid_agendas]
+    assert valid_titles == ["微服务治理演进", "跨机房容灾部署规划"]
+
+    # 验证议题 1 成功聚合了开场的汇报与回溯后的补充讨论
+    item1 = res.valid_agendas[0]
+    assert item1.title == "微服务治理演进"
+    item1_contents = " ".join(b.content for b in item1.matched_blocks)
+    assert "网格化代理的下沉" in item1_contents
+    assert "降级超时阈值设为 200ms" in item1_contents
+
+    # 验证打标文本结构
+    tagged = res.tagged_transcript
+    assert "【议题 1：微服务治理演进】" in tagged
+    assert "【议题 2：跨机房容灾部署规划】" in tagged
+    assert "降级超时阈值设为 200ms" in tagged
+
+
+def test_track_b_grep_implicit_transition():
+    """验证 Track B: 主持人未说'接下来'，发言人直接开讲下一议题时通过专名 Grep 平滑切入."""
+    agenda_dict = {
+        "theme": "技术战略会",
+        "agenda_items": [
+            {"seq": "01", "title": "交易链路重构方案", "presenters": []},
+            {"seq": "02", "title": "跨机房容灾部署规划", "presenters": []},
+        ],
+    }
+
+    transcript = """
+发言者 1 00:00:10
+我们首先看交易链路重构方案。
+
+发言者 2 00:00:30
+交易链路重构方案重点在改造异步事件队列与订单状态机，目前核心代码已交付评审，单机吞吐提升 3 倍。
+
+发言者 3 00:18:00
+跨机房容灾部署规划这块，我们两地三中心基础设施已经全部就绪，容灾演练指标正常，专线时延压到 15ms，随时可以启动联合演练。
+
+发言者 1 00:35:00
+感谢两位，方案全部通过！
+    """.strip()
+
+    res = process_agenda_for_minutes(transcript, agenda_dict)
+    assert res.has_valid_agenda is True
+    valid_titles = [a.title for a in res.valid_agendas]
+    assert valid_titles == ["交易链路重构方案", "跨机房容灾部署规划"]
+
+    # 验证未说转场词的发言者 3 被精准切入议题 2
+    item2 = res.valid_agendas[1]
+    assert item2.title == "跨机房容灾部署规划"
+    assert any("两地三中心" in b.content for b in item2.matched_blocks)
+
+
+def test_track_b_grep_does_not_trigger_on_casual_mention():
+    """验证 Track B: 当前议题发言中偶发提及后序议题的单个泛词，不会被误切题."""
+    agenda_dict = {
+        "theme": "技术战略会",
+        "agenda_items": [
+            {"seq": "01", "title": "交易链路重构方案", "presenters": []},
+            {"seq": "02", "title": "跨机房容灾部署规划", "presenters": []},
+        ],
+    }
+
+    transcript = """
+发言者 1 00:00:10
+我们首先看交易链路重构方案。
+
+发言者 2 00:00:30
+交易链路重构方案重点在改造异步事件队列。我们在方案设计时也规划了异常情况的处理逻辑，后续跟容灾团队再对齐。我们本期主要目标是确保交易高可用。
+
+发言者 2 00:05:00
+另外交易链路的核心数据库分表分库改造也完成了第一阶段，读写性能提升明显。
+
+发言者 1 00:20:00
+辛苦张工。下面我们来看跨机房容灾部署规划。
+
+发言者 3 00:20:30
+跨机房容灾部署规划这块，我们规划了双活集群架构，两地三中心部署。
+    """.strip()
+
+    res = process_agenda_for_minutes(transcript, agenda_dict)
+    assert res.has_valid_agenda is True
+    # 验证发言者 2 偶发提到“规划”和“容灾”，但没有成体系密集命中，依然全部归于议题 1
+    item1 = res.valid_agendas[0]
+    assert len(item1.matched_blocks) >= 2
+    assert any("分表分库改造" in b.content for b in item1.matched_blocks)
+
+
 

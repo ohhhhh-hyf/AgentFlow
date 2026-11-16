@@ -243,6 +243,19 @@ def _match_token_in_text(token: str, text: str) -> bool:
     return False
 
 
+_ORDINAL_MAP_ZH = {
+    1: "一", 2: "二", 3: "三", 4: "四", 5: "五",
+    6: "六", 7: "七", 8: "八", 9: "九", 10: "十",
+    11: "十一", 12: "十二", 13: "十三", 14: "十四", 15: "十五",
+    16: "十六", 17: "十七", 18: "十八", 19: "十九", 20: "二十",
+}
+
+_ORDINAL_MAP_EN = {
+    1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
+    6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten",
+}
+
+
 def _build_item_signals_for_content_track(
     it: AgendaItemParsed, *, lang: str = "zh"
 ) -> list[str]:
@@ -270,6 +283,17 @@ def _build_item_signals_for_content_track(
         for match in re.finditer(r"\b(?:Dr|Prof)\.?\s+([A-Z][A-Za-z.'’\-]*)", combined, re.IGNORECASE):
             signals.append(match.group(0))
             signals.append(match.group(1))
+        # 英文序号指代 (item 1, topic one 等)
+        m_num = re.search(r"\d+", it.seq or "")
+        if m_num:
+            n = int(m_num.group(0))
+            if 1 <= n <= 20:
+                signals.append(f"item {n}")
+                signals.append(f"topic {n}")
+                en_word = _ORDINAL_MAP_EN.get(n)
+                if en_word:
+                    signals.append(f"item {en_word}")
+                    signals.append(f"topic {en_word}")
         return list(dict.fromkeys(s for s in signals if s and len(s) >= 2))
 
     # 通用角色与尊称提取 (提取姓氏+尊称如 张总、李工、王主任等)
@@ -302,13 +326,32 @@ def _build_item_signals_for_content_track(
     if any(k in combined for k in ("视频", "开场", "观看", "播放")):
         signals.extend(["视频观看", "开场视频", "视频播放"])
 
+    # 中文序号与序数代称指代 (议题1, 议题一, 第1项, 第一个议题等)
+    m_num = re.search(r"\d+", it.seq or "")
+    if m_num:
+        n = int(m_num.group(0))
+        if 1 <= n <= 20:
+            signals.append(f"议题{n}")
+            signals.append(f"第{n}个议题")
+            signals.append(f"第{n}项")
+            signals.append(f"第{n}项议题")
+            zh_word = _ORDINAL_MAP_ZH.get(n)
+            if zh_word:
+                signals.append(f"议题{zh_word}")
+                signals.append(f"第{zh_word}个议题")
+                signals.append(f"第{zh_word}项")
+                signals.append(f"第{zh_word}项议题")
+
     return list(dict.fromkeys(s for s in signals if s and len(s) >= 2))
 
 
 # ── 转场路标与高置信信号库 ───────────────────────────────────────────────────
 
+# 1. 常规推进转场词（扩充职场高频口语与主持用语）
 _TRANSITION_ROADSIGN_PATTERN = re.compile(
-    r"(?:接下来|下面|现在|进入|进行|开启|有请|开始|议程|环节|仪式|请.*?移步|移步|尾声)"
+    r"(?:接下来|下面|我们来看|来看一下|现在看|先看|首先看|首先|先来|先讨论|先过一下|先汇报|"
+    r"进入下一个|进入下一项|切到|转到|过一下|看一下|同步一下|开始讨论|开始审定|下面由|请.*?汇报|"
+    r"把麦交给|有请|到.*?部分|关于下一个|下一项|下个模块|开启|进入|进行|现在|开始|仪式|环节|议程|请.*?移步|移步|尾声)"
 )
 
 _HIGH_CONFIDENCE_SIGNALS = {
@@ -316,15 +359,26 @@ _HIGH_CONFIDENCE_SIGNALS = {
     "团队交流", "互动交流", "领导致辞",
 }
 
+# 2. 显式回溯信号（用于识别回到前置议题，词量极少但极准）
+_BACKWARD_ROADSIGN_PATTERN = re.compile(
+    r"(?:回到|重新看|重新讨论|倒回去|先跳过.*?看|先把.*?过了|回头再对)"
+)
+
 _TRANSITION_ROADSIGN_PATTERN_EN = re.compile(
-    r"\b(?:next|moving on|let'?s move|up next|switching to|going to|"
-    r"start with|begin with|wrap up)\b",
+    r"\b(?:next|moving on to|moving on|let'?s turn to|let'?s move|turning to|up next|"
+    r"next topic|next item|switch to|switching to|going to|look at|hand over to|pass the mic to|"
+    r"take it away|dive into|start with|begin with|let'?s start|first off|first up|wrap up|our next speaker)\b",
     re.IGNORECASE,
 )
 
 _HIGH_CONFIDENCE_SIGNALS_EN = {
     "group photo", "signing ceremony", "q&a", "keynote", "opening remarks",
 }
+
+_BACKWARD_ROADSIGN_PATTERN_EN = re.compile(
+    r"\b(?:back to|circle back to|revisit|jump to|skip to|return to|coming back to|go back to)\b",
+    re.IGNORECASE,
+)
 
 
 # ── 礼仪性/动线剪枝与实质性研讨保护规则 ─────────────────────────────────────
@@ -452,6 +506,22 @@ def is_trivial_ceremonial_item(
 # ── Track B: 基于语义信号与转场路标的单调状态机对齐引擎 ─────────────────────
 
 
+def _parse_timestamp_seconds(ts: str | None) -> float | None:
+    """解析如 '00:00:03', '09:05:00', '01:23', '[00:00:10]' 等时间戳为秒数. 若无时间戳或不合法返回 None."""
+    if not ts:
+        return None
+    s = ts.strip().strip("[]()")
+    parts = s.split(":")
+    try:
+        if len(parts) == 3:
+            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+        elif len(parts) == 2:
+            return float(parts[0]) * 60 + float(parts[1])
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
 def _align_by_topics_and_roadsigns(
     plan: AgendaPlan,
     blocks: list[DiscussionBlock],
@@ -474,34 +544,141 @@ def _align_by_topics_and_roadsigns(
         if lang_key == "en"
         else _TRANSITION_ROADSIGN_PATTERN
     )
+    backward_pattern = (
+        _BACKWARD_ROADSIGN_PATTERN_EN
+        if lang_key == "en"
+        else _BACKWARD_ROADSIGN_PATTERN
+    )
     high_confidence = (
         _HIGH_CONFIDENCE_SIGNALS_EN
         if lang_key == "en"
         else _HIGH_CONFIDENCE_SIGNALS
     )
 
-    def _find_transition_candidate(b: DiscussionBlock, from_idx: int) -> tuple[str, int, str] | None:
+    # 建立开场免疫窗口基准时间戳
+    first_ts_seconds: float | None = None
+    for b in blocks:
+        t_sec = _parse_timestamp_seconds(b.timestamp)
+        if t_sec is not None:
+            first_ts_seconds = t_sec
+            break
+
+    def _get_elapsed_seconds(b: DiscussionBlock) -> float | None:
+        if first_ts_seconds is None:
+            return None
+        t_sec = _parse_timestamp_seconds(b.timestamp)
+        if t_sec is None:
+            return None
+        return max(0.0, t_sec - first_ts_seconds)
+
+    def _is_in_opening_window(b: DiscussionBlock, b_idx: int) -> bool:
+        """判定发言块是否处于开场 3 分钟（180秒）或前 4 个发言块的免疫期."""
+        elapsed = _get_elapsed_seconds(b)
+        if elapsed is not None:
+            return elapsed <= 180.0
+        return b_idx <= 4
+
+    def _find_transition_candidate(
+        b: DiscussionBlock, from_idx: int, b_idx: int,
+    ) -> tuple[str, int, str] | None:
         content = b.content
         has_trans_pattern = bool(transition_pattern.search(content))
+        has_backward_pattern = bool(backward_pattern.search(content))
         cands: list[tuple[str, int, str]] = []
 
-        for idx in range(from_idx, len(items)):
-            seq = items[idx].seq
-            signals = item_signals[seq]
-            for sig in signals:
-                matched = (
-                    _match_token_in_text(sig, content)
-                    if lang_key == "en"
-                    else sig in content
-                )
-                if not matched:
+        # 1. Task 2.1: 显式回溯路标（回到/重新看/revisit/circle back）：临时放开全局扫描
+        if has_backward_pattern:
+            for idx in range(0, len(items)):
+                seq = items[idx].seq
+                if seq == current_seq:
                     continue
-                normalized_sig = sig.casefold() if lang_key == "en" else sig
-                if has_trans_pattern or normalized_sig in high_confidence:
-                    cands.append((seq, idx, sig))
+                signals = item_signals[seq]
+                for sig in signals:
+                    matched = (
+                        _match_token_in_text(sig, content)
+                        if lang_key == "en"
+                        else sig in content
+                    )
+                    if matched:
+                        cands.append((seq, idx, sig))
+
+        # 2. 常规推进路标（接下来/下面/切到）或高置信信号（全体合影/领导致辞）
+        if has_trans_pattern:
+            for idx in range(from_idx, len(items)):
+                seq = items[idx].seq
+                if seq == current_seq:
+                    continue
+                signals = item_signals[seq]
+                for sig in signals:
+                    matched = (
+                        _match_token_in_text(sig, content)
+                        if lang_key == "en"
+                        else sig in content
+                    )
+                    if matched:
+                        cands.append((seq, idx, sig))
+        else:
+            for idx in range(from_idx, len(items)):
+                seq = items[idx].seq
+                if seq == current_seq:
+                    continue
+                signals = item_signals[seq]
+                for sig in signals:
+                    matched = (
+                        _match_token_in_text(sig, content)
+                        if lang_key == "en"
+                        else sig in content
+                    )
+                    if not matched:
+                        continue
+                    normalized_sig = sig.casefold() if lang_key == "en" else sig
+                    if normalized_sig in high_confidence:
+                        cands.append((seq, idx, sig))
+
+        # 3. Task 2.2: 专名 Grep 辅助对齐（无转场词时的隐式自然过渡）
+        # 条件：发言块有实质讨论（>=30字），且未触发任何路标，检查后续未访问议题的标题或专名密集度
+        if not cands and not has_trans_pattern and not has_backward_pattern and len(content) >= 30:
+            for idx in range(from_idx, len(items)):
+                it = items[idx]
+                if it.seq == current_seq or it.seq in visited_seqs:
+                    continue
+                # A. 完整标题匹配（>= 4字）
+                if it.title and len(it.title) >= 4 and (
+                    _match_token_in_text(it.title, content)
+                    if lang_key == "en"
+                    else it.title in content
+                ):
+                    cands.append((it.seq, idx, it.title))
+                    break
+                # B. 特征专名词群高频命中（命中 >= 2 个专名词）
+                toks = extract_distinctive_tokens(it.title)
+                matched_toks = [
+                    tok for tok in toks
+                    if len(tok) >= 2 and (
+                        _match_token_in_text(tok, content)
+                        if lang_key == "en"
+                        else tok in content
+                    )
+                ]
+                if len(matched_toks) >= 2:
+                    best_tok = max(matched_toks, key=len)
+                    cands.append((it.seq, idx, best_tok))
+                    break
 
         if not cands:
             return None
+
+        # 开场防报菜名误触守卫：单块密集命中多个议题时为议程宣读
+        if _is_in_opening_window(b, b_idx):
+            matched_seqs = {c[0] for c in cands}
+            if len(matched_seqs) >= 2:
+                if current_seq is not None:
+                    # 已处于某议题中，忽略后续议题宣读，防止冲刷
+                    return None
+                # 尚未进入任何议题，仅允许按序匹配首个候选议题，防止直接早跳至会末议题
+                cands.sort(key=lambda x: x[1])
+                return cands[0]
+
         # 优先匹配专有度最高 (字长最长) 的路标，同长度优先最近未处理议题
         cands.sort(key=lambda x: (len(x[2]), -x[1]), reverse=True)
         return cands[0]
@@ -510,19 +687,34 @@ def _align_by_topics_and_roadsigns(
     current_idx = 0
     assigned: dict[int, str | None] = {}
     transitions: list[tuple[int, str, str, str, str]] = []
+    visited_seqs: set[str] = set()
 
-    for b in blocks:
-        cand = _find_transition_candidate(b, current_idx)
+    for b_idx, b in enumerate(blocks):
+        cand = _find_transition_candidate(b, current_idx, b_idx)
         if cand:
             seq, idx, sig = cand
             if seq != current_seq:
+                # 开场防快速连续空转守卫：当前议题若在开场期内累积实质讨论 < 60 字，且当前发言块 < 50 字，抑制跳往后续议题
+                if current_seq is not None and _is_in_opening_window(b, b_idx) and len(b.content) < 50:
+                    curr_chars = sum(len(blk.content) for blk in blocks[:b_idx] if assigned.get(blk.index) == current_seq)
+                    if curr_chars < 60:
+                        logger.debug(
+                            "[TRACK_B_ALIGN] 开场免疫期抑制过早切题: 块 %d 字数=%d, 当前议题 %s 累计字数=%d < 60, 抑制切往议题 %s",
+                            b.index, len(b.content), current_seq, curr_chars, seq,
+                        )
+                        assigned[b.index] = current_seq
+                        continue
+
                 logger.debug(
                     "[TRACK_B_ALIGN] 发现路标切换: 块 %d [%s %s] 命中信号 '%s' -> 切换至议题 %s",
                     b.index, b.speaker, b.timestamp, sig, seq,
                 )
                 transitions.append((b.index, b.speaker, b.timestamp, sig, seq))
                 current_seq = seq
-                current_idx = idx + 1
+                visited_seqs.add(seq)
+                # 动态更新未访问游标：指向尚未开始讨论的最小议题索引
+                unvisited = [i for i, it in enumerate(items) if it.seq not in visited_seqs]
+                current_idx = min(unvisited) if unvisited else len(items)
         assigned[b.index] = current_seq
 
     if transitions:
