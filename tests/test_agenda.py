@@ -480,4 +480,61 @@ def test_track_b_grep_does_not_trigger_on_casual_mention():
     assert any("分表分库改造" in b.content for b in item1.matched_blocks)
 
 
+def test_track_b_sequential_meeting_with_skipped_opening_video():
+    """验证 Track B: 开场跳过视频直接进入致辞，顺序推进致辞->交流->签署，不跳题或回弹吸收."""
+    agenda_dict = {
+        "theme": "战队动员与誓师大会",
+        "agenda_items": [
+            {"seq": "01", "title": "活动开场视频播放", "presenters": []},
+            {"seq": "02", "title": "何刚总致辞", "presenters": []},
+            {"seq": "03", "title": "互动交流", "presenters": []},
+            {"seq": "04", "title": "任务令签署与授予", "presenters": []},
+            {"seq": "05", "title": "全体合影", "presenters": []},
+        ],
+    }
+
+    transcript = """
+发言者 1 00:00:05
+大家下午好，今天会议由何总致辞，与大家交流研讨。下面有请何总上台致辞，大家掌声欢迎！
+
+发言者 2 00:00:25
+各位同事下午好，非常高兴来到北研所。当前大模型攻坚战已进入决胜阶段，端侧算力与算法优化是重中之重。
+我们要聚焦客户痛点，把模型推理时延压下来，按计划保障核心版本稳定交付，大家要有必胜信念！
+
+发言者 1 00:15:00
+非常感谢何总的动员讲话。接下来我们进入互动交流环节，现场问答与自由研讨，各组同事可以就算法架构与算力支持提问。
+
+发言者 3 00:15:30
+何总好，我是端侧算法战队的。我们在轻量化量化方面遇到了精度损失挑战，希望底层工具链能提供更多调优支持。
+
+发言者 2 00:16:30
+这个问题很关键，系统软件团队下周会专门安排工具链培训，并提供定制化的算子融合库，全力支持算法调优。
+
+发言者 1 00:45:00
+好的，互动交流告一段落。下面进行任务令签署与授予仪式，请各战队负责人上台受领任务令！
+
+发言者 4 00:45:30
+我们战队郑重签署任务令，坚决保质保量完成端侧模型交付任务，使命必达！
+
+发言者 1 00:48:00
+感谢各位负责人。会议最后一项是全体合影，请全体参会人员移步前台合影留念！
+    """.strip()
+
+    res = process_agenda_for_minutes(transcript, agenda_dict)
+    assert res.has_valid_agenda is True
+
+    valid_titles = [a.title for a in res.valid_agendas]
+    assert valid_titles == ["何刚总致辞", "互动交流", "任务令签署与授予"]
+
+    # 验证各议题的匹配发言块被独立切片，未被前序议题错误吸收
+    speech_item = res.valid_agendas[0]
+    qa_item = res.valid_agendas[1]
+    signing_item = res.valid_agendas[2]
+
+    assert any("必胜信念" in b.content for b in speech_item.matched_blocks)
+    assert any("算子融合库" in b.content for b in qa_item.matched_blocks)
+    assert any("郑重签署任务令" in b.content for b in signing_item.matched_blocks)
+
+
+
 
